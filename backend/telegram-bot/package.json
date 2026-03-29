@@ -1,6 +1,7 @@
 {
   "name": "agrocrown-telegram-bot",
   "version": "1.0.0",
+  
   "description": "AgroCrown Admin Dashboard via Telegram Bot",
   "main": "bot.js",
   "scripts": {
