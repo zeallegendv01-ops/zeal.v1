@@ -228,4 +228,13 @@ const productSchema = new mongoose.Schema({
   }
 });
 
+// Indexes for frequently queried fields
+productSchema.index({ category: 1 });
+productSchema.index({ status: 1 });
+productSchema.index({ type: 1 });
+productSchema.index({ supplier: 1 });
+productSchema.index({ createdAt: -1 });
+productSchema.index({ category: 1, status: 1 });  // Compound index for filtering by category and status
+productSchema.index({ type: 1, status: 1 });      // Compound index for filtering by type and status
+
 module.exports = mongoose.model('Product', productSchema);

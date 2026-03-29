@@ -51,6 +51,12 @@ connectDB();
 mongoose.connection.once('open', async () => {
   console.log('🔗 Database connection ready, initializing admin user...');
   await initializeAdminUser();
+  
+  // Start server listening ONLY after database is connected
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 });
 
 // Configure multer for file uploads
@@ -144,9 +150,3 @@ app.use('*', (req, res) => {
 
 // Error handling middleware
 app.use(errorHandler);
-
-const PORT = process.env.PORT || 4000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
