@@ -1,7 +1,5 @@
 /* ══════════════════ API SERVICE ══════════════════ */
-const API_BASE_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:4000/api'
-  : `${window.location.protocol}//${window.location.host}/api`;
+// API_BASE_URL is defined in script.js - reuse from global scope
 
 class ApiService {
   constructor() {

@@ -200,7 +200,7 @@ const chartData={
 // Fetch analytics from API
 async function fetchAnalytics(){
   try {
-    const response=await fetch('/api/analytics/dashboard');
+    const response=await fetch(`${API_BASE_URL}/analytics/dashboard`);
     if(!response.ok) throw new Error('Failed to fetch analytics');
     const result=await response.json();
     if(result.success){
@@ -363,7 +363,7 @@ function formatNumber(num){
 //  USER ANALYTICS 
 async function loadUserAnalytics(){
   try {
-    const response=await fetch('/api/analytics/user',{
+    const response=await fetch(`${API_BASE_URL}/analytics/user`,{
       headers:{'Authorization':`Bearer ${apiService.getToken()}`}
     });
     if(!response.ok) throw new Error('Failed to fetch user analytics');
@@ -1525,13 +1525,6 @@ async function initializeApp() {
   try {
     updateCartDisplay();
     
-    // Load global products (search suggestions)
-    try {
-      await loadGlobalProducts();
-    } catch(e) {
-      console.warn('[DEBUG] loadGlobalProducts timed out or failed:', e);
-    }
-    
     // Add checkout button event listener
     const checkoutBtn = document.getElementById('cartCheckout');
     if(checkoutBtn){
@@ -1547,26 +1540,25 @@ async function initializeApp() {
     // Stop polling when user leaves the page
     window.addEventListener('beforeunload', stopProductPolling);
     
-    console.log('[DEBUG] Initialization complete, hiding loader');
-    hidePageLoader();
+    // Load global products (search suggestions) in background
+    loadGlobalProducts().catch(e => console.warn('[DEBUG] loadGlobalProducts timed out or failed:', e));
     
-    // Load products asynchronously without blocking loader
-    fetchProducts().catch(e => console.warn('[DEBUG] fetchProducts failed:', e));
+    // FETCH PRODUCTS FIRST - WAIT FOR THIS TO COMPLETE
+    console.log('[DEBUG] Fetching products...');
+    await fetchProducts();
+    
+    // NOW start polling for updates
+    console.log('[DEBUG] Starting product polling');
     startProductPolling();
+    
+    // FINALLY hide the loader after products are loaded
+    console.log('[DEBUG] Products loaded, hiding loader');
+    hidePageLoader();
     
   } catch(error) {
     console.error('[DEBUG] Initialization error:', error);
-    hidePageLoader();
+    hidePageLoader(); // Hide loader even on error
   }
-  
-  // Fallback: Ensure loader is hidden after 2 seconds no matter what
-  setTimeout(() => {
-    const loader = document.getElementById('pageLoader');
-    if(loader && !loader.classList.contains('hidden')) {
-      console.log('[DEBUG] Fallback: Force hiding loader');
-      loader.classList.add('hidden');
-    }
-  }, 2000);
 }
 
 // Run immediately if DOM is already loaded (scripts at end of HTML), otherwise wait for event
@@ -1735,6 +1727,8 @@ function showPageLoader() {
     loader.classList.remove('hidden');
   }
 }
+
+
 
 // Hide page loader with smooth fade and completion sound
 function hidePageLoader() {
