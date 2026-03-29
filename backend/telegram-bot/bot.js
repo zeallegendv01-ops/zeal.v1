@@ -915,26 +915,35 @@ bot.action('products_create', async (ctx) => {
 bot.action('add_product_type', async (ctx) => {
   await ctx.answerCbQuery();
   userContext[ctx.from.id] = { step: 'create_product_name', type: 'product', command: 'addproduct' };
+  console.log(`[Bot] Product creation started for user ${ctx.from.id}`);
   return ctx.editMessageText(' <b>Create New Product</b>\n\nEnter product name:', { parse_mode: 'HTML' });
 });
 
 bot.action('add_land_type', async (ctx) => {
   await ctx.answerCbQuery();
   userContext[ctx.from.id] = { step: 'create_land_name', type: 'land', command: 'addland' };
+  console.log(`[Bot] Land creation started for user ${ctx.from.id}`);
   return ctx.editMessageText(' <b>Create New Land Property</b>\n\nEnter property name:', { parse_mode: 'HTML' });
 });
 
 bot.on('text', errorWrapper(async (ctx) => {
   const userId = ctx.from.id;
   const context = userContext[userId];
+  const text = ctx.message.text;
 
-  if (!context) return;
+  console.log(`[Bot] Text from ${userId}: "${text}" (Context step: ${context?.step || 'none'})`);
+
+  if (!context) {
+    console.log(`[Bot] No context for user ${userId}`);
+    return;
+  }
 
   switch (context.step) {
       case 'create_product_name':
-        context.name = ctx.message.text;
+        console.log(`[Bot] Setting product name: ${text}`);
+        context.name = text;
         context.step = 'create_product_description';
-        return ctx.reply('Enter product description:');
+        return ctx.reply('✏️ Enter product description:');
 
       case 'create_product_description':
         context.description = ctx.message.text;
