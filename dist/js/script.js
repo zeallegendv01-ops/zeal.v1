@@ -1744,9 +1744,6 @@ function hidePageLoader() {
     console.warn('[DEBUG] Page loader element not found');
   }
 }
-    }, 600);
-  }
-}
 
 // Add animation for sound indicator
 const style = document.createElement('style');
