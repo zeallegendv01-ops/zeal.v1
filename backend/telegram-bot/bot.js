@@ -1971,8 +1971,18 @@ setInterval(() => {
     console.log(` Authorized Admin IDs: ${ADMIN_IDS.join(', ') || 'None configured'}`);
     console.log(' Features: Caching, Rate Limiting, Request Queuing, Connection Pooling, Auto Token Refresh');
   } catch (err) {
-    console.warn(' Bot launch error (bot will retry):', err.message);
-    console.log(' Ensure internet connection and TELEGRAM_BOT_TOKEN is valid');
+    // Handle 409 Conflict (multiple instances during Render redeploy)
+    if (err.message?.includes('409')) {
+      console.warn(' Bot conflict detected during redeploy - retrying...');
+      setTimeout(() => {
+        bot.launch().then(() => {
+          console.log(' Bot recovered and is running');
+        }).catch(e => console.error(' Bot recovery failed:', e.message));
+      }, 5000);
+    } else {
+      console.warn(' Bot launch error (bot will retry):', err.message);
+      console.log(' Ensure internet connection and TELEGRAM_BOT_TOKEN is valid');
+    }
     // Don't crash - bot can still receive messages via polling
   }
 })();
