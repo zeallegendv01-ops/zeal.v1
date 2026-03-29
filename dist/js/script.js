@@ -1,4 +1,10 @@
 ﻿/*  PWA SERVICE WORKER & INSTALL PROMPT  */
+
+// Dynamic API Base URL
+const API_BASE_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:4000/api'
+  : `${window.location.protocol}//${window.location.host}/api`;
+
 let deferredPrompt = null;
 
 // Register service worker
@@ -99,7 +105,7 @@ let globalProducts = [
 
 async function loadGlobalProducts(){
   try{
-    const response = await fetch("http://localhost:4000/api/products");
+    const response = await fetch(`${API_BASE_URL}/products`);
     const data = await response.json();
     if(data.success){
       console.log('Global products loaded:', data.data);
@@ -669,8 +675,8 @@ let productCheckInterval = null;
 
 async function fetchProducts(){
   try{
-    console.log('[DEBUG] Fetching products from http://localhost:4000/api/products');
-    const response = await fetch('http://localhost:4000/api/products');
+    console.log('[DEBUG] Fetching products from', `${API_BASE_URL}/products`);
+    const response = await fetch(`${API_BASE_URL}/products`);
     console.log('[DEBUG] Response status:', response.status);
     
     if (!response.ok) {
@@ -710,7 +716,7 @@ function startProductPolling(){
   
   productCheckInterval = setInterval(async () => {
     try{
-      const response = await fetch('http://localhost:4000/api/products');
+      const response = await fetch(`${API_BASE_URL}/products`);
       const data = await response.json();
       
       if(data.success && data.data.length !== lastProductCount){
