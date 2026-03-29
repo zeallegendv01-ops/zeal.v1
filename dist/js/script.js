@@ -689,7 +689,13 @@ let productCheckInterval = null;
 async function fetchProducts(){
   try{
     console.log('[DEBUG] Fetching products from', `${API_BASE_URL}/products`);
-    const response = await fetch(`${API_BASE_URL}/products`);
+    
+    // Add timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
+    const response = await fetch(`${API_BASE_URL}/products`, { signal: controller.signal });
+    clearTimeout(timeoutId);
     console.log('[DEBUG] Response status:', response.status);
     
     if (!response.ok) {
@@ -729,7 +735,12 @@ function startProductPolling(){
   
   productCheckInterval = setInterval(async () => {
     try{
-      const response = await fetch(`${API_BASE_URL}/products`);
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
+      const response = await fetch(`${API_BASE_URL}/products`, { signal: controller.signal });
+      clearTimeout(timeoutId);
       const data = await response.json();
       
       if(data.success && data.data.length !== lastProductCount){
@@ -1513,9 +1524,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   try {
     updateCartDisplay();
-    await loadGlobalProducts();
-    fetchProducts();
-    startProductPolling(); // Start auto-checking for new products
+    
+    // Load global products (search suggestions)
+    try {
+      await loadGlobalProducts();
+    } catch(e) {
+      console.warn('[DEBUG] loadGlobalProducts timed out or failed:', e);
+    }
     
     // Add checkout button event listener
     const checkoutBtn = document.getElementById('cartCheckout');
@@ -1534,19 +1549,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     console.log('[DEBUG] Initialization complete, hiding loader');
     hidePageLoader();
+    
+    // Load products asynchronously without blocking loader
+    fetchProducts().catch(e => console.warn('[DEBUG] fetchProducts failed:', e));
+    startProductPolling();
+    
   } catch(error) {
     console.error('[DEBUG] Initialization error:', error);
     hidePageLoader();
   }
   
-  // Fallback: Ensure loader is hidden after 3 seconds no matter what
+  // Fallback: Ensure loader is hidden after 2 seconds no matter what
   setTimeout(() => {
     const loader = document.getElementById('pageLoader');
     if(loader && !loader.classList.contains('hidden')) {
       console.log('[DEBUG] Fallback: Force hiding loader');
       loader.classList.add('hidden');
     }
-  }, 3000);
+  }, 2000);
 });
 
 // Contact form handler
