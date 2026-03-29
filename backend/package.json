@@ -6,7 +6,9 @@
   "scripts": {
     "server": "node server.js",
     "bot": "node telegram-bot/bot.js",
-    "start": "npm-run-all --parallel server bot",
+    "start": "node server.js",
+    "start-bot": "sleep 10 && node telegram-bot/bot.js",
+    "start-with-bot": "npm-run-all --parallel server start-bot",
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
