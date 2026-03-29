@@ -105,7 +105,13 @@ let globalProducts = [
 
 async function loadGlobalProducts(){
   try{
-    const response = await fetch(`${API_BASE_URL}/products`);
+    // Add timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
+    const response = await fetch(`${API_BASE_URL}/products`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
     const data = await response.json();
     if(data.success){
       console.log('Global products loaded:', data.data);
@@ -115,8 +121,13 @@ async function loadGlobalProducts(){
         img: p.image.replace("w=700", "w=400").replace("q=80", "q=70"),
         tags: `${p.name.toLowerCase()} ${p.description.toLowerCase()}`
       }));
+    } else {
+      console.warn('Failed to load products:', data.message);
     }
-  }catch(e){}
+  }catch(e){
+    console.error('Error loading products:', e.message);
+    // Use fallback products if API fails
+  }
 }
 
 function openSearch(){
@@ -1516,8 +1527,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Stop polling when user leaves the page
   window.addEventListener('beforeunload', stopProductPolling);
   
-  // Hide page loader when everything is loaded
-  hidePageLoader();
+  // Hide page loader when everything is loaded or after timeout
+  // Set a max timeout of 3 seconds to ensure loader is always hidden
+  setTimeout(() => hidePageLoader(), 3000);
+  loadGlobalProducts().finally(() => hidePageLoader());
 });
 
 // Contact form handler
