@@ -1982,12 +1982,26 @@ setInterval(() => {
   } catch (err) {
     // Handle 409 Conflict (multiple instances during Render redeploy)
     if (err.message?.includes('409')) {
-      console.warn(' Bot conflict detected during redeploy - retrying...');
+      console.warn(' Bot conflict detected during redeploy - waiting 15s before retry...');
+      
+      // First retry after 15 seconds
       setTimeout(() => {
         bot.launch().then(() => {
-          console.log(' Bot recovered and is running');
-        }).catch(e => console.error(' Bot recovery failed:', e.message));
-      }, 5000);
+          console.log(' ✅ Bot recovered and is running');
+        }).catch(retryErr => {
+          console.warn(' Bot recovery attempt 1 failed:', retryErr.message);
+          
+          // Second retry after another 15 seconds if first fails
+          setTimeout(() => {
+            bot.launch().then(() => {
+              console.log(' ✅ Bot recovered on second attempt and is running');
+            }).catch(finalErr => {
+              console.warn(' Bot polling failed, but bot will still receive messages:', finalErr.message);
+              console.log(' Note: Bot message handlers are still active, just polling may be delayed');
+            });
+          }, 15000);
+        });
+      }, 15000);
     } else {
       console.warn(' Bot launch error (bot will retry):', err.message);
       console.log(' Ensure internet connection and TELEGRAM_BOT_TOKEN is valid');
