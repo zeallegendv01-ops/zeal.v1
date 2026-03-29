@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Error - AgroCrown</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: linear-gradient(135deg, #0d0d0b 0%, #1a1a18 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #0d0d0b;
+    }
+
+    .error-container {
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+      max-width: 600px;
+      width: 90%;
+      animation: slideIn 0.5s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .error-header {
+      background: linear-gradient(135deg, #0d0d0b 0%, #1a1a18 100%);
+      padding: 60px 30px;
+      text-align: center;
+    }
+
+    .error-icon {
+      font-size: 80px;
+      color: #ffd700;
+      margin-bottom: 20px;
+      display: inline-block;
+    }
+
+    .error-code {
+      font-size: 72px;
+      font-weight: 900;
+      color: #ffd700;
+      margin: 0;
+      line-height: 1;
+    }
+
+    .error-title {
+      color: #ccc;
+      font-size: 24px;
+      margin-top: 20px;
+      font-weight: 400;
+    }
+
+    .error-body {
+      padding: 40px 30px;
+      text-align: center;
+    }
+
+    .error-message {
+      font-size: 16px;
+      color: #666;
+      line-height: 1.8;
+      margin-bottom: 30px;
+    }
+
+    .error-details {
+      background: #f9f9f9;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      text-align: left;
+      font-size: 14px;
+      color: #555;
+      font-family: 'Courier New', monospace;
+      max-height: 150px;
+      overflow-y: auto;
+      display: none;
+    }
+
+    .error-details.show {
+      display: block;
+    }
+
+    .error-actions {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 5px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background-color: #ffd700;
+      color: #0d0d0b;
+    }
+
+    .btn-primary:hover {
+      background-color: #ffed4e;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(255, 215, 0, 0.3);
+    }
+
+    .btn-secondary {
+      background-color: #333;
+      color: #fff;
+      border: 1px solid #555;
+    }
+
+    .btn-secondary:hover {
+      background-color: #555;
+      transform: translateY(-2px);
+    }
+
+    .error-footer {
+      background: #f9f9f9;
+      padding: 20px;
+      text-align: center;
+      border-top: 1px solid #eee;
+      font-size: 12px;
+      color: #999;
+    }
+
+    @media (max-width: 600px) {
+      .error-code {
+        font-size: 48px;
+      }
+
+      .error-title {
+        font-size: 18px;
+      }
+
+      .error-actions {
+        flex-direction: column;
+      }
+
+      .btn {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="error-container">
+    <div class="error-header">
+      <div class="error-icon" id="errorIcon">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <h1 class="error-code" id="errorCode">500</h1>
+      <h2 class="error-title" id="errorTitle">Something Went Wrong</h2>
+    </div>
+
+    <div class="error-body">
+      <p class="error-message" id="errorMessage">
+        We encountered an unexpected error. Our team has been notified and is working to resolve the issue.
+      </p>
+
+      <div class="error-details" id="errorDetails"></div>
+
+      <div class="error-actions">
+        <a href="/" class="btn btn-primary">
+          <i class="fa-solid fa-home"></i> Back to Home
+        </a>
+        <button class="btn btn-secondary" onclick="history.back()">
+          <i class="fa-solid fa-arrow-left"></i> Go Back
+        </button>
+      </div>
+    </div>
+
+    <div class="error-footer">
+      © 2026 AgroCrown Heritage. All Rights Reserved.
+    </div>
+  </div>
+
+  <script>
+    // Parse error from URL params
+    const params = new URLSearchParams(window.location.search);
+    const errorCode = params.get('code') || '500';
+    const errorMessage = params.get('message') || 'An unexpected error occurred. Please try again later.';
+    const errorDetails = params.get('details');
+
+    const errorMessages = {
+      400: { title: 'Bad Request', icon: 'fa-exclamation-circle' },
+      401: { title: 'Unauthorized', icon: 'fa-lock' },
+      403: { title: 'Forbidden', icon: 'fa-ban' },
+      404: { title: 'Page Not Found', icon: 'fa-magnifying-glass' },
+      500: { title: 'Server Error', icon: 'fa-triangle-exclamation' },
+      503: { title: 'Service Unavailable', icon: 'fa-server' }
+    };
+
+    const config = errorMessages[errorCode] || errorMessages[500];
+
+    document.getElementById('errorCode').textContent = errorCode;
+    document.getElementById('errorTitle').textContent = config.title;
+    document.getElementById('errorMessage').textContent = errorMessage;
+    document.getElementById('errorIcon').innerHTML = `<i class="fa-solid ${config.icon}"></i>`;
+
+    if (errorDetails) {
+      const detailsDiv = document.getElementById('errorDetails');
+      detailsDiv.textContent = decodeURIComponent(errorDetails);
+      detailsDiv.classList.add('show');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Email - AgroCrown</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: linear-gradient(135deg, #0d0d0b 0%, #1a1a18 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #0d0d0b;
+    }
+
+    .verify-container {
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+      max-width: 600px;
+      width: 90%;
+      animation: slideIn 0.5s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .verify-header {
+      background: linear-gradient(135deg, #0d0d0b 0%, #1a1a18 100%);
+      padding: 60px 30px;
+      text-align: center;
+    }
+
+    .verify-icon {
+      font-size: 80px;
+      color: #ffd700;
+      margin-bottom: 20px;
+      display: inline-block;
+    }
+
+    .verify-icon.loading {
+      animation: spin 2s linear infinite;
+    }
+
+    .verify-title {
+      color: #ccc;
+      font-size: 28px;
+      margin: 20px 0 0 0;
+      font-weight: 400;
+    }
+
+    .verify-body {
+      padding: 40px 30px;
+      text-align: center;
+    }
+
+    .verify-message {
+      font-size: 16px;
+      color: #666;
+      line-height: 1.8;
+      margin-bottom: 30px;
+    }
+
+    .btn {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 5px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background-color: #ffd700;
+      color: #0d0d0b;
+    }
+
+    .btn-primary:hover {
+      background-color: #ffed4e;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(255, 215, 0, 0.3);
+    }
+
+    .verify-footer {
+      background: #f9f9f9;
+      padding: 20px;
+      text-align: center;
+      border-top: 1px solid #eee;
+      font-size: 12px;
+      color: #999;
+    }
+
+    .success-content { display: none; }
+    .success-content.show { display: block; }
+    .loading-content { display: block; }
+    .loading-content.hide { display: none; }
+    .error-content { display: none; }
+    .error-content.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="verify-container">
+    <div class="verify-header">
+      <div class="verify-icon loading" id="verifyIcon">
+        <i class="fa-solid fa-spinner"></i>
+      </div>
+      <h1 class="verify-title" id="verifyTitle">Verifying Email</h1>
+    </div>
+
+    <div class="verify-body">
+      <!-- Loading State -->
+      <div class="loading-content" id="loadingContent">
+        <p class="verify-message">Please wait while we verify your email address...</p>
+      </div>
+
+      <!-- Success State -->
+      <div class="success-content" id="successContent">
+        <p class="verify-message" style="color: #27ae60; font-weight: 500;">
+           Your email has been successfully verified!
+        </p>
+        <p class="verify-message" style="color: #666;">
+          Your AgroCrown account is now active and ready to use. You can start exploring our premium agricultural exports.
+        </p>
+        <a href="/" class="btn btn-primary">
+          <i class="fa-solid fa-home"></i> Go to Home
+        </a>
+      </div>
+
+      <!-- Error State -->
+      <div class="error-content" id="errorContent">
+        <p class="verify-message" style="color: #e74c3c;">
+           Verification Failed
+        </p>
+        <p class="verify-message" id="errorMessage" style="color: #666;">
+          The verification link is invalid or has expired. Please request a new one.
+        </p>
+        <a href="/" class="btn btn-primary">
+          <i class="fa-solid fa-home"></i> Back to Home
+        </a>
+      </div>
+    </div>
+
+    <div class="verify-footer">
+       2026 AgroCrown Heritage. All Rights Reserved.
+    </div>
+  </div>
+
+  <script>
+    // Get verification token from URL
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+
+    // Simulate API request
+    async function verifyEmail() {
+      try {
+        const response = await fetch('/api/auth/verify-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showSuccess();
+        } else {
+          showError(data.message || 'Verification failed');
+        }
+      } catch (error) {
+        showError('An error occurred. Please try again.');
+      }
+    }
+
+    function showSuccess() {
+      document.getElementById('verifyIcon').innerHTML = '<i class="fa-solid fa-check-circle"></i>';
+      document.getElementById('verifyIcon').classList.remove('loading');
+      document.getElementById('verifyIcon').style.color = '#27ae60';
+      document.getElementById('verifyTitle').textContent = 'Email Verified';
+      document.getElementById('loadingContent').classList.add('hide');
+      document.getElementById('successContent').classList.add('show');
+    }
+
+    function showError(message) {
+      document.getElementById('verifyIcon').innerHTML = '<i class="fa-solid fa-exclamation-circle"></i>';
+      document.getElementById('verifyIcon').classList.remove('loading');
+      document.getElementById('verifyIcon').style.color = '#e74c3c';
+      document.getElementById('verifyTitle').textContent = 'Verification Failed';
+      document.getElementById('errorMessage').textContent = message;
+      document.getElementById('loadingContent').classList.add('hide');
+      document.getElementById('errorContent').classList.add('show');
+    }
+
+    // Start verification
+    if (token) {
+      verifyEmail();
+    } else {
+      showError('No verification token provided');
+    }
+  </script>
+</body>
+</html>

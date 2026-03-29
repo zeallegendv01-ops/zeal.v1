@@ -1,0 +1,74 @@
+{
+  "name": "AgroCrown - Premium Agricultural Exports",
+  "short_name": "AgroCrown",
+  "description": "Global Food Reserve - Premium-grade agricultural exports from West Africa. Organic certified, heritage-driven, field to world.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#0d0d0b",
+  "categories": ["shopping", "food"],
+  "screenshots": [
+    {
+      "src": "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=540&q=80",
+      "sizes": "540x720",
+      "type": "image/jpeg",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1024&q=80",
+      "sizes": "1024x600",
+      "type": "image/jpeg",
+      "form_factor": "wide"
+    }
+  ],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%230d0d0b' width='192' height='192'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='100' fill='%23ffd700' font-family='Arial' font-weight='bold'>🌾</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%230d0d0b' width='192' height='192'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='100' fill='%23ffd700' font-family='Arial' font-weight='bold'>🌾</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%230d0d0b' width='512' height='512'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='280' fill='%23ffd700' font-family='Arial' font-weight='bold'>🌾</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Browse Products",
+      "short_name": "Products",
+      "description": "Browse our curated collection",
+      "url": "/?section=products",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%23ffd700' width='96' height='96'/><text x='48' y='48' dominant-baseline='middle' text-anchor='middle' font-size='60' fill='%230d0d0b'>📦</text></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "View Cart",
+      "short_name": "Cart",
+      "description": "Check your shopping cart",
+      "url": "/?section=cart",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%23ffd700' width='96' height='96'/><text x='48' y='48' dominant-baseline='middle' text-anchor='middle' font-size='60' fill='%230d0d0b'>🛒</text></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}
