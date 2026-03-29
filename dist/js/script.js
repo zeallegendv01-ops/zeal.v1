@@ -1518,9 +1518,9 @@ async function verifyPayment(reference){
   }
 }
 
-// Initialize
-document.addEventListener('DOMContentLoaded', async () => {
-  console.log('[DEBUG] DOMContentLoaded - Starting initialization');
+// Initialize - run immediately if DOM is ready, or wait for DOMContentLoaded if not
+async function initializeApp() {
+  console.log('[DEBUG] App initialization - Starting');
   
   try {
     updateCartDisplay();
@@ -1567,7 +1567,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       loader.classList.add('hidden');
     }
   }, 2000);
-});
+}
+
+// Run immediately if DOM is already loaded (scripts at end of HTML), otherwise wait for event
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+  // DOM is already loaded, run initialization immediately
+  console.log('[DEBUG] DOM already loaded, initializing immediately');
+  initializeApp();
+}
 
 // Contact form handler
 async function handleContactForm(e){
