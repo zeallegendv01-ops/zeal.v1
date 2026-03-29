@@ -5,6 +5,8 @@ const API_BASE_URL = window.location.hostname === 'localhost'
   ? 'http://localhost:4000/api'
   : `${window.location.protocol}//${window.location.host}/api`;
 
+console.log('[DEBUG] API_BASE_URL:', API_BASE_URL);
+
 let deferredPrompt = null;
 
 // Register service worker
@@ -1506,31 +1508,45 @@ async function verifyPayment(reference){
 }
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
-  updateCartDisplay();
-  loadGlobalProducts();
-  fetchProducts();
-  startProductPolling(); // Start auto-checking for new products
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('[DEBUG] DOMContentLoaded - Starting initialization');
   
-  // Add checkout button event listener
-  const checkoutBtn = document.getElementById('cartCheckout');
-  if(checkoutBtn){
-    checkoutBtn.addEventListener('click', handleCheckout);
-  }
+  try {
+    updateCartDisplay();
+    await loadGlobalProducts();
+    fetchProducts();
+    startProductPolling(); // Start auto-checking for new products
+    
+    // Add checkout button event listener
+    const checkoutBtn = document.getElementById('cartCheckout');
+    if(checkoutBtn){
+      checkoutBtn.addEventListener('click', handleCheckout);
+    }
 
-  // Add contact form listener
-  const contactForm = document.querySelector('.contact-form');
-  if(contactForm){
-    contactForm.addEventListener('submit', handleContactForm);
-  }
+    // Add contact form listener
+    const contactForm = document.querySelector('.contact-form');
+    if(contactForm){
+      contactForm.addEventListener('submit', handleContactForm);
+    }
 
-  // Stop polling when user leaves the page
-  window.addEventListener('beforeunload', stopProductPolling);
+    // Stop polling when user leaves the page
+    window.addEventListener('beforeunload', stopProductPolling);
+    
+    console.log('[DEBUG] Initialization complete, hiding loader');
+    hidePageLoader();
+  } catch(error) {
+    console.error('[DEBUG] Initialization error:', error);
+    hidePageLoader();
+  }
   
-  // Hide page loader when everything is loaded or after timeout
-  // Set a max timeout of 3 seconds to ensure loader is always hidden
-  setTimeout(() => hidePageLoader(), 3000);
-  loadGlobalProducts().finally(() => hidePageLoader());
+  // Fallback: Ensure loader is hidden after 3 seconds no matter what
+  setTimeout(() => {
+    const loader = document.getElementById('pageLoader');
+    if(loader && !loader.classList.contains('hidden')) {
+      console.log('[DEBUG] Fallback: Force hiding loader');
+      loader.classList.add('hidden');
+    }
+  }, 3000);
 });
 
 // Contact form handler
@@ -1695,12 +1711,19 @@ function showPageLoader() {
 function hidePageLoader() {
   const loader = document.getElementById('pageLoader');
   if (loader) {
+    console.log('[DEBUG] Hiding page loader');
     // Play completion sound
     createCompletionSound();
     
     // Hide loader with animation
     setTimeout(() => {
       loader.classList.add('hidden');
+      console.log('[DEBUG] Page loader hidden successfully');
+    }, 100);
+  } else {
+    console.warn('[DEBUG] Page loader element not found');
+  }
+}
     }, 600);
   }
 }
