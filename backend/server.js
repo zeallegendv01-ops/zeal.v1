@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
+const sharp = require('sharp');
 const mongoose = require('mongoose');
 const connectDB = require('./config/database');
 const errorHandler = require('./middleware/errorHandler');
@@ -34,12 +35,12 @@ const initializeAdminUser = async () => {
         accountType: 'Distributor',
         phone: '1234567890'
       });
-      console.log('✅ Admin user created successfully');
+      console.log(' Admin user created successfully');
     } else {
-      console.log('✅ Admin user already exists');
+      console.log('Admin user already exists');
     }
   } catch (error) {
-    console.error('⚠️ Admin user initialization error:', error.message);
+    console.error(' Admin user initialization error:', error.message);
     // Don't exit - allow server to continue even if admin creation fails
   }
 };
@@ -113,18 +114,74 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 
-// Upload route
-app.post('/api/upload', upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ success: false, message: 'No file uploaded' });
-  }
+// Upload route - with automatic image compression
+app.post('/api/upload', upload.single('image'), async (req, res) => {
+  const fs = require('fs');
   
-  const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-  res.status(200).json({
-    success: true,
-    message: 'File uploaded successfully',
-    data: { imageUrl }
-  });
+  try {
+    // Option 2: File upload - compress and convert to Base64
+    if (req.file) {
+      const inputPath = req.file.path;
+      const filename = `compressed_${Date.now()}.jpg`;
+      const outputPath = path.join(__dirname, 'uploads', filename);
+      
+      // Compress image: 500×650px (3:4 aspect ratio to match card design)
+      // Optimized for desktop (640px), tablet (384px), and mobile (375px) displays
+      await sharp(inputPath)
+        .resize(500, 650, {
+          fit: 'cover',
+          position: 'center',
+          withoutEnlargement: true
+        })
+        .jpeg({ quality: 80, progressive: true })
+        .toFile(outputPath);
+      
+      // Read compressed file and convert to Base64
+      const compressedBuffer = fs.readFileSync(outputPath);
+      const base64Data = compressedBuffer.toString('base64');
+      const mimeType = 'image/jpeg';
+      const dataUrl = `data:${mimeType};base64,${base64Data}`;
+      
+      // Delete original uploaded file (keep compressed version in uploads/)
+      fs.unlinkSync(inputPath);
+      
+      console.log(`✅ Image compressed: ${req.file.originalname} → ${filename} (${(compressedBuffer.length / 1024).toFixed(2)}KB)`);
+      
+      return res.status(200).json({
+        success: true,
+        message: 'File uploaded and compressed successfully',
+        data: { 
+          imageData: base64Data,
+          mimeType: mimeType,
+          dataUrl: dataUrl,
+          filename: filename,
+          size: compressedBuffer.length // Size in bytes
+        }
+      });
+    }
+    
+    // Option 3: External URL input
+    if (req.body.imageUrl) {
+      const imageUrl = req.body.imageUrl;
+      // Basic URL validation
+      try {
+        new URL(imageUrl);
+        return res.status(200).json({
+          success: true,
+          message: 'Image URL registered successfully',
+          data: { imageUrl }
+        });
+      } catch (error) {
+        return res.status(400).json({ success: false, message: 'Invalid URL format' });
+      }
+    }
+    
+    // Neither file nor URL provided
+    res.status(400).json({ success: false, message: 'No file or URL provided' });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ success: false, message: 'Error processing image: ' + error.message });
+  }
 });
 
 // Health check

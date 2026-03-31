@@ -49,7 +49,7 @@ exports.getProductById = async (req, res, next) => {
 exports.createProduct = async (req, res, next) => {
   try {
     const { 
-      name, description, pricePerKg, category, image, quantity, certification, unit, minLimit, maxLimit, tags, type,
+      name, description, pricePerKg, category, image, imageData, imageMimeType, imageUrl, quantity, certification, unit, minLimit, maxLimit, tags, type,
       // Land-specific fields
       location, areaSqMeters, numberOfPlots, legalStatus, accessibility, landPricingType, pricePerPlot, pricePerSqMeter
     } = req.body;
@@ -57,8 +57,13 @@ exports.createProduct = async (req, res, next) => {
     // Debug: log incoming request body to help trace missing price issues
     console.log('createProduct - incoming req.body:', JSON.stringify(req.body));
 
-    if (!name || !description || !image) {
-      return res.status(400).json({ success: false, message: 'Please provide required fields: name, description, image' });
+    // Validate image: must have one of: image, imageData, or imageUrl
+    if (!image && !imageData && !imageUrl) {
+      return res.status(400).json({ success: false, message: 'Please provide an image (imageData for Base64, imageUrl for external URL, or image field)' });
+    }
+
+    if (!name || !description) {
+      return res.status(400).json({ success: false, message: 'Please provide required fields: name, description' });
     }
 
     // Resolve type default (treat omitted type as 'product')
@@ -108,12 +113,31 @@ exports.createProduct = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Maximum limit is required' });
     }
 
+    // Determine which image source to use and set the image field
+    let finalImage = image;
+    let finalImageData = imageData;
+    let finalImageUrl = imageUrl;
+    let finalImageMimeType = imageMimeType || 'image/jpeg';
+
+    if (imageData) {
+      // Option 2: Base64 data - create data URL for the image field
+      finalImage = `data:${finalImageMimeType};base64,${imageData}`;
+      finalImageData = imageData;
+    } else if (imageUrl) {
+      // Option 3: External URL
+      finalImage = imageUrl;
+      finalImageUrl = imageUrl;
+    }
+
     // Build product data
     const productData = {
       name,
       description,
       category,
-      image,
+      image: finalImage,
+      imageData: finalImageData,
+      imageUrl: finalImageUrl,
+      imageMimeType: finalImageMimeType,
       quantity: quantity !== undefined && quantity !== null ? parseFloat(quantity) : 0,
       unit,
       minLimit: minLimit !== undefined && minLimit !== null ? parseFloat(minLimit) : undefined,
@@ -173,6 +197,15 @@ exports.updateProduct = async (req, res, next) => {
     // Check if user is the supplier
     if (product.supplier.toString() !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized to update this product' });
+    }
+
+    // Handle image updates (Option 2: Base64 or Option 3: External URL)
+    if (req.body.imageData && !req.body.image) {
+      const imageMimeType = req.body.imageMimeType || 'image/jpeg';
+      req.body.image = `data:${imageMimeType};base64,${req.body.imageData}`;
+      req.body.imageMimeType = imageMimeType;
+    } else if (req.body.imageUrl && !req.body.image) {
+      req.body.image = req.body.imageUrl;
     }
 
     product = await Product.findByIdAndUpdate(req.params.id, req.body, {

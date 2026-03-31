@@ -1632,6 +1632,25 @@ h1.headline .solid {
   filter: saturate(0.85);
 }
 
+/* Progressive Image Loading - Blur-Up Effect */
+.product-card img.image-loading {
+  filter: saturate(0.85) blur(15px);
+}
+
+.product-card img.image-loaded {
+  filter: saturate(0.85) blur(0px);
+  animation: image-fadeIn 0.3s ease-in;
+}
+
+@keyframes image-fadeIn {
+  from {
+    opacity: 0.8;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .product-card:hover img {
   transform: scale(1.06);
   filter: saturate(1);
@@ -1798,6 +1817,16 @@ input[type="range"].wrange::-moz-range-thumb {
   display: block;
   transition: transform 0.7s var(--ease), filter 0.5s;
   filter: saturate(0.85);
+}
+
+/* Progressive Image Loading - Blur-Up Effect (Land Cards) */
+.land-card-header img.image-loading {
+  filter: saturate(0.85) blur(15px);
+}
+
+.land-card-header img.image-loaded {
+  filter: saturate(0.85) blur(0px);
+  animation: image-fadeIn 0.3s ease-in;
 }
 
 .land-card:hover .land-card-header img {

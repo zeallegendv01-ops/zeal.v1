@@ -817,6 +817,8 @@ function renderProducts(products){
     }
   }).join('');
 
+  // Initialize progressive image loading for ultra-high quality effect
+  initProgressiveImageLoading();
   updateProductSearch(products.length);
 }
 
@@ -1020,6 +1022,66 @@ function renderStaticProducts(){
   ];
   allProducts = products; // Store products
   renderProducts(products);
+}
+
+// Progressive Image Loading: Ultra-High Quality Effect (Blur-Up Technique)
+// Used by Netflix, Medium, Google - shows blurred placeholder then sharp image
+function initProgressiveImageLoading() {
+  const images = document.querySelectorAll('.product-card img, .land-card img');
+  
+  images.forEach(img => {
+    // Skip if image is already loaded or external URL (not Base64)
+    if (img.complete || !img.src.startsWith('data:')) {
+      return;
+    }
+
+    // Add loading class for blur effect
+    img.classList.add('image-loading');
+    
+    // Create Intersection Observer for lazy loading with blur-up
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const image = entry.target;
+          
+          // Image is visible - trigger progressive load
+          if (image.src) {
+            // For Base64 images: simulate progressive by applying blur initially
+            image.style.filter = 'blur(15px)';
+            
+            // Trigger progressive decode
+            if ('decode' in image) {
+              image.decode()
+                .then(() => {
+                  // Smooth transition from blur to sharp
+                  image.style.transition = 'filter 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+                  image.style.filter = 'blur(0px)';
+                  image.classList.remove('image-loading');
+                  image.classList.add('image-loaded');
+                })
+                .catch(() => {
+                  // Fallback
+                  image.style.filter = 'blur(0px)';
+                  image.classList.add('image-loaded');
+                });
+            } else {
+              // Fallback for browsers without decode support
+              image.onload = () => {
+                image.style.filter = 'blur(0px)';
+                image.classList.add('image-loaded');
+              };
+            }
+          }
+          
+          observer.unobserve(image);
+        }
+      });
+    }, {
+      rootMargin: '50px' // Start loading 50px before visible
+    });
+    
+    observer.observe(img);
+  });
 }
 
 function addToCartFromCard(productId){

@@ -1337,6 +1337,9 @@ async function saveProduct(ctx, context) {
       minLimit: context.minLimit || 1,
       maxLimit: context.maxLimit || 1000,
       image: context.image || 'https://images.unsplash.com/photo-1599056377759-3388006e62e0?auto=format&fit=crop&w=400&q=70',
+      // Option 2: Include Base64 image data if available
+      imageData: context.imageData,
+      imageMimeType: context.imageMimeType || 'image/jpeg',
       certification: { organic: true }
     };
 
@@ -1415,7 +1418,10 @@ async function saveLandProperty(ctx, context) {
       unit: context.unit || 'plots',
       minLimit: context.minLimit || 1,
       maxLimit: context.maxLimit || context.numberOfPlots,
-      image: context.image || 'https://images.unsplash.com/photo-1551632786-de41ec4a306b?auto=format&fit=crop&w=400&q=70'
+      image: context.image || 'https://images.unsplash.com/photo-1551632786-de41ec4a306b?auto=format&fit=crop&w=400&q=70',
+      // Option 2: Include Base64 image data if available
+      imageData: context.imageData,
+      imageMimeType: context.imageMimeType || 'image/jpeg'
     };
 
     // Set price based on pricing type
@@ -1920,14 +1926,30 @@ bot.on('photo', errorWrapper(async (ctx) => {
       }
     });
 
-    console.log(`[Photo Upload] Upload successful, image URL: ${uploadResponse.data.data.imageUrl}`);
-    context.image = uploadResponse.data.data.imageUrl;
+    console.log(`[Photo Upload] Upload successful, data:`, uploadResponse.data.data);
+    
+    // Handle new response format with compression
+    if (uploadResponse.data.data.dataUrl) {
+      context.imageData = uploadResponse.data.data.imageData;
+      context.imageMimeType = uploadResponse.data.data.mimeType;
+      context.image = uploadResponse.data.data.dataUrl; // Full data URL
+      context.filename = uploadResponse.data.data.filename;
+      context.compressedSize = uploadResponse.data.data.size;
+      
+      // Log compression details
+      console.log(`[Photo Upload] Image compressed: ${context.filename} (${(context.compressedSize / 1024).toFixed(2)}KB)`);
+    } else {
+      // Fallback for old format
+      context.image = uploadResponse.data.data.imageUrl;
+    }
     
     if (context.type === 'land') {
-      await ctx.reply(' <b>Image uploaded successfully!</b>\n\nCreating land property...', { parse_mode: 'HTML' });
+      const sizeInfo = context.compressedSize ? ` (${(context.compressedSize / 1024).toFixed(2)}KB)` : '';
+      await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nCreating land property...`, { parse_mode: 'HTML' });
       await saveLandProperty(ctx, context);
     } else {
-      await ctx.reply(' <b>Image uploaded successfully!</b>\n\nCreating product...', { parse_mode: 'HTML' });
+      const sizeInfo = context.compressedSize ? ` (${(context.compressedSize / 1024).toFixed(2)}KB)` : '';
+      await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nCreating product...`, { parse_mode: 'HTML' });
       await saveProduct(ctx, context);
     }
   } catch (error) {

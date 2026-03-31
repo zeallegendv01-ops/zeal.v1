@@ -156,9 +156,31 @@ const productSchema = new mongoose.Schema({
   },
 
   // ════════════════════════ COMMON FIELDS ════════════════════════
+  // Image field - for backwards compatibility
   image: {
     type: String,
     required: true
+  },
+
+  // Option 2: Base64 encoded image data (stored in database)
+  // Used when images are uploaded to server
+  imageData: {
+    type: String,
+    default: null
+  },
+
+  // Option 3: External image URL (like Telegram URLs or CDN links)
+  // Used when users provide image URLs
+  imageUrl: {
+    type: String,
+    default: null
+  },
+
+  // Image MIME type (for Base64 images)
+  imageMimeType: {
+    type: String,
+    default: 'image/jpeg',
+    enum: ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
   },
 
   // Secondary images for land
