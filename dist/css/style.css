@@ -1510,6 +1510,8 @@ h1.headline .solid {
 .products {
   padding: 120px 8%;
   background: var(--canvas);
+  max-width: 1600px;
+  margin: 0 auto;
 }
 
 .products-header {
@@ -1602,7 +1604,7 @@ h1.headline .solid {
 .product-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 2px;
+  gap: 12px;
 }
 
 /* Allow land cards and product cards to coexist */
@@ -2789,8 +2791,17 @@ footer {
     padding: 60px 6%;
   }
 
+  .products {
+    padding: 120px 6%;
+  }
+
   .products-header {
     grid-template-columns: 1fr;
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
   }
 
   .testimonial {
@@ -2955,7 +2966,7 @@ footer {
 
   .product-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: 12px;
   }
 
   .product-card {
