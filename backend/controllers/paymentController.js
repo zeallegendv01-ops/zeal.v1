@@ -60,9 +60,19 @@ exports.initializePayment = async (req, res, next) => {
       await settings.save();
     }
 
-    const shippingCost = settings.shippingFee; // Get from database
+    // Check if cart contains only land items
+    let hasProductItems = false;
+    for (const item of items) {
+      const product = await Product.findOne({ $or: [{ _id: item.product }, { code: item.product }] });
+      if (product && product.type !== 'land') {
+        hasProductItems = true;
+        break;
+      }
+    }
+
     const taxRate = settings.taxRate / 100; // Convert percentage to decimal
     const tax = subtotal * taxRate; // Calculate tax based on rate
+    const shippingCost = hasProductItems ? settings.shippingFee : 0; // Only add shipping if there are products
     const total = Math.round(subtotal + shippingCost + tax); // Amount in Naira
     const amountInKobo = total * 100; // Paystack expects amount in kobo (for NGN)
 
@@ -201,9 +211,19 @@ exports.handleWebhook = async (req, res, next) => {
         await settings.save();
       }
 
-      const shippingCost = settings.shippingFee;
+      // Check if order contains only land items
+      let hasProductItems = false;
+      for (const item of metadata.items) {
+        const product = await Product.findOne({ $or: [{ _id: item.product }, { code: item.product }] });
+        if (product && product.type !== 'land') {
+          hasProductItems = true;
+          break;
+        }
+      }
+
       const taxRate = settings.taxRate / 100;
       const tax = subtotal * taxRate;
+      const shippingCost = hasProductItems ? settings.shippingFee : 0; // Only add shipping if there are products
       const total = subtotal + shippingCost + tax;
 
       const order = await Order.create({

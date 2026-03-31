@@ -30,7 +30,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // Update settings (admin only)
-router.put('/', auth, async (req, res, next) => {
+router.put('/', auth.protect, async (req, res, next) => {
   try {
     const { taxRate, shippingFee } = req.body;
     

@@ -607,8 +607,10 @@ function updateCartDisplay(){
   const totalEl = document.getElementById('cartTotal');
   
   // Calculate full total with tax and shipping (matches Paystack calculation)
-  const shippingCost = 50;
-  const tax = subtotal * 0.1; // 10% tax
+  // Only add shipping for product items, not for land
+  const hasProductItems = productItems.length > 0;
+  const shippingCost = hasProductItems ? 2500 : 0; // Get from settings via API in future, for now hardcoded to match backend fallback
+  const tax = subtotal * 0.1; // 10% tax (should fetch from API in future)
   const total = subtotal + shippingCost + tax;
   
   if(subEl) subEl.textContent = `NGN${subtotal.toFixed(2)}`;
@@ -629,11 +631,18 @@ function updateCartDisplay(){
   
   // Display total with breakdown
   if(totalEl) {
+    let shippingRow = '';
+    if (hasProductItems) {
+      shippingRow = `<div style="display: flex; justify-content: space-between;"><span>Shipping:</span> <span>NGN${shippingCost.toFixed(2)}</span></div>`;
+    } else {
+      shippingRow = `<div style="display: flex; justify-content: space-between; color: rgba(13, 13, 11, 0.5);"><span>Shipping:</span> <span>Not applicable (Land only)</span></div>`;
+    }
+    
     totalEl.innerHTML = `
       <div style="display: grid; gap: 8px; font-size: 0.9rem; color: rgba(13, 13, 11, 0.7);">
         <div style="display: flex; justify-content: space-between;"><span>Subtotal:</span> <span>NGN${subtotal.toFixed(2)}</span></div>
         <div style="display: flex; justify-content: space-between;"><span>Tax (10%):</span> <span>NGN${tax.toFixed(2)}</span></div>
-        <div style="display: flex; justify-content: space-between;"><span>Shipping:</span> <span>NGN${shippingCost.toFixed(2)}</span></div>
+        ${shippingRow}
         <div style="border-top: 2px solid var(--gold); padding-top: 8px; display: flex; justify-content: space-between; font-weight: 600; color: var(--ink); font-size: 1rem;">
           <span>Total:</span> <span>NGN${total.toFixed(2)}</span>
         </div>
