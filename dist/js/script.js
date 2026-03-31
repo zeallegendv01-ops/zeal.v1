@@ -606,6 +606,11 @@ function updateCartDisplay(){
   const weightEl = document.getElementById('cartTotalWeight');
   const totalEl = document.getElementById('cartTotal');
   
+  // Calculate full total with tax and shipping (matches Paystack calculation)
+  const shippingCost = 50;
+  const tax = subtotal * 0.1; // 10% tax
+  const total = subtotal + shippingCost + tax;
+  
   if(subEl) subEl.textContent = `NGN${subtotal.toFixed(2)}`;
   
   // Update weight/land label and value based on cart composition
@@ -622,7 +627,19 @@ function updateCartDisplay(){
     }
   }
   
-  if(totalEl) totalEl.textContent = `NGN${subtotal.toFixed(2)}`;
+  // Display total with breakdown
+  if(totalEl) {
+    totalEl.innerHTML = `
+      <div style="display: grid; gap: 8px; font-size: 0.9rem; color: rgba(13, 13, 11, 0.7);">
+        <div style="display: flex; justify-content: space-between;"><span>Subtotal:</span> <span>NGN${subtotal.toFixed(2)}</span></div>
+        <div style="display: flex; justify-content: space-between;"><span>Tax (10%):</span> <span>NGN${tax.toFixed(2)}</span></div>
+        <div style="display: flex; justify-content: space-between;"><span>Shipping:</span> <span>NGN${shippingCost.toFixed(2)}</span></div>
+        <div style="border-top: 2px solid var(--gold); padding-top: 8px; display: flex; justify-content: space-between; font-weight: 600; color: var(--ink); font-size: 1rem;">
+          <span>Total:</span> <span>NGN${total.toFixed(2)}</span>
+        </div>
+      </div>
+    `;
+  }
 }
 
 function renderCartProductItem(item, index) {
