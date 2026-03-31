@@ -1,5 +1,6 @@
 const paystack = require('paystack')(process.env.PAYSTACK_SECRET_KEY);
 const Order = require('../models/Order');
+const Settings = require('../models/Settings');
 const telegramNotifier = require('../utils/telegramNotifier');
 
 // Initialize payment transaction
@@ -52,8 +53,16 @@ exports.initializePayment = async (req, res, next) => {
 
     console.log('Subtotal calculated:', subtotal); // Debug log
 
-    const shippingCost = 50; // Fixed shipping cost
-    const tax = subtotal * 0.1; // 10% tax
+    // Fetch settings from database
+    let settings = await Settings.findOne();
+    if (!settings) {
+      settings = new Settings({ taxRate: 10, shippingFee: 50 });
+      await settings.save();
+    }
+
+    const shippingCost = settings.shippingFee; // Get from database
+    const taxRate = settings.taxRate / 100; // Convert percentage to decimal
+    const tax = subtotal * taxRate; // Calculate tax based on rate
     const total = Math.round(subtotal + shippingCost + tax); // Amount in Naira
     const amountInKobo = total * 100; // Paystack expects amount in kobo (for NGN)
 
@@ -185,8 +194,16 @@ exports.handleWebhook = async (req, res, next) => {
         subtotal += itemSubtotal;
       }
 
-      const shippingCost = 50;
-      const tax = subtotal * 0.1;
+      // Fetch settings from database
+      let settings = await Settings.findOne();
+      if (!settings) {
+        settings = new Settings({ taxRate: 10, shippingFee: 50 });
+        await settings.save();
+      }
+
+      const shippingCost = settings.shippingFee;
+      const taxRate = settings.taxRate / 100;
+      const tax = subtotal * taxRate;
       const total = subtotal + shippingCost + tax;
 
       const order = await Order.create({

@@ -113,6 +113,8 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
+const settingsRoutes = require('./routes/settings');
+app.use('/api/settings', settingsRoutes);
 
 // Upload route - with automatic image compression
 app.post('/api/upload', upload.single('image'), async (req, res) => {

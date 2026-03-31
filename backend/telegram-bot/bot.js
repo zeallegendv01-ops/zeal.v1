@@ -310,6 +310,8 @@ bot.start(errorWrapper(async (ctx) => {
       ' /order &lt;order_id&gt; - View order details\n\n' +
       ' <b>Stats:</b>\n' +
       ' /stats - View dashboard stats\n\n' +
+      ' <b>Settings:</b>\n' +
+      ' /settings - View & manage app settings (tax, shipping)\n\n' +
       'Or use the menu below:',
       {
         parse_mode: 'HTML',
@@ -318,7 +320,8 @@ bot.start(errorWrapper(async (ctx) => {
           [Markup.button.callback(' Land', 'land_menu')],
           [Markup.button.callback(' Orders', 'orders_menu')],
           [Markup.button.callback(' Users', 'users_menu')],
-          [Markup.button.callback(' Stats', 'stats_menu')]
+          [Markup.button.callback(' Stats', 'stats_menu')],
+          [Markup.button.callback(' ⚙️ Settings', 'settings_menu')]
         ]).reply_markup
       }
     );
@@ -720,6 +723,101 @@ bot.command('stats', errorWrapper(async (ctx) => {
     ` Orders (30 days): <b>${statsData.recentOrders}</b>`;
 
   ctx.reply(message, { parse_mode: 'HTML' });
+}));
+
+// SETTINGS COMMAND
+bot.command('settings', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+
+  try {
+    const settingsRes = await queueRequest(() => api.get('/settings'));
+    const settings = settingsRes.data.data || { taxRate: 10, shippingFee: 50 };
+
+    const message = ` <b>Current Settings</b>\n\n` +
+      ` <b>Tax Rate:</b> ${settings.taxRate}%\n` +
+      ` <b>Shipping Fee:</b> ₦${settings.shippingFee.toLocaleString()}\n\n` +
+      `Use the menu below to update:`;
+
+    ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback('📊 Set Tax Rate', 'settings_tax')],
+        [Markup.button.callback('🚚 Set Shipping Fee', 'settings_shipping')],
+        [Markup.button.callback(' Back', 'main_menu')]
+      ]).reply_markup
+    });
+  } catch (error) {
+    ctx.reply('Error fetching settings: ' + error.message);
+  }
+}));
+
+// SETTINGS MENU
+bot.action('settings_menu', async (ctx) => {
+  await ctx.answerCbQuery();
+  try {
+    const settingsRes = await queueRequest(() => api.get('/settings'));
+    const settings = settingsRes.data.data || { taxRate: 10, shippingFee: 50 };
+
+    const message = ` <b>Current Settings</b>\n\n` +
+      ` <b>Tax Rate:</b> ${settings.taxRate}%\n` +
+      ` <b>Shipping Fee:</b> ₦${settings.shippingFee.toLocaleString()}\n\n` +
+      `Use the menu below to update:`;
+
+    return ctx.editMessageText(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback('📊 Set Tax Rate', 'settings_tax')],
+        [Markup.button.callback('🚚 Set Shipping Fee', 'settings_shipping')],
+        [Markup.button.callback(' Back', 'main_menu')]
+      ]).reply_markup
+    });
+  } catch (error) {
+    ctx.reply('Error: ' + error.message);
+  }
+});
+
+// SET TAX RATE
+bot.action('settings_tax', async (ctx) => {
+  await ctx.answerCbQuery();
+  ctx.session = ctx.session || {};
+  ctx.session.awaitingInput = 'tax_rate';
+  ctx.reply('📊 Enter new tax rate (0-100):');
+});
+
+// SET SHIPPING FEE
+bot.action('settings_shipping', async (ctx) => {
+  await ctx.answerCbQuery();
+  ctx.session = ctx.session || {};
+  ctx.session.awaitingInput = 'shipping_fee';
+  ctx.reply('🚚 Enter new shipping fee (in Naira):');
+});
+
+// Handle settings input
+bot.hears(/^(\d+(?:\.\d{1,2})?)$/, errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  if (!ctx.session?.awaitingInput) return;
+
+  const value = parseFloat(ctx.message.text);
+  try {
+    if (ctx.session.awaitingInput === 'tax_rate') {
+      if (value < 0 || value > 100) {
+        return ctx.reply('❌ Tax rate must be between 0 and 100%');
+      }
+      await queueRequest(() => api.put('/settings', { taxRate: value }));
+      ctx.reply(`✅ Tax rate updated to ${value}%`);
+    } else if (ctx.session.awaitingInput === 'shipping_fee') {
+      if (value < 0) {
+        return ctx.reply('❌ Shipping fee cannot be negative');
+      }
+      await queueRequest(() => api.put('/settings', { shippingFee: value }));
+      ctx.reply(`✅ Shipping fee updated to ₦${value.toLocaleString()}`);
+    }
+    
+    // Clear the awaiting input flag
+    ctx.session.awaitingInput = null;
+  } catch (error) {
+    ctx.reply('❌ Error: ' + error.message);
+  }
 }));
 
 // PRODUCTS MENU
