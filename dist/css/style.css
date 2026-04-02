@@ -1060,6 +1060,17 @@ nav {
   color: #c0392b;
 }
 
+/* Glassmorphic Order Summary */
+.order-summary-glass {
+  background: rgba(244, 242, 237, 0.65);
+  border: 1px solid rgba(184, 147, 58, 0.2);
+  border-radius: 10px;
+  padding: 18px 22px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  margin-bottom: 20px;
+}
+
 .cart-checkout-btn {
   width: 100%;
   margin-top: 18px;

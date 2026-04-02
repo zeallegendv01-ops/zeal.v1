@@ -143,16 +143,18 @@
       <div class="cart-items-list" id="cartItemsList"></div>
     </div>
     <div class="cart-footer" id="cartFooter" style="display:none;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-        <span style="font-size:0.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(13,13,11,0.4);">Order Summary</span>
-        <button class="cart-clear" onclick="clearCart()">Clear all</button>
-      </div>
-      <div class="cart-summary-row"><span>Subtotal</span><span id="cartSubtotal">0.00</span></div>
-      <div class="cart-summary-row"><span>Total Weight</span><span id="cartTotalWeight">0 kg</span></div>
-      <div class="cart-summary-row"><span>Estimated shipping</span><span style="color:rgba(13,13,11,0.35);font-style:italic;font-size:0.8rem;">At checkout</span></div>
-      <div class="cart-summary-row total">
-        <span>Order Total</span>
-        <span class="total-amount" id="cartTotal">0.00</span>
+      <div class="order-summary-glass">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span style="font-size:0.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(13,13,11,0.4);">Order Summary</span>
+          <button class="cart-clear" onclick="clearCart()">Clear all</button>
+        </div>
+        <div class="cart-summary-row"><span>Subtotal</span><span id="cartSubtotal">0.00</span></div>
+        <div class="cart-summary-row"><span>Total Weight</span><span id="cartTotalWeight">0 kg</span></div>
+        <div class="cart-summary-row"><span>Estimated shipping</span><span style="color:rgba(13,13,11,0.35);font-style:italic;font-size:0.8rem;">At checkout</span></div>
+        <div class="cart-summary-row total">
+          <span>Order Total</span>
+          <span class="total-amount" id="cartTotal">0.00</span>
+        </div>
       </div>
       <button class="cart-checkout-btn" id="cartCheckout"><i class="fa-solid fa-lock"></i> Proceed to Checkout</button>
       <button class="cart-continue-btn" onclick="closeModal('cartModal')">Continue Shopping</button>
