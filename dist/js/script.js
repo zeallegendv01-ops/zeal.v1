@@ -696,7 +696,7 @@ function renderCartProductItem(item, index) {
       <img src="${item.image || 'https://via.placeholder.com/80?text=Product'}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/80?text=Product'">
       <div class="cart-item-info">
         <div class="ci-name">${item.name}</div>
-        <div class="ci-meta">${item.pricePerKg.toFixed(2)} / kg  ${item.weight}kg</div>
+        <div class="ci-meta">${item.pricePerKg} / kg  ${item.weight}kg</div>
         <div class="qty-control">
           <button class="qty-btn" onclick="updateCartItemQuantity(${index}, ${item.quantity - 1})">-</button>
           <span class="qty-num">${item.quantity}</span>
