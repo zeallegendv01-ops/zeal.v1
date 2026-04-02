@@ -1076,21 +1076,35 @@ bot.on('text', errorWrapper(async (ctx) => {
         return ctx.reply('✏️ Enter product description:');
 
       case 'create_product_description':
+        console.log(`[Bot] Processing description for user ${userId}`);
         context.description = ctx.message.text;
         context.step = 'create_product_price';
-        return ctx.reply('Enter price per kg (e.g., 45):');
+        console.log(`[Bot] Moving to price step, sending reply...`);
+        return ctx.reply('Enter price per kg (e.g., 45):').then(() => {
+          console.log(`[Bot] Price prompt sent successfully`);
+        }).catch(err => {
+          console.error(`[Bot] Failed to send price prompt:`, err.message);
+        });
 
       case 'create_product_price':
+        console.log(`[Bot] Processing price for user ${userId}, text: "${text}"`);
         context.pricePerKg = parseFloat(ctx.message.text);
         if (isNaN(context.pricePerKg)) {
+          console.log(`[Bot] Invalid price: ${ctx.message.text}`);
           return ctx.reply(' Invalid price. Enter a number:');
         }
+        console.log(`[Bot] Price set to ${context.pricePerKg}, moving to category step`);
         context.step = 'create_product_category';
+        console.log(`[Bot] Sending category buttons...`);
         return ctx.reply('Select category:', {
           reply_markup: Markup.inlineKeyboard([
             [Markup.button.callback('Smoked Fish', 'cat_fish'), Markup.button.callback('Grains', 'cat_grains')],
             [Markup.button.callback('Rice', 'cat_rice'), Markup.button.callback('Other', 'cat_other')]
           ]).reply_markup
+        }).then(() => {
+          console.log(`[Bot] Category buttons sent successfully`);
+        }).catch(err => {
+          console.error(`[Bot] Failed to send category buttons:`, err.message);
         });
 
     case 'create_product_quantity':
