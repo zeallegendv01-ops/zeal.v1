@@ -2101,7 +2101,7 @@ bot.action(/^cancel_(.+)$/, async (ctx) => {
 bot.action('users_menu', async (ctx) => {
   await ctx.answerCbQuery();
   return safeEditMessageText(ctx,
-    ' Users Management\n\nSelect action':
+    ' Users Management\n\nSelect action:',
     Markup.inlineKeyboard([
       [Markup.button.callback('View All Users', 'users_list')],
       [Markup.button.callback('Search User', 'users_search')],
