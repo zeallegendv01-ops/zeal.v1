@@ -71,7 +71,7 @@ const initializeToken = async (maxRetries = 10) => {
   while (retries < maxRetries) {
     try {
       const healthResponse = await axios.get(`${API_BASE_URL.replace('/api', '')}/health`, {
-        timeout: 5000
+        timeout: 15000  // Increased timeout to allow database ping to complete
       });
       
       if (healthResponse.data.status === 'healthy') {

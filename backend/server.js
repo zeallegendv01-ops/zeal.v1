@@ -115,6 +115,9 @@ app.get('/health', async (req, res) => {
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ status: 'unhealthy', message: 'Database not connected' });
     }
+    
+    // Verify database is responsive with a simple ping
+    await mongoose.connection.db.admin().ping();
     res.json({ status: 'healthy', message: 'Server and database ready' });
   } catch (error) {
     res.status(503).json({ status: 'unhealthy', message: error.message });
