@@ -1058,15 +1058,19 @@ bot.action('add_land_type', async (ctx) => {
 
 bot.on('text', errorWrapper(async (ctx) => {
   const userId = ctx.from.id;
-  const context = userContext[userId];
   const text = ctx.message.text;
 
+  console.log(`[Bot] Received text message from ${userId}: "${text}"`);
+  
+  const context = userContext[userId];
   console.log(`[Bot] Text from ${userId}: "${text}" (Context step: ${context?.step || 'none'})`);
 
   if (!context) {
     console.log(`[Bot] No context for user ${userId}`);
     return;
   }
+
+  console.log(`[Bot] Entering switch statement with step: ${context.step}`);
 
   switch (context.step) {
       case 'create_product_name':
@@ -1287,6 +1291,10 @@ bot.on('text', errorWrapper(async (ctx) => {
       context.updateValue = ctx.message.text;
       await updateProductField(ctx, context);
       break;
+      
+    default:
+      console.log(`[Bot] No matching case for step: ${context.step}`);
+      return ctx.reply(` I don't understand this step: ${context.step}. Please contact support.`);
   }
 
   if (context.step === 'update_order_id') {
