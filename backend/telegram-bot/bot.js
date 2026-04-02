@@ -824,16 +824,14 @@ bot.action('settings_menu', async (ctx) => {
 // SET TAX RATE
 bot.action('settings_tax', async (ctx) => {
   await ctx.answerCbQuery();
-  ctx.session = ctx.session || {};
-  ctx.session.awaitingInput = 'tax_rate';
+  userContext[ctx.from.id] = { step: 'update_tax_rate' };
   ctx.reply('📊 Enter new tax rate (0-100):');
 });
 
 // SET SHIPPING FEE
 bot.action('settings_shipping', async (ctx) => {
   await ctx.answerCbQuery();
-  ctx.session = ctx.session || {};
-  ctx.session.awaitingInput = 'shipping_fee';
+  userContext[ctx.from.id] = { step: 'update_shipping_fee' };
   ctx.reply('🚚 Enter new shipping fee (in Naira):');
 });
 
@@ -881,19 +879,18 @@ bot.hears(/^(\d+(?:\.\d{1,2})?)$/, errorWrapper(async (ctx) => {
     return;
   }
   
-  // Otherwise handle as settings input
+  // Otherwise handle as settings input (legacy - should not reach here now)
   if (!isAdmin(ctx)) return;
-  if (!ctx.session?.awaitingInput) return;
 
   const value = parseFloat(ctx.message.text);
   try {
-    if (ctx.session.awaitingInput === 'tax_rate') {
+    if (ctx.session?.awaitingInput === 'tax_rate') {
       if (value < 0 || value > 100) {
         return ctx.reply('❌ Tax rate must be between 0 and 100%');
       }
       await queueRequest(() => api.put('/settings', { taxRate: value }));
       ctx.reply(`✅ Tax rate updated to ${value}%`);
-    } else if (ctx.session.awaitingInput === 'shipping_fee') {
+    } else if (ctx.session?.awaitingInput === 'shipping_fee') {
       if (value < 0) {
         return ctx.reply('❌ Shipping fee cannot be negative');
       }
@@ -902,7 +899,7 @@ bot.hears(/^(\d+(?:\.\d{1,2})?)$/, errorWrapper(async (ctx) => {
     }
     
     // Clear the awaiting input flag
-    ctx.session.awaitingInput = null;
+    if (ctx.session) ctx.session.awaitingInput = null;
   } catch (error) {
     ctx.reply('❌ Error: ' + error.message);
   }
@@ -1359,6 +1356,42 @@ bot.on('text', errorWrapper(async (ctx) => {
     case 'update_product_field':
       context.updateValue = ctx.message.text;
       await updateProductField(ctx, context);
+      break;
+
+    case 'update_tax_rate':
+      const taxRate = parseFloat(ctx.message.text);
+      if (isNaN(taxRate) || taxRate < 0 || taxRate > 100) {
+        delete userContext[userId];
+        return ctx.reply('❌ Tax rate must be between 0 and 100%');
+      }
+      try {
+        await queueRequest(() => api.put('/settings', { taxRate }));
+        delete userContext[userId];
+        return ctx.reply(`✅ Tax rate updated to ${taxRate}%`, {
+          reply_markup: Markup.inlineKeyboard([[Markup.button.callback(' Back to Settings', 'settings_menu')]]).reply_markup
+        });
+      } catch (error) {
+        delete userContext[userId];
+        return ctx.reply('❌ Error updating tax rate: ' + error.message);
+      }
+      break;
+
+    case 'update_shipping_fee':
+      const shippingFee = parseFloat(ctx.message.text);
+      if (isNaN(shippingFee) || shippingFee < 0) {
+        delete userContext[userId];
+        return ctx.reply('❌ Shipping fee must be 0 or greater');
+      }
+      try {
+        await queueRequest(() => api.put('/settings', { shippingFee }));
+        delete userContext[userId];
+        return ctx.reply(`✅ Shipping fee updated to ₦${shippingFee.toLocaleString()}`, {
+          reply_markup: Markup.inlineKeyboard([[Markup.button.callback(' Back to Settings', 'settings_menu')]]).reply_markup
+        });
+      } catch (error) {
+        delete userContext[userId];
+        return ctx.reply('❌ Error updating shipping fee: ' + error.message);
+      }
       break;
       
     default:
