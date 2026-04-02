@@ -1353,12 +1353,6 @@ bot.on('text', errorWrapper(async (ctx) => {
       return ctx.reply(` ⚠️ <b>Unexpected Input</b>\n\nI don't recognize this step: <code>${context.step}</code>\n\nPlease use /start to restart or /addproduct to create a new product.`, { parse_mode: 'HTML' });
   }
 
-  // After switch - catch any unhandled context steps
-  if (context && !['create_product_name', 'create_product_description'].includes(context.step)) {
-    console.log(`[Bot] Unhandled context step after switch: ${context.step} for user ${userId}`);
-  }
-}));
-
   if (context.step === 'update_order_id') {
     context.orderId = ctx.message.text.trim();
     context.step = 'update_order_status';
