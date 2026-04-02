@@ -64,11 +64,37 @@ const refreshToken = async () => {
 
 // Initialize token on startup with retry logic
 const initializeToken = async (maxRetries = 10) => {
-  // Wait for server and database to fully initialize
   console.log('[Bot] Starting bot, waiting for server and database to be ready...');
-  await new Promise(resolve => setTimeout(resolve, 5000)); // Increased from 2s to 5s
   
+  // First, wait for server to respond to health check
   let retries = 0;
+  while (retries < maxRetries) {
+    try {
+      const healthResponse = await axios.get(`${API_BASE_URL.replace('/api', '')}/health`, {
+        timeout: 5000
+      });
+      
+      if (healthResponse.data.status === 'healthy') {
+        console.log('[Bot] Server and database are ready');
+        break;
+      }
+    } catch (error) {
+      retries++;
+      if (retries < maxRetries) {
+        const delayMs = Math.min(1000 * Math.pow(2, retries - 1), 10000); // Exponential backoff
+        console.log(`[Bot] Waiting for server ready... (attempt ${retries}/${maxRetries}, retrying in ${delayMs}ms)`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  
+  if (retries >= maxRetries) {
+    console.error('[Bot] Server health check failed after', maxRetries, 'attempts');
+    process.exit(1);
+  }
+  
+  // Now authenticate with the server
+  retries = 0;
   while (retries < maxRetries) {
     try {
       await refreshToken();

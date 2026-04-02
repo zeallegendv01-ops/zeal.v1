@@ -10,7 +10,9 @@ const connectDB = async () => {
       minPoolSize: 5,
       retryWrites: true,
       w: 'majority',
-      maxIdleTimeMS: 60000                // Max idle time before connection is closed
+      maxIdleTimeMS: 60000,               // Max idle time before connection is closed
+      bufferMaxEntries: 100,              // Allow some buffering but not unlimited
+      serverAPI: { version: '1' }         // Use stable server API version
     });
     console.log(`MongoDB connected: ${conn.connection.host}`);
     return conn;

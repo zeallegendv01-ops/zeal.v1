@@ -107,6 +107,20 @@ app.use(express.static(path.join(__dirname, '..')));
 
 // Routes
 app.use('/api/auth', authRoutes);
+
+// Health check endpoint - for bot to verify server is ready
+app.get('/health', async (req, res) => {
+  try {
+    // Check if MongoDB is connected
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ status: 'unhealthy', message: 'Database not connected' });
+    }
+    res.json({ status: 'healthy', message: 'Server and database ready' });
+  } catch (error) {
+    res.status(503).json({ status: 'unhealthy', message: error.message });
+  }
+});
+
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
