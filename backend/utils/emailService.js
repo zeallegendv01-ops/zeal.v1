@@ -234,6 +234,140 @@ class EmailService {
       return false;
     }
   }
+
+  async sendInvoiceEmail(order, invoiceHTML) {
+    const invoiceFileName = `Invoice-${order._id}.html`;
+    
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: order.buyer.email,
+      subject: `🌾 Invoice & Receipt - AgroCrown Order #${order._id}`,
+      html: `
+        <div style="font-family: 'Arial', sans-serif; max-width: 650px; margin: 0 auto;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #0d0d0b 0%, #1a1a18 100%); padding: 50px 30px; text-align: center;">
+            <h1 style="color: #ffd700; font-size: 36px; margin: 0; font-weight: bold;">🌾 AgroCrown</h1>
+            <p style="color: #ccc; margin: 8px 0 0 0; font-size: 14px; letter-spacing: 2px; text-transform: uppercase;">Premium Agricultural Exports</p>
+          </div>
+
+          <!-- Content -->
+          <div style="background: white; padding: 40px 30px;">
+            <h2 style="color: #0d0d0b; font-size: 24px; margin: 0 0 10px 0;">Invoice & Receipt</h2>
+            <p style="color: #999; font-size: 12px; margin: 0 0 20px 0;">Order #${order._id}</p>
+            
+            <p style="color: #555; font-size: 15px; line-height: 1.8; margin: 0 0 20px 0;">
+              Thank you for your purchase, <strong>${order.buyer.firstName}</strong>! Your order has been successfully processed and payment received.
+            </p>
+
+            <!-- Order Summary Box -->
+            <div style="background: linear-gradient(135deg, #f9f9f9 0%, #f0f0f0 100%); border-left: 4px solid #ffd700; padding: 20px; margin: 25px 0; border-radius: 5px;">
+              <p style="margin: 0 0 12px 0; color: #0d0d0b; font-weight: bold; font-size: 14px;">Order Summary</p>
+              <p style="margin: 8px 0; color: #666; font-size: 13px;">
+                <strong>Order Date:</strong> ${new Date(order.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}<br>
+                <strong>Items:</strong> ${order.items.length} product(s)<br>
+                <strong>Status:</strong> <span style="color: #27ae60; font-weight: bold;">✓ Payment Completed</span>
+              </p>
+            </div>
+
+            <!-- Amount Box -->
+            <div style="background: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px;">
+                <span style="color: #555;">Subtotal:</span>
+                <span style="color: #0d0d0b; font-weight: 600;">NGN${order.subtotal?.toLocaleString() || 0}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px;">
+                <span style="color: #555;">Tax:</span>
+                <span style="color: #0d0d0b; font-weight: 600;">NGN${order.tax?.toLocaleString() || 0}</span>
+              </div>
+              ${order.shippingCost > 0 ? `
+              <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px;">
+                <span style="color: #555;">Shipping:</span>
+                <span style="color: #0d0d0b; font-weight: 600;">NGN${order.shippingCost?.toLocaleString() || 0}</span>
+              </div>
+              ` : ''}
+              <div style="border-top: 2px solid #ffd700; padding-top: 10px; display: flex; justify-content: space-between; font-size: 16px; font-weight: bold;">
+                <span style="color: #0d0d0b;">Total Amount Paid:</span>
+                <span style="color: #ffd700;">NGN${order.total?.toLocaleString() || 0}</span>
+              </div>
+            </div>
+
+            <!-- Items Table -->
+            <table style="width: 100%; margin: 25px 0; border-collapse: collapse; font-size: 13px;">
+              <thead>
+                <tr style="background: #f0f0f0; border-bottom: 2px solid #ddd;">
+                  <th style="padding: 10px; text-align: left; color: #0d0d0b; font-weight: 600;">Product</th>
+                  <th style="padding: 10px; text-align: center; color: #0d0d0b; font-weight: 600;">Qty</th>
+                  <th style="padding: 10px; text-align: right; color: #0d0d0b; font-weight: 600;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${order.items.map(item => `
+                  <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 10px; color: #555;">${item.product.name || 'Product'}</td>
+                    <td style="padding: 10px; text-align: center; color: #555;">${item.weight ? item.weight + ' kg' : item.quantity + ' unit(s)'}</td>
+                    <td style="padding: 10px; text-align: right; color: #555;">NGN${item.subtotal?.toLocaleString() || 0}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+
+            <!-- Invoice Download -->
+            <div style="background: linear-gradient(135deg, #2a4a1e 0%, #1a3a0d 100%); padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
+              <p style="margin: 0 0 12px 0; color: white; font-size: 14px; font-weight: bold;">📄 Full Invoice Attached</p>
+              <p style="margin: 0; color: #ccc; font-size: 12px;">A detailed HTML invoice has been attached to this email. You can download, print, or save it for your records.</p>
+            </div>
+
+            <!-- Delivery Info -->
+            <div style="background: #f9f9f9; padding: 20px; border-left: 4px solid #2a4a1e; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 0 0 10px 0; color: #0d0d0b; font-weight: bold; font-size: 13px;">📦 What's Next?</p>
+              <ul style="margin: 0; padding-left: 20px; color: #666; font-size: 13px; line-height: 1.8;">
+                <li>Your order is being processed and prepared for shipment</li>
+                <li>You'll receive tracking information via email within 24 hours</li>
+                <li>You can monitor your order status anytime in your account dashboard</li>
+                <li>For urgent inquiries, contact us via Telegram</li>
+              </ul>
+            </div>
+
+            <!-- Support -->
+            <div style="background: linear-gradient(135deg, #0d0d0b 0%, #1a1a18 100%); padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
+              <p style="margin: 0 0 12px 0; color: #ccc; font-size: 12px; letter-spacing: 1px; text-transform: uppercase;">Need Help?</p>
+              <p style="margin: 0; color: #ffd700; font-size: 14px; font-weight: bold;">
+                📱 Contact us on Telegram<br>
+                📧 support@agrocrown.com
+              </p>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div style="background: #0d0d0b; padding: 30px; text-align: center; border-top: 3px solid #ffd700;">
+            <p style="color: #ccc; font-size: 12px; margin: 0 0 12px 0; line-height: 1.6;">
+              Thank you for choosing AgroCrown for premium agricultural products.<br>
+              We're committed to providing you with the finest exports from West Africa.
+            </p>
+            <p style="color: #999; font-size: 11px; margin: 0;">
+              © 2026 AgroCrown Heritage. All Rights Reserved. | EST. 2026 | NIGERIA
+            </p>
+          </div>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: invoiceFileName,
+          content: invoiceHTML,
+          contentType: 'text/html'
+        }
+      ]
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log('[SUCCESS] Invoice email sent to:', order.buyer.email);
+      return true;
+    } catch (error) {
+      console.error('Invoice email send error:', error);
+      return false;
+    }
+  }
 }
 
 module.exports = new EmailService();

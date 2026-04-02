@@ -1630,11 +1630,18 @@ async function handleCheckout(){
 async function verifyPayment(reference){
   try {
     const response = await apiService.verifyPayment(reference);
-    if(response.success){
-      showNotification('Payment successful! Your order has been placed.', 'success');
+    if(response.success && response.data){
+      // Extract order ID from response metadata if available
+      const orderId = response.data.metadata?.orderId || response.data.id;
+      
+      showNotification('🎉 Payment successful! Your order has been placed.', 'success');
       clearCart();
       closeModal('cartModal');
-      // Redirect to orders page or show success message
+      
+      // Show payment success modal with invoice download option
+      setTimeout(() => {
+        showPaymentSuccessModal(orderId, response.data);
+      }, 1000);
     } else {
       showNotification('Payment verification failed. Please contact support.', 'error');
     }
@@ -1642,6 +1649,181 @@ async function verifyPayment(reference){
     console.error('Payment verification error:', error);
     showNotification('Payment verification failed. Please contact support.', 'error');
   }
+}
+
+function showPaymentSuccessModal(orderId, orderData) {
+  // Create success modal
+  const modal = document.createElement('div');
+  modal.id = 'paymentSuccessModal';
+  modal.className = 'modal-backdrop open';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  `;
+
+  modal.innerHTML = `
+    <div style="
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      animation: slideUp 0.4s ease-out;
+    ">
+      <div style="font-size: 60px; margin-bottom: 20px;">✅</div>
+      
+      <h2 style="color: #0d0d0b; font-size: 28px; margin-bottom: 10px; font-family: 'Cormorant Garamond', serif;">Payment Successful!</h2>
+      
+      <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+        Your payment has been received and your order is being processed. You will receive an invoice via email shortly.
+      </p>
+
+      <div style="
+        background: linear-gradient(135deg, #f9f9f9 0%, #f0f0f0 100%);
+        border-left: 4px solid #ffd700;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 5px;
+        text-align: left;
+      ">
+        <p style="margin: 0 0 8px 0; color: #0d0d0b; font-weight: bold; font-size: 13px;">Order Reference</p>
+        <p style="margin: 0; color: #666; font-size: 12px; font-family: monospace; word-break: break-all;">
+          ${orderId || 'Processing...'}
+        </p>
+      </div>
+
+      <div style="display: grid; gap: 10px; margin-bottom: 20px;">
+        <button onclick="downloadInvoice('${orderId}')" style="
+          background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+          color: #0d0d0b;
+          border: none;
+          padding: 12px 20px;
+          border-radius: 6px;
+          font-weight: bold;
+          cursor: pointer;
+          transition: transform 0.2s;
+        " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+          📥 Download Invoice
+        </button>
+        
+        <button onclick="closePaymentSuccessModal()" style="
+          background: #f0f0f0;
+          color: #0d0d0b;
+          border: 1px solid #ddd;
+          padding: 12px 20px;
+          border-radius: 6px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background 0.2s;
+        " onmouseover="this.style.background='#e0e0e0'" onmouseout="this.style.background='#f0f0f0'">
+          Close
+        </button>
+      </div>
+
+      <p style="color: #999; font-size: 12px; line-height: 1.6;">
+        💡 Invoice has been sent to your email<br>
+        📦 Tracking info will arrive within 24 hours<br>
+        💬 Need help? Contact us on Telegram
+      </p>
+    </div>
+
+    <style>
+      @keyframes slideUp {
+        from {
+          transform: translateY(20px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+    </style>
+  `;
+
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+
+  // Close on backdrop click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closePaymentSuccessModal();
+    }
+  });
+}
+
+function closePaymentSuccessModal() {
+  const modal = document.getElementById('paymentSuccessModal');
+  if (modal) {
+    modal.style.animation = 'fadeOut 0.3s ease-out forwards';
+    setTimeout(() => {
+      modal.remove();
+      if (!document.querySelector('.modal-backdrop.open') && !document.getElementById('searchOverlay').classList.contains('open')) {
+        document.body.style.overflow = '';
+      }
+    }, 300);
+  }
+}
+
+function downloadInvoice(orderId) {
+  if (!orderId) {
+    showNotification('Order ID not available. Please check your email for the invoice.', 'warning');
+    return;
+  }
+
+  const token = apiService.getToken();
+  if (!token) {
+    showNotification('Session expired. Please login again.', 'error');
+    return;
+  }
+
+  // Create a temporary link to download the invoice
+  const downloadUrl = `${API_BASE_URL}/payments/invoice/${orderId}`;
+  const link = document.createElement('a');
+  link.href = downloadUrl;
+  link.setAttribute('Authorization', `Bearer ${token}`);
+  link.download = `Invoice-${orderId}.html`;
+  
+  // Add authorization header using fetch
+  fetch(downloadUrl, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Failed to download invoice');
+    }
+    return response.text();
+  })
+  .then(html => {
+    // Create blob from HTML content
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Invoice-${orderId}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    showNotification('Invoice downloaded successfully!', 'success');
+  })
+  .catch(error => {
+    console.error('Download error:', error);
+    showNotification('Failed to download invoice. It has been sent to your email.', 'error');
+  });
 }
 
 // Initialize - run immediately if DOM is ready, or wait for DOMContentLoaded if not

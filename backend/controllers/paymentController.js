@@ -2,6 +2,8 @@ const paystack = require('paystack')(process.env.PAYSTACK_SECRET_KEY);
 const Order = require('../models/Order');
 const Settings = require('../models/Settings');
 const telegramNotifier = require('../utils/telegramNotifier');
+const emailService = require('../utils/emailService');
+const { generateInvoiceHTML } = require('../utils/invoiceGenerator');
 
 // Initialize payment transaction
 exports.initializePayment = async (req, res, next) => {
@@ -253,11 +255,58 @@ exports.handleWebhook = async (req, res, next) => {
       } catch (notificationError) {
         console.error('Failed to send payment notification:', notificationError);
       }
+
+      // Generate and send invoice email to customer
+      try {
+        const invoiceHTML = generateInvoiceHTML(populatedOrder);
+        await emailService.sendInvoiceEmail(populatedOrder, invoiceHTML);
+        console.log('[SUCCESS] Invoice sent to:', populatedOrder.buyer.email);
+      } catch (invoiceError) {
+        console.error('Failed to send invoice email:', invoiceError);
+        // Don't fail the webhook if email fails - order is already created
+      }
     }
 
     res.status(200).json({ received: true });
   } catch (error) {
     console.error('Webhook processing error:', error);
     res.status(500).json({ error: 'Webhook processing failed' });
+  }
+};
+
+// Get order invoice for download
+exports.getOrderInvoice = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+
+    // Find order and verify ownership
+    const order = await Order.findById(orderId).populate([
+      { path: 'buyer', select: 'firstName lastName email phone address' },
+      { path: 'items.product', select: 'name pricePerKg category' }
+    ]);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // Verify the user owns this order
+    if (order.buyer._id.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'You do not have permission to access this invoice' });
+    }
+
+    // Generate invoice HTML
+    const invoiceHTML = generateInvoiceHTML(order);
+
+    // Send as downloadable HTML file
+    res.set({
+      'Content-Type': 'text/html; charset=utf-8',
+      'Content-Disposition': `attachment; filename="Invoice-${order._id}.html"`,
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
+    });
+
+    res.send(invoiceHTML);
+  } catch (error) {
+    console.error('Get invoice error:', error);
+    next(error);
   }
 };
