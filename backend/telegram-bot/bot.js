@@ -1054,10 +1054,12 @@ bot.on('text', errorWrapper(async (ctx) => {
           return ctx.reply(' Invalid price. Enter a number:');
         }
         context.step = 'create_product_category';
-        return ctx.reply('Select category:', Markup.inlineKeyboard([
-        [Markup.button.callback('Smoked Fish', 'cat_fish'), Markup.button.callback('Grains', 'cat_grains')],
-        [Markup.button.callback('Rice', 'cat_rice'), Markup.button.callback('Other', 'cat_other')]
-      ]));
+        return ctx.reply('Select category:', {
+          reply_markup: Markup.inlineKeyboard([
+            [Markup.button.callback('Smoked Fish', 'cat_fish'), Markup.button.callback('Grains', 'cat_grains')],
+            [Markup.button.callback('Rice', 'cat_rice'), Markup.button.callback('Other', 'cat_other')]
+          ]).reply_markup
+        });
 
     case 'create_product_quantity':
       context.quantity = parseFloat(ctx.message.text);
@@ -1711,7 +1713,7 @@ bot.action('image_skip', async (ctx) => {
 });
 
 // CATEGORY SELECTION HANDLERS
-bot.action('cat_fish', async (ctx) => {
+bot.action('cat_fish', errorWrapper(async (ctx) => {
   await ctx.answerCbQuery();
   const context = userContext[ctx.from.id];
   if (context && context.step === 'create_product_category') {
@@ -1719,9 +1721,9 @@ bot.action('cat_fish', async (ctx) => {
     context.step = 'create_product_quantity';
     return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
   }
-});
+}, 'cat_fish'));
 
-bot.action('cat_grains', async (ctx) => {
+bot.action('cat_grains', errorWrapper(async (ctx) => {
   await ctx.answerCbQuery();
   const context = userContext[ctx.from.id];
   if (context && context.step === 'create_product_category') {
@@ -1729,9 +1731,9 @@ bot.action('cat_grains', async (ctx) => {
     context.step = 'create_product_quantity';
     return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
   }
-});
+}, 'cat_grains'));
 
-bot.action('cat_rice', async (ctx) => {
+bot.action('cat_rice', errorWrapper(async (ctx) => {
   await ctx.answerCbQuery();
   const context = userContext[ctx.from.id];
   if (context && context.step === 'create_product_category') {
@@ -1739,9 +1741,9 @@ bot.action('cat_rice', async (ctx) => {
     context.step = 'create_product_quantity';
     return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
   }
-});
+}, 'cat_rice'));
 
-bot.action('cat_other', async (ctx) => {
+bot.action('cat_other', errorWrapper(async (ctx) => {
   await ctx.answerCbQuery();
   const context = userContext[ctx.from.id];
   if (context && context.step === 'create_product_category') {
@@ -1749,7 +1751,7 @@ bot.action('cat_other', async (ctx) => {
     context.step = 'create_product_quantity';
     return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
   }
-});
+}, 'cat_other'));
 
 bot.action('orders_list', async (ctx) => {
   await ctx.answerCbQuery();
