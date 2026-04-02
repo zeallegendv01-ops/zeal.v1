@@ -278,6 +278,19 @@ setInterval(() => {
   }
 }, 600000); // Every 10 minutes
 
+// Safe editMessageText wrapper - handles "message not modified" error
+const safeEditMessageText = async (ctx, text, options = {}) => {
+  try {
+    return await ctx.editMessageText(text, options);
+  } catch (error) {
+    if (error.message?.includes('message not modified')) {
+      // Message content is identical, just acknowledge the callback
+      return ctx.answerCbQuery('No changes', { show_alert: false }).catch(() => {});
+    }
+    throw error;
+  }
+};
+
 // Global error wrapper for async handlers
 const errorWrapper = (handler, command = '') => async (ctx) => {
   try {
@@ -795,7 +808,7 @@ bot.action('settings_menu', async (ctx) => {
       ` <b>Shipping Fee:</b> ₦${settings.shippingFee.toLocaleString()}\n\n` +
       `Use the menu below to update:`;
 
-    return ctx.editMessageText(message, {
+    return safeEditMessageText(ctx, message, {
       parse_mode: 'HTML',
       reply_markup: Markup.inlineKeyboard([
         [Markup.button.callback('📊 Set Tax Rate', 'settings_tax')],
@@ -912,7 +925,7 @@ bot.action('products_menu', async (ctx) => {
 // LAND MENU
 bot.action('land_menu', async (ctx) => {
   await ctx.answerCbQuery();
-  return ctx.editMessageText(
+  return safeEditMessageText(ctx,
     ' Land Properties Management\n\nSelect action:',
     Markup.inlineKeyboard([
       [Markup.button.callback('View All Land', 'land_list')],
@@ -1740,7 +1753,7 @@ async function deleteProduct(ctx, context) {
 // ORDERS MENU
 bot.action('orders_menu', async (ctx) => {
   await ctx.answerCbQuery();
-  return ctx.editMessageText(
+  return safeEditMessageText(ctx,
     ' Orders Management\n\nSelect action:',
     Markup.inlineKeyboard([
       [Markup.button.callback('View All Orders', 'orders_list')],
@@ -2054,8 +2067,8 @@ bot.action(/^cancel_(.+)$/, async (ctx) => {
 // USERS MENU
 bot.action('users_menu', async (ctx) => {
   await ctx.answerCbQuery();
-  return ctx.editMessageText(
-    ' Users Management\n\nSelect action:',
+  return safeEditMessageText(ctx,
+    ' Users Management\n\nSelect action':
     Markup.inlineKeyboard([
       [Markup.button.callback('View All Users', 'users_list')],
       [Markup.button.callback('Search User', 'users_search')],
@@ -2128,7 +2141,7 @@ bot.action('stats_menu', async (ctx) => {
       ` Pending Orders: ${pendingOrders}\n` +
       ` Total Revenue: ${totalRevenue.toLocaleString()}\n`;
 
-    return ctx.editMessageText(message, {
+    return safeEditMessageText(ctx, message, {
       parse_mode: 'HTML',
       reply_markup: Markup.inlineKeyboard([
         [Markup.button.callback('Refresh', 'stats_menu')],
@@ -2143,16 +2156,282 @@ bot.action('stats_menu', async (ctx) => {
 // MAIN MENU
 bot.action('main_menu', async (ctx) => {
   await ctx.answerCbQuery();
-  return ctx.editMessageText(
+  return safeEditMessageText(ctx,
     ' AgroCrown Admin Dashboard\n\nSelect an option:',
     Markup.inlineKeyboard([
       [Markup.button.callback(' Products', 'products_menu')],
       [Markup.button.callback(' Orders', 'orders_menu')],
       [Markup.button.callback(' Users', 'users_menu')],
-      [Markup.button.callback(' Stats', 'stats_menu')]
+      [Markup.button.callback(' Stats', 'stats_menu')],
+      [Markup.button.callback(' Newsletter', 'newsletter_menu')]
     ])
   );
 });
+
+// NEWSLETTER MANAGEMENT
+bot.action('newsletter_menu', async (ctx) => {
+  await ctx.answerCbQuery();
+  return safeEditMessageText(ctx,
+    ' Newsletter Management\n\nSelect action:',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('View Stats', 'newsletter_stats')],
+      [Markup.button.callback('Send Broadcast', 'newsletter_broadcast')],
+      [Markup.button.callback('Send Email to User', 'newsletter_send_user')],
+      [Markup.button.callback('View Subscribers', 'newsletter_subscribers')],
+      [Markup.button.callback(' Back', 'main_menu')]
+    ])
+  );
+});
+
+bot.action('newsletter_stats', async (ctx) => {
+  await ctx.answerCbQuery();
+  try {
+    const response = await queueRequest(() => api.get('/newsletter/stats'));
+    const stats = response.data.data || {};
+
+    const message = ` <b>Newsletter Statistics</b>\n\n` +
+      ` Active Subscribers: <b>${stats.activeCount || 0}</b>\n` +
+      ` Inactive Subscribers: <b>${stats.inactiveCount || 0}</b>\n` +
+      ` Total Subscribers: <b>${(stats.activeCount || 0) + (stats.inactiveCount || 0)}</b>\n\n` +
+      ` Last Updated: ${new Date().toLocaleString()}`;
+
+    return safeEditMessageText(ctx, message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback('Refresh', 'newsletter_stats')],
+        [Markup.button.callback(' Back', 'newsletter_menu')]
+      ]).reply_markup
+    });
+  } catch (error) {
+    return ctx.editMessageText(' Error fetching stats: ' + error.message, {
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback(' Back', 'newsletter_menu')]
+      ]).reply_markup
+    });
+  }
+});
+
+bot.action('newsletter_subscribers', async (ctx) => {
+  await ctx.answerCbQuery();
+  try {
+    const response = await queueRequest(() => api.get('/newsletter/subscribers?limit=20&page=1'));
+    const subscribers = response.data.data || [];
+
+    if (subscribers.length === 0) {
+      return ctx.editMessageText(' No newsletter subscribers yet.', {
+        reply_markup: Markup.inlineKeyboard([
+          [Markup.button.callback(' Back', 'newsletter_menu')]
+        ]).reply_markup
+      });
+    }
+
+    let message = ' <b>Newsletter Subscribers</b>\n\n';
+    subscribers.forEach((sub, i) => {
+      message += `${i + 1}. ${sub.email}\n`;
+      if (sub.firstName) message += `   Name: ${sub.firstName}${sub.lastName ? ' ' + sub.lastName : ''}\n`;
+      message += `   Status: ${sub.subscribed ? '✅ Active' : '❌ Inactive'}\n\n`;
+    });
+
+    return ctx.editMessageText(message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback(' Back', 'newsletter_menu')]
+      ]).reply_markup
+    });
+  } catch (error) {
+    return ctx.editMessageText(' Error fetching subscribers: ' + error.message, {
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback(' Back', 'newsletter_menu')]
+      ]).reply_markup
+    });
+  }
+});
+
+bot.action('newsletter_broadcast', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id] = { step: 'broadcast_subject' };
+  return ctx.editMessageText(' <b>Newsletter Broadcast</b>\n\nEnter email subject:', { parse_mode: 'HTML' });
+});
+
+bot.action('newsletter_send_user', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id] = { step: 'send_user_email' };
+  return ctx.editMessageText(' <b>Send Email to User</b>\n\nEnter recipient email:', { parse_mode: 'HTML' });
+});
+
+// NEWSLETTER COMMANDS
+bot.command('newsletter', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+
+  return ctx.reply(' <b>Newsletter Commands</b>\n\n' +
+    ' /sendmail &lt;email&gt; - Send email to specific user\n' +
+    ' /sendall - Broadcast email to all subscribers\n' +
+    ' /newsletter - Show this menu\n\n' +
+    'Or use the menu system with /start', 
+    { parse_mode: 'HTML' }
+  );
+}));
+
+bot.command('sendmail', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+
+  const args = ctx.message.text.split(' ').slice(1);
+  if (args.length === 0) {
+    return ctx.reply(' <b>Usage:</b> /sendmail &lt;user_email&gt;\n\n<i>Example:</i> /sendmail john@example.com\n\nThen provide subject and message when prompted.', { parse_mode: 'HTML' });
+  }
+
+  const userEmail = args[0];
+  userContext[ctx.from.id] = { 
+    step: 'sendmail_subject', 
+    userEmail: userEmail,
+    command: 'sendmail'
+  };
+
+  return ctx.reply(` <b>Send Email to ${userEmail}</b>\n\nEnter email subject:`, { parse_mode: 'HTML' });
+}));
+
+bot.command('sendall', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+
+  userContext[ctx.from.id] = { 
+    step: 'sendall_subject',
+    command: 'sendall'
+  };
+
+  return ctx.reply(' <b>Broadcast Email to All Subscribers</b>\n\nEnter email subject:', { parse_mode: 'HTML' });
+}));
+
+// Handle newsletter text inputs
+bot.on('text', errorWrapper(async (ctx) => {
+  const userId = ctx.from.id;
+  const context = userContext[userId];
+
+  if (!context) return; // No active workflow
+
+  // Handle newsletter workflow steps
+  if (context.step === 'sendmail_subject') {
+    context.subject = ctx.message.text;
+    context.step = 'sendmail_message';
+    return ctx.reply(` <b>Email Subject:</b> ${context.subject}\n\nNow enter the email message/body:`, { parse_mode: 'HTML' });
+  }
+
+  if (context.step === 'sendmail_message') {
+    context.message = ctx.message.text;
+    
+    try {
+      await ctx.reply(` Sending email to ${context.userEmail}...`, { parse_mode: 'HTML' });
+      
+      // Find user by email first
+      const usersRes = await queueRequest(() => api.get('/auth/users'));
+      const users = usersRes.data.data || [];
+      const user = users.find(u => u.email.toLowerCase() === context.userEmail.toLowerCase());
+
+      if (!user) {
+        delete userContext[userId];
+        return ctx.reply(` User with email "${context.userEmail}" not found.`);
+      }
+
+      // Send email via API
+      const response = await queueRequest(() => api.post('/newsletter/send-email', {
+        userId: user._id,
+        subject: context.subject,
+        message: context.message
+      }));
+
+      delete userContext[userId];
+      return ctx.reply(` <b>✅ Email sent successfully!</b>\n\nTo: ${context.userEmail}\nSubject: ${context.subject}`, {
+        parse_mode: 'HTML',
+        reply_markup: Markup.inlineKeyboard([
+          [Markup.button.callback(' Back to Menu', 'main_menu')]
+        ]).reply_markup
+      });
+    } catch (error) {
+      delete userContext[userId];
+      return ctx.reply(` Error sending email: ${error.message}`);
+    }
+  }
+
+  if (context.step === 'sendall_subject') {
+    context.subject = ctx.message.text;
+    context.step = 'sendall_message';
+    return ctx.reply(` <b>Broadcast Subject:</b> ${context.subject}\n\nNow enter the message body to send to all subscribers:`, { parse_mode: 'HTML' });
+  }
+
+  if (context.step === 'sendall_message') {
+    context.message = ctx.message.text;
+    
+    try {
+      await ctx.reply(` Fetching subscriber count...`, { parse_mode: 'HTML' });
+      
+      // Get subscriber count
+      const statsRes = await queueRequest(() => api.get('/newsletter/stats'));
+      const subscriberCount = statsRes.data.data?.activeCount || 0;
+
+      if (subscriberCount === 0) {
+        delete userContext[userId];
+        return ctx.reply(' No active subscribers to send to.');
+      }
+
+      // Ask for confirmation
+      context.step = 'sendall_confirm';
+      return ctx.reply(` <b>Broadcast Confirmation</b>\n\n` +
+        `Subject: ${context.subject}\n` +
+        `Recipients: ${subscriberCount} active subscribers\n\n` +
+        `Send this broadcast to all subscribers?\n\n` +
+        `Reply with "YES" to confirm or "NO" to cancel:`,
+        { parse_mode: 'HTML' }
+      );
+    } catch (error) {
+      delete userContext[userId];
+      return ctx.reply(` Error: ${error.message}`);
+    }
+  }
+
+  if (context.step === 'sendall_confirm') {
+    if (ctx.message.text.toUpperCase() === 'YES') {
+      try {
+        await ctx.reply(` Processing broadcast...`, { parse_mode: 'HTML' });
+        
+        // Send broadcast
+        const response = await queueRequest(() => api.post('/newsletter/broadcast', {
+          subject: context.subject,
+          message: context.message
+        }));
+
+        const result = response.data.data || {};
+        delete userContext[userId];
+
+        return ctx.reply(` <b>✅ Broadcast sent successfully!</b>\n\n` +
+          `Subject: ${context.subject}\n` +
+          `Recipients: ${result.count || 'multiple'} subscribers\n` +
+          `Status: ${result.status || 'completed'}`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Markup.inlineKeyboard([
+              [Markup.button.callback(' Back to Menu', 'main_menu')]
+            ]).reply_markup
+          }
+        );
+      } catch (error) {
+        delete userContext[userId];
+        return ctx.reply(` Error sending broadcast: ${error.message}`);
+      }
+    } else {
+      delete userContext[userId];
+      return ctx.reply(' Broadcast cancelled.', {
+        reply_markup: Markup.inlineKeyboard([
+          [Markup.button.callback(' Back to Menu', 'main_menu')]
+        ]).reply_markup
+      });
+    }
+  }
+
+  if (context.step === 'broadcast_subject' || context.step === 'send_user_email') {
+    // Delegate to existing message handlers structure
+    // These will be handled by existing text handler
+    return;
+  }
+}, 'newsletter'));
 
 // PHOTO HANDLER
 bot.on('photo', errorWrapper(async (ctx) => {

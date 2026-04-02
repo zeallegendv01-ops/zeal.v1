@@ -368,6 +368,184 @@ class EmailService {
       return false;
     }
   }
+
+  async sendNewsletterWelcomeEmail(subscriber) {
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: subscriber.email,
+      subject: '🌾 Welcome to AgroCrown Newsletter - Stay Updated!',
+      html: `
+        <div style="font-family: 'Arial', sans-serif; max-width: 650px; margin: 0 auto;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #0d0d0b 0%, #1a1a18 100%); padding: 50px 30px; text-align: center;">
+            <h1 style="color: #ffd700; font-size: 36px; margin: 0; font-weight: bold;">🌾 AgroCrown</h1>
+            <p style="color: #ccc; margin: 8px 0 0 0; font-size: 14px; letter-spacing: 2px; text-transform: uppercase;">Premium Agricultural Exports</p>
+          </div>
+
+          <!-- Content -->
+          <div style="background: white; padding: 40px 30px;">
+            <h2 style="color: #0d0d0b; font-size: 24px; margin: 0 0 20px 0;">Welcome to Our Newsletter! 📬</h2>
+            
+            <p style="color: #555; font-size: 15px; line-height: 1.8; margin: 0 0 20px 0;">
+              Thank you for subscribing to the AgroCrown newsletter, ${subscriber.firstName || 'Valued Customer'}! You'll now receive exclusive updates about:
+            </p>
+
+            <ul style="color: #555; font-size: 14px; line-height: 1.8; margin: 0 0 20px 0; padding-left: 20px;">
+              <li>📦 New premium agricultural products & availability</li>
+              <li>💰 Special offers and exclusive deals</li>
+              <li>📊 Market insights and agricultural updates</li>
+              <li>🌾 Featured products from West African producers</li>
+              <li>📍 Land property listings and opportunities</li>
+              <li>🎯 Member-only promotions and early access</li>
+            </ul>
+
+            <div style="background: linear-gradient(135deg, #f9f9f9 0%, #f0f0f0 100%); border-left: 4px solid #ffd700; padding: 20px; margin: 25px 0; border-radius: 5px;">
+              <p style="margin: 0; color: #0d0d0b; font-weight: bold; font-size: 14px;">✓ Newsletter Active</p>
+              <p style="margin: 8px 0 0 0; color: #666; font-size: 13px;">You'll receive updates approximately once per week</p>
+            </div>
+
+            <p style="color: #555; font-size: 15px; line-height: 1.8; margin: 0 0 20px 0;">
+              Explore our website to browse our full collection of premium agricultural products and land properties.
+            </p>
+
+            <!-- Browse Products Button -->
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:8000'}" style="background-color: #ffd700; color: #0d0d0b; padding: 14px 40px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; font-size: 15px;">
+                Browse Products →
+              </a>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+            <!-- Unsubscribe -->
+            <p style="color: #999; font-size: 12px; text-align: center; line-height: 1.6;">
+              Not interested? You can <a href="${process.env.FRONTEND_URL || 'http://localhost:8000'}/unsubscribe?email=${subscriber.email}" style="color: #ffd700; text-decoration: none;">unsubscribe</a> anytime.<br>
+              We respect your preferences and won't spam your inbox.
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div style="background: #0d0d0b; padding: 30px; text-align: center; border-top: 3px solid #ffd700;">
+            <p style="color: #ccc; font-size: 12px; margin: 0 0 12px 0; line-height: 1.6;">
+              You're receiving this email because you subscribed to the AgroCrown newsletter.
+            </p>
+            <p style="color: #999; font-size: 11px; margin: 0;">
+              © 2026 AgroCrown Heritage. All Rights Reserved. | EST. 2026 | NIGERIA
+            </p>
+          </div>
+        </div>
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      return true;
+    } catch (error) {
+      console.error('Newsletter welcome email error:', error);
+      return false;
+    }
+  }
+
+  async sendBroadcastEmail(subscriber, subject, message) {
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: subscriber.email,
+      subject: `🌾 ${subject}`,
+      html: `
+        <div style="font-family: 'Arial', sans-serif; max-width: 650px; margin: 0 auto;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #0d0d0b 0%, #1a1a18 100%); padding: 50px 30px; text-align: center;">
+            <h1 style="color: #ffd700; font-size: 36px; margin: 0; font-weight: bold;">🌾 AgroCrown</h1>
+            <p style="color: #ccc; margin: 8px 0 0 0; font-size: 14px; letter-spacing: 2px; text-transform: uppercase;">Premium Agricultural Exports</p>
+          </div>
+
+          <!-- Content -->
+          <div style="background: white; padding: 40px 30px;">
+            <h2 style="color: #0d0d0b; font-size: 24px; margin: 0 0 20px 0;">${subject}</h2>
+            
+            <div style="color: #555; font-size: 15px; line-height: 1.8; margin: 0 0 20px 0;">
+              ${message.replace(/\n/g, '<br>')}
+            </div>
+
+            <!-- Browse Products Button -->
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:8000'}" style="background-color: #ffd700; color: #0d0d0b; padding: 14px 40px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; font-size: 15px;">
+                Visit AgroCrown →
+              </a>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+            <!-- Unsubscribe -->
+            <p style="color: #999; font-size: 12px; text-align: center;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:8000'}/unsubscribe?email=${subscriber.email}" style="color: #ffd700; text-decoration: none;">Unsubscribe</a> from our newsletter
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div style="background: #0d0d0b; padding: 30px; text-align: center; border-top: 3px solid #ffd700;">
+            <p style="color: #999; font-size: 11px; margin: 0;">
+              © 2026 AgroCrown Heritage. All Rights Reserved.
+            </p>
+          </div>
+        </div>
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      return true;
+    } catch (error) {
+      console.error('Broadcast email error:', error);
+      throw error;
+    }
+  }
+
+  async sendCustomEmail(recipientEmail, subject, message) {
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: recipientEmail,
+      subject: `🌾 ${subject}`,
+      html: `
+        <div style="font-family: 'Arial', sans-serif; max-width: 650px; margin: 0 auto;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #0d0d0b 0%, #1a1a18 100%); padding: 50px 30px; text-align: center;">
+            <h1 style="color: #ffd700; font-size: 36px; margin: 0; font-weight: bold;">🌾 AgroCrown</h1>
+            <p style="color: #ccc; margin: 8px 0 0 0; font-size: 14px; letter-spacing: 2px; text-transform: uppercase;">Premium Agricultural Exports</p>
+          </div>
+
+          <!-- Content -->
+          <div style="background: white; padding: 40px 30px;">
+            <h2 style="color: #0d0d0b; font-size: 24px; margin: 0 0 20px 0;">${subject}</h2>
+            
+            <div style="color: #555; font-size: 15px; line-height: 1.8; margin: 0 0 20px 0;">
+              ${message.replace(/\n/g, '<br>')}
+            </div>
+
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+          </div>
+
+          <!-- Footer -->
+          <div style="background: #0d0d0b; padding: 30px; text-align: center; border-top: 3px solid #ffd700;">
+            <p style="color: #ccc; font-size: 12px; margin: 0 0 12px 0; line-height: 1.6;">
+              Questions? Contact us via email or Telegram
+            </p>
+            <p style="color: #999; font-size: 11px; margin: 0;">
+              © 2026 AgroCrown Heritage. All Rights Reserved.
+            </p>
+          </div>
+        </div>
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      return true;
+    } catch (error) {
+      console.error('Custom email error:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new EmailService();

@@ -20,4 +20,19 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    // Check if user has admin role or is the user in question
+    if (req.user.accountType === 'admin' || roles.includes(req.user.accountType)) {
+      next();
+    } else {
+      return res.status(403).json({ success: false, message: 'Not authorized to access this resource' });
+    }
+  };
+};
+
+module.exports = { protect, authorize };
