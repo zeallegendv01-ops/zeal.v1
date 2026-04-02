@@ -1666,8 +1666,9 @@ async function initializeApp() {
     // Stop polling when user leaves the page
     window.addEventListener('beforeunload', stopProductPolling);
     
-    // Load global products (search suggestions) in background
-    loadGlobalProducts().catch(e => console.warn('[DEBUG] loadGlobalProducts timed out or failed:', e));
+    // Load global products (search suggestions) - WAIT FOR THIS TO COMPLETE
+    console.log('[DEBUG] Loading global products for search...');
+    await loadGlobalProducts().catch(e => console.warn('[DEBUG] loadGlobalProducts timed out or failed:', e));
     
     // FETCH PRODUCTS FIRST - WAIT FOR THIS TO COMPLETE
     console.log('[DEBUG] Fetching products...');
