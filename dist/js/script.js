@@ -7,6 +7,36 @@ const API_BASE_URL = window.location.hostname === 'localhost'
 
 console.log('[DEBUG] API_BASE_URL:', API_BASE_URL);
 
+// Global settings object - will be populated from API
+let appSettings = {
+  taxRate: 10,        // Default fallback
+  shippingFee: 2500   // Default fallback
+};
+
+// Fetch settings from backend API
+async function loadAppSettings() {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(`${API_BASE_URL}/settings`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    if (response.ok) {
+      const result = await response.json();
+      if (result.success && result.data) {
+        appSettings.taxRate = result.data.taxRate || 10;
+        appSettings.shippingFee = result.data.shippingFee || 2500;
+        console.log('[OK] Settings loaded:', appSettings);
+      }
+    } else {
+      console.warn('[WARN] Failed to load settings, using defaults');
+    }
+  } catch (err) {
+    console.warn('[WARN] Settings API call failed, using defaults:', err.message);
+  }
+}
+
 let deferredPrompt = null;
 
 // Register service worker
@@ -330,6 +360,13 @@ function switchChart(key,btn){
   initChart(key);
 }
 
+// Load settings on page ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', loadAppSettings);
+} else {
+  loadAppSettings();
+}
+
 // Initialize charts when modal opens
 function initAnalyticsOnOpen(){
   if(!analyticsData) fetchAnalytics().then(()=>{
@@ -607,10 +644,11 @@ function updateCartDisplay(){
   const totalEl = document.getElementById('cartTotal');
   
   // Calculate full total with tax and shipping (matches Paystack calculation)
-  // Only add shipping for product items, not for land
+  // Uses settings fetched from backend API
   const hasProductItems = productItems.length > 0;
-  const shippingCost = hasProductItems ? 2500 : 0; // Get from settings via API in future, for now hardcoded to match backend fallback
-  const tax = subtotal * 0.1; // 10% tax (should fetch from API in future)
+  const shippingCost = hasProductItems ? appSettings.shippingFee : 0; // Use settings from API
+  const taxRate = appSettings.taxRate / 100; // Convert percentage to decimal
+  const tax = subtotal * taxRate; // Use settings from API
   const total = subtotal + shippingCost + tax;
   
   if(subEl) subEl.textContent = `NGN${subtotal.toFixed(2)}`;
