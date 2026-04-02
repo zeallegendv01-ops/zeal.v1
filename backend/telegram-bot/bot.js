@@ -32,6 +32,8 @@ const refreshToken = async () => {
     const response = await axios.post(`${API_BASE_URL}/auth/login`, {
       email: process.env.ADMIN_EMAIL,
       password: process.env.ADMIN_PASSWORD
+    }, {
+      timeout: 45000 // Increased timeout to 45 seconds for database operations
     });
     
     if (response.data.token) {
@@ -46,6 +48,10 @@ const refreshToken = async () => {
     console.error('[Token Refresh]  Failed to refresh token');
     if (error.response?.data) {
       console.error('[Token Refresh] Response error:', error.response.data);
+    } else if (error.code === 'ECONNREFUSED') {
+      console.error('[Token Refresh] Connection refused - server not ready yet');
+    } else if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
+      console.error('[Token Refresh] Request timeout - database operation slow');
     } else if (error.code) {
       console.error('[Token Refresh] Error code:', error.code);
       console.error('[Token Refresh] Error message:', error.message);
@@ -58,9 +64,9 @@ const refreshToken = async () => {
 
 // Initialize token on startup with retry logic
 const initializeToken = async (maxRetries = 10) => {
-  // Wait for server to start (initial buffer)
-  console.log('[Bot] Starting bot, waiting for server to be ready...');
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  // Wait for server and database to fully initialize
+  console.log('[Bot] Starting bot, waiting for server and database to be ready...');
+  await new Promise(resolve => setTimeout(resolve, 5000)); // Increased from 2s to 5s
   
   let retries = 0;
   while (retries < maxRetries) {

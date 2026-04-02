@@ -3,13 +3,14 @@ const mongoose = require('mongoose');
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/agrocrown', {
-      serverSelectionTimeoutMS: 30000,    // Increase timeout to 30 seconds
-      socketTimeoutMS: 60000,             // Socket timeout to 60 seconds
-      connectTimeoutMS: 30000,            // Connection timeout to 30 seconds
+      serverSelectionTimeoutMS: 45000,    // Increased timeout for server selection
+      socketTimeoutMS: 90000,             // Increased socket timeout to 90 seconds
+      connectTimeoutMS: 45000,            // Increased connection timeout
       maxPoolSize: 10,                    // Connection pooling
       minPoolSize: 5,
       retryWrites: true,
-      w: 'majority'
+      w: 'majority',
+      maxIdleTimeMS: 60000                // Max idle time before connection is closed
     });
     console.log(`MongoDB connected: ${conn.connection.host}`);
     return conn;
