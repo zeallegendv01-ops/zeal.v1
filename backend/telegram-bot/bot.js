@@ -1109,7 +1109,11 @@ bot.on('text', errorWrapper(async (ctx) => {
   console.log(`[Bot] Text from ${userId}: "${text}" (Context step: ${context?.step || 'none'})`);
 
   if (!context) {
-    console.log(`[Bot] No context for user ${userId}`);
+    console.log(`[Bot] No context for user ${userId} - message not recognized`);
+    // User sent a message without an active workflow
+    if (!text.startsWith('/')) {
+      return ctx.reply(' 📢 <b>I didn\'t catch that!</b>\n\nI\'m waiting for a specific input as part of a workflow.\n\n💡 <b>Tip:</b> Use /start to see available commands or /addproduct to create a new product.', { parse_mode: 'HTML' });
+    }
     return;
   }
 
@@ -1154,10 +1158,13 @@ bot.on('text', errorWrapper(async (ctx) => {
           console.error(`[Bot] Failed to send category buttons:`, err.message);
         });
 
-    case 'create_product_quantity':
+      case 'create_product_quantity':
       context.quantity = parseFloat(ctx.message.text);
       if (isNaN(context.quantity)) {
-        return ctx.reply(' Invalid quantity. Enter a number:');
+        return ctx.reply(' ⚠️ <b>Invalid quantity</b>\n\nPlease enter a valid number (e.g., 1000):\n\nExample: 500 kg of rice', { parse_mode: 'HTML' });
+      }
+      if (context.quantity <= 0) {
+        return ctx.reply(' ⚠️ <b>Invalid quantity</b>\n\nQuantity must be greater than 0. Please try again.', { parse_mode: 'HTML' });
       }
       context.step = 'create_product_unit';
       return ctx.reply(' <b>Unit of Measurement</b>\n\nEnter the unit for this product:\n\n<b>Examples:</b> kg, pieces, plots, acres, hectares, boxes, bags, liters, tons, pack, cartons, bundles, etc.\n\n<i>You can use any custom unit!</i>', { parse_mode: 'HTML' });
@@ -1172,19 +1179,25 @@ bot.on('text', errorWrapper(async (ctx) => {
 
     case 'create_product_min_limit':
       context.minLimit = parseFloat(ctx.message.text);
-      if (isNaN(context.minLimit) || context.minLimit < 0) {
-        return ctx.reply(' Invalid minimum limit. Enter a positive number:');
+      if (isNaN(context.minLimit)) {
+        return ctx.reply(` ⚠️ <b>Invalid minimum limit</b>\n\nPlease enter a valid number (e.g., 50 for minimum 50${context.unit}):`, { parse_mode: 'HTML' });
+      }
+      if (context.minLimit < 0) {
+        return ctx.reply(` ⚠️ <b>Invalid minimum limit</b>\n\nMinimum limit must be 0 or greater. Please try again.`, { parse_mode: 'HTML' });
       }
       context.step = 'create_product_max_limit';
       return ctx.reply(` <b>Maximum Order Limit</b>\n\nEnter the maximum order quantity in <b>${context.unit}</b>:\n\n<i>Must be greater than minimum limit (${context.minLimit})</i>`, { parse_mode: 'HTML' });
 
     case 'create_product_max_limit':
       context.maxLimit = parseFloat(ctx.message.text);
-      if (isNaN(context.maxLimit) || context.maxLimit < 0) {
-        return ctx.reply(' Invalid maximum limit. Enter a positive number:');
+      if (isNaN(context.maxLimit)) {
+        return ctx.reply(` ⚠️ <b>Invalid maximum limit</b>\n\nPlease enter a valid number (e.g., 5000 for maximum 5000${context.unit}):`, { parse_mode: 'HTML' });
+      }
+      if (context.maxLimit < 0) {
+        return ctx.reply(` ⚠️ <b>Invalid maximum limit</b>\n\nMaximum limit must be 0 or greater. Please try again.`, { parse_mode: 'HTML' });
       }
       if (context.maxLimit <= context.minLimit) {
-        return ctx.reply(` Maximum limit must be greater than minimum limit (${context.minLimit} ${context.unit})`);
+        return ctx.reply(` ⚠️ <b>Invalid range</b>\n\nMaximum limit (${context.maxLimit}) must be <b>greater</b> than minimum limit (${context.minLimit} ${context.unit}).\n\nPlease enter a larger number.`, { parse_mode: 'HTML' });
       }
       context.step = 'create_product_image_choice';
       return ctx.reply(' <b>Product Image</b>\n\nHow would you like to add an image?\n\n1.  Send a photo (upload from Telegram)\n2.  Provide image URL\n3.  Skip (use default image)', {
@@ -1223,7 +1236,7 @@ bot.on('text', errorWrapper(async (ctx) => {
     case 'create_land_area':
       context.areaSqMeters = parseFloat(ctx.message.text);
       if (isNaN(context.areaSqMeters) || context.areaSqMeters <= 0) {
-        return ctx.reply(' Invalid area. Enter a positive number:');
+        return ctx.reply(' ⚠️ <b>Invalid area</b>\n\nPlease enter a valid number greater than 0 (e.g., 5000 for 5000 m²):', { parse_mode: 'HTML' });
       }
       context.step = 'create_land_plots';
       return ctx.reply(' <b>Number of Plots</b>\n\nHow many plots is this property divided into? (e.g., 1, 2, 4, etc.):', { parse_mode: 'HTML' });
@@ -1231,7 +1244,7 @@ bot.on('text', errorWrapper(async (ctx) => {
     case 'create_land_plots':
       context.numberOfPlots = parseInt(ctx.message.text);
       if (isNaN(context.numberOfPlots) || context.numberOfPlots < 1) {
-        return ctx.reply(' Invalid number of plots. Enter a positive whole number:');
+        return ctx.reply(' ⚠️ <b>Invalid number of plots</b>\n\nPlease enter a positive whole number (e.g., 1, 2, 4, etc.):', { parse_mode: 'HTML' });
       }
       context.step = 'create_land_legal_status';
       return ctx.reply(' <b>Legal Status</b>\n\nSelect the legal status of the property:', {
@@ -1254,7 +1267,7 @@ bot.on('text', errorWrapper(async (ctx) => {
     case 'create_land_price':
       context.landPrice = parseFloat(ctx.message.text);
       if (isNaN(context.landPrice) || context.landPrice <= 0) {
-        return ctx.reply(' Invalid price. Enter a positive number:');
+        return ctx.reply(' ⚠️ <b>Invalid price</b>\n\nPlease enter a valid number greater than 0 (e.g., 500000):', { parse_mode: 'HTML' });
       }
       context.step = 'create_land_unit';
       return ctx.reply(' <b>Unit of Measurement</b>\n\nEnter the unit for this property:\n\n<b>Examples:</b> kg, pieces, plots, acres, hectares, boxes, bags, liters, tons, pack, cartons, bundles, etc.\n\n<i>You can use any custom unit!</i>', { parse_mode: 'HTML' });
@@ -1270,7 +1283,8 @@ bot.on('text', errorWrapper(async (ctx) => {
     case 'create_land_min_limit':
       context.minLimit = parseFloat(ctx.message.text);
       if (isNaN(context.minLimit) || context.minLimit < 0) {
-        return ctx.reply(' Invalid minimum limit. Enter a positive number:');
+        return ctx.reply(` ⚠️ <b>Invalid minimum limit</b>\n\nPlease enter a valid number (e.g., 1 for minimum 1 plot):`, { parse_mode: 'HTML' });
+      }
       }
       context.step = 'create_land_max_limit';
       return ctx.reply(` <b>Maximum Order Limit</b>\n\nEnter the maximum order quantity in <b>${context.unit}</b>:\n\n<i>Must be greater than minimum limit (${context.minLimit})</i>`, { parse_mode: 'HTML' });
@@ -1278,10 +1292,10 @@ bot.on('text', errorWrapper(async (ctx) => {
     case 'create_land_max_limit':
       context.maxLimit = parseFloat(ctx.message.text);
       if (isNaN(context.maxLimit) || context.maxLimit < 0) {
-        return ctx.reply(' Invalid maximum limit. Enter a positive number:');
+        return ctx.reply(' ⚠️ <b>Invalid maximum limit</b>\n\nPlease enter a valid number (e.g., 5 for maximum 5 plots):', { parse_mode: 'HTML' });
       }
       if (context.maxLimit <= context.minLimit) {
-        return ctx.reply(` Maximum limit must be greater than minimum limit (${context.minLimit} ${context.unit})`);
+        return ctx.reply(` ⚠️ <b>Invalid range</b>\n\nMaximum limit (${context.maxLimit}) must be <b>greater</b> than minimum limit (${context.minLimit} ${context.unit}).\n\nPlease enter a larger number.`, { parse_mode: 'HTML' });
       }
       context.step = 'create_land_image_choice';
       return ctx.reply(' <b>Property Image</b>\n\nHow would you like to add an image?', {
@@ -1337,8 +1351,14 @@ bot.on('text', errorWrapper(async (ctx) => {
       
     default:
       console.log(`[Bot] No matching case for step: ${context.step}`);
-      return ctx.reply(` I don't understand this step: ${context.step}. Please contact support.`);
+      return ctx.reply(` ⚠️ <b>Unexpected Input</b>\n\nI don't recognize this step: <code>${context.step}</code>\n\nPlease use /start to restart or /addproduct to create a new product.`, { parse_mode: 'HTML' });
   }
+
+  // After switch - catch any unhandled context steps
+  if (context && !['create_product_name', 'create_product_description'].includes(context.step)) {
+    console.log(`[Bot] Unhandled context step after switch: ${context.step} for user ${userId}`);
+  }
+}));
 
   if (context.step === 'update_order_id') {
     context.orderId = ctx.message.text.trim();
