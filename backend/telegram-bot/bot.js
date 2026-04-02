@@ -1746,44 +1746,60 @@ bot.action('image_skip', async (ctx) => {
 
 // CATEGORY SELECTION HANDLERS
 bot.action('cat_fish', errorWrapper(async (ctx) => {
+  console.log(`[Bot] cat_fish callback from user ${ctx.from.id}`);
   await ctx.answerCbQuery();
   const context = userContext[ctx.from.id];
+  console.log(`[Bot] Context for cat_fish:`, { step: context?.step, name: context?.name });
   if (context && context.step === 'create_product_category') {
     context.category = 'Smoked Fish';
     context.step = 'create_product_quantity';
     return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
+  } else {
+    console.warn(`[Bot] Invalid context for cat_fish - step: ${context?.step}`);
   }
-}, 'cat_fish'));
+}, 'addproduct'));
 
 bot.action('cat_grains', errorWrapper(async (ctx) => {
+  console.log(`[Bot] cat_grains callback from user ${ctx.from.id}`);
   await ctx.answerCbQuery();
   const context = userContext[ctx.from.id];
+  console.log(`[Bot] Context for cat_grains:`, { step: context?.step, name: context?.name });
   if (context && context.step === 'create_product_category') {
     context.category = 'Grains';
     context.step = 'create_product_quantity';
     return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
+  } else {
+    console.warn(`[Bot] Invalid context for cat_grains - step: ${context?.step}`);
   }
-}, 'cat_grains'));
+}, 'addproduct'));
 
 bot.action('cat_rice', errorWrapper(async (ctx) => {
+  console.log(`[Bot] cat_rice callback from user ${ctx.from.id}`);
   await ctx.answerCbQuery();
   const context = userContext[ctx.from.id];
+  console.log(`[Bot] Context for cat_rice:`, { step: context?.step, name: context?.name });
   if (context && context.step === 'create_product_category') {
     context.category = 'Rice';
     context.step = 'create_product_quantity';
     return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
+  } else {
+    console.warn(`[Bot] Invalid context for cat_rice - step: ${context?.step}`);
   }
-}, 'cat_rice'));
+}, 'addproduct'));
 
 bot.action('cat_other', errorWrapper(async (ctx) => {
+  console.log(`[Bot] cat_other callback from user ${ctx.from.id}`);
   await ctx.answerCbQuery();
   const context = userContext[ctx.from.id];
+  console.log(`[Bot] Context for cat_other:`, { step: context?.step, name: context?.name });
   if (context && context.step === 'create_product_category') {
     context.category = 'Other';
     context.step = 'create_product_quantity';
     return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
+  } else {
+    console.warn(`[Bot] Invalid context for cat_other - step: ${context?.step}`);
   }
-}, 'cat_other'));
+}, 'addproduct'));
 
 bot.action('orders_list', async (ctx) => {
   await ctx.answerCbQuery();
