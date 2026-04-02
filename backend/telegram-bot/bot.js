@@ -1285,7 +1285,6 @@ bot.on('text', errorWrapper(async (ctx) => {
       if (isNaN(context.minLimit) || context.minLimit < 0) {
         return ctx.reply(` ⚠️ <b>Invalid minimum limit</b>\n\nPlease enter a valid number (e.g., 1 for minimum 1 plot):`, { parse_mode: 'HTML' });
       }
-      }
       context.step = 'create_land_max_limit';
       return ctx.reply(` <b>Maximum Order Limit</b>\n\nEnter the maximum order quantity in <b>${context.unit}</b>:\n\n<i>Must be greater than minimum limit (${context.minLimit})</i>`, { parse_mode: 'HTML' });
 
