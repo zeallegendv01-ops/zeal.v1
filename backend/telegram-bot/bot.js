@@ -763,7 +763,7 @@ bot.command('settings', errorWrapper(async (ctx) => {
 
   try {
     const settingsRes = await queueRequest(() => api.get('/settings'));
-    const settings = settingsRes.data.data || { taxRate: 10, shippingFee: 50 };
+    const settings = settingsRes.data.data || { taxRate: 10, shippingFee: 2500 };
 
     const message = ` <b>Current Settings</b>\n\n` +
       ` <b>Tax Rate:</b> ${settings.taxRate}%\n` +
@@ -788,7 +788,7 @@ bot.action('settings_menu', async (ctx) => {
   await ctx.answerCbQuery();
   try {
     const settingsRes = await queueRequest(() => api.get('/settings'));
-    const settings = settingsRes.data.data || { taxRate: 10, shippingFee: 50 };
+    const settings = settingsRes.data.data || { taxRate: 10, shippingFee: 2500 };
 
     const message = ` <b>Current Settings</b>\n\n` +
       ` <b>Tax Rate:</b> ${settings.taxRate}%\n` +
