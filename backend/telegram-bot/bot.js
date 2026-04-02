@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+﻿require('dotenv').config({ path: './.env' });
 const { Telegraf, Markup } = require('telegraf');
 const axios = require('axios');
 const FormData = require('form-data');
@@ -1708,6 +1708,47 @@ bot.action('image_skip', async (ctx) => {
   const context = userContext[ctx.from.id];
   context.image = 'https://images.unsplash.com/photo-1599056377759-3388006e62e0?auto=format&fit=crop&w=400&q=70';
   await saveProduct(ctx, context);
+});
+
+// CATEGORY SELECTION HANDLERS
+bot.action('cat_fish', async (ctx) => {
+  await ctx.answerCbQuery();
+  const context = userContext[ctx.from.id];
+  if (context && context.step === 'create_product_category') {
+    context.category = 'Smoked Fish';
+    context.step = 'create_product_quantity';
+    return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
+  }
+});
+
+bot.action('cat_grains', async (ctx) => {
+  await ctx.answerCbQuery();
+  const context = userContext[ctx.from.id];
+  if (context && context.step === 'create_product_category') {
+    context.category = 'Grains';
+    context.step = 'create_product_quantity';
+    return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
+  }
+});
+
+bot.action('cat_rice', async (ctx) => {
+  await ctx.answerCbQuery();
+  const context = userContext[ctx.from.id];
+  if (context && context.step === 'create_product_category') {
+    context.category = 'Rice';
+    context.step = 'create_product_quantity';
+    return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
+  }
+});
+
+bot.action('cat_other', async (ctx) => {
+  await ctx.answerCbQuery();
+  const context = userContext[ctx.from.id];
+  if (context && context.step === 'create_product_category') {
+    context.category = 'Other';
+    context.step = 'create_product_quantity';
+    return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
+  }
 });
 
 bot.action('orders_list', async (ctx) => {
