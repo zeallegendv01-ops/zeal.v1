@@ -48,10 +48,16 @@ const initializeAdminUser = async () => {
 // Connect to database
 connectDB();
 
-// Wait for MongoDB connection before initializing admin user
+// Wait for MongoDB connection before initializing admin user and starting server
 mongoose.connection.once('open', async () => {
   console.log('🔗 Database connection ready, initializing admin user...');
   await initializeAdminUser();
+  
+  // Now start the server after database and admin are ready
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 });
 
 // Configure multer for file uploads
@@ -109,15 +115,12 @@ app.use(express.static(path.join(__dirname, '..')));
 app.use('/api/auth', authRoutes);
 
 // Health check endpoint - for bot to verify server is ready
-app.get('/health', async (req, res) => {
+app.get('/health', (req, res) => {
   try {
     // Check if MongoDB is connected
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ status: 'unhealthy', message: 'Database not connected' });
     }
-    
-    // Verify database is responsive with a simple ping
-    await mongoose.connection.db.admin().ping();
     res.json({ status: 'healthy', message: 'Server and database ready' });
   } catch (error) {
     res.status(503).json({ status: 'unhealthy', message: error.message });
@@ -220,10 +223,3 @@ app.use('*', (req, res) => {
 
 // Error handling middleware
 app.use(errorHandler);
-
-const PORT = process.env.PORT || 4000;
-
-// Start server immediately (don't wait for DB)
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
