@@ -824,8 +824,17 @@ bot.action('settings_shipping', async (ctx) => {
   ctx.reply('🚚 Enter new shipping fee (in Naira):');
 });
 
-// Handle settings input
+// Handle settings input - but skip if user is in product creation flow
 bot.hears(/^(\d+(?:\.\d{1,2})?)$/, errorWrapper(async (ctx) => {
+  const userId = ctx.from.id;
+  const userCtx = userContext[userId];
+  
+  // Skip if user is in product/land creation - let bot.on('text') handle it
+  if (userCtx && (userCtx.step?.includes('product') || userCtx.step?.includes('land'))) {
+    console.log(`[Bot] Skipping bot.hears for user ${userId} (in ${userCtx.step} step)`);
+    return; // Don't consume - let bot.on('text') handle it
+  }
+  
   if (!isAdmin(ctx)) return;
   if (!ctx.session?.awaitingInput) return;
 
