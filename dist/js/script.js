@@ -904,15 +904,15 @@ function renderProductCard(product, totalCount) {
       <div class="product-info">
         <div class="product-num">${category}</div>
         <h3>${product.name}</h3>
-        <div class="product-price" id="price-${product._id}">${displayPrice} / ${unit}</div>
+        <div class="product-price" id="price-${product._id}">${(price * 10).toFixed(2)} / 10</div>
         ${certification ? `<div style="font-size: 0.65rem; color: var(--gold-lt); margin-bottom: 4px;">${certification}</div>` : ''}
         <div style="font-size: 0.65rem; color: rgba(255,255,255,0.6); margin-bottom: 8px;">
           Stock: ${quantity} ${unit}${product.minLimit ? ` | Min: ${product.minLimit}` : ''}
         </div>
         <div class="weight-slider-wrap">
           <div class="weight-slider-label">
-            <span>Weight (0  100 ${unit})</span>
-            <span class="wval" id="wv-${product._id}">10 ${unit}</span>
+            <span>Weight (0${unit})</span>
+            <span class="wval" id="wv-${product._id}" style="min-width: 35px; text-align: right;">10 ${unit}</span>
           </div>
           <input type="range" class="wrange" min="0" max="100" value="10" step="1"
             oninput="updateProductPrice('${product._id}', ${price}, this.value)">
@@ -1032,7 +1032,7 @@ function updateProductPrice(productId, pricePerKg, weight) {
   const weightDisplay = document.getElementById(`wv-${productId}`);
   const priceDisplay = document.getElementById(`price-${productId}`);
   const card = document.querySelector(`[data-product-id="${productId}"]`);
-  const unit = card?.querySelector('.weight-slider-label span:first-child')?.textContent?.split('(')[1]?.split(' ')[2] || 'kg';
+  const unit = card?.querySelector('.weight-slider-label span:first-child')?.textContent?.match(/\(0([^)]+)\)/)?.[1] || 'kg';
   
   if (weightDisplay) {
     weightDisplay.textContent = weight + ' ' + unit;
@@ -1040,7 +1040,7 @@ function updateProductPrice(productId, pricePerKg, weight) {
   
   if (priceDisplay) {
     const totalPrice = pricePerKg * parseInt(weight);
-    priceDisplay.textContent = `${totalPrice.toFixed(2)} / ${unit}`;
+    priceDisplay.textContent = `${totalPrice.toFixed(2)} / ${weight}`;
   }
 }
 
