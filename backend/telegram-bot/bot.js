@@ -824,17 +824,51 @@ bot.action('settings_shipping', async (ctx) => {
   ctx.reply('🚚 Enter new shipping fee (in Naira):');
 });
 
-// Handle settings input - but skip if user is in product creation flow
+// Handle numeric input - for both settings and product/land creation
 bot.hears(/^(\d+(?:\.\d{1,2})?)$/, errorWrapper(async (ctx) => {
   const userId = ctx.from.id;
   const userCtx = userContext[userId];
   
-  // Skip if user is in product/land creation - let bot.on('text') handle it
+  // If in product/land creation, delegate to text handler logic
   if (userCtx && (userCtx.step?.includes('product') || userCtx.step?.includes('land'))) {
-    console.log(`[Bot] Skipping bot.hears for user ${userId} (in ${userCtx.step} step)`);
-    return; // Don't consume - let bot.on('text') handle it
+    console.log(`[Bot] Numeric input during ${userCtx.step} - delegating to text handler`);
+    
+    // Manually trigger the text handler logic for product/land prices
+    const context = userCtx;
+    if (context.step === 'create_product_price') {
+      console.log(`[Bot] Processing price for user ${userId}, text: "${ctx.message.text}"`);
+      context.pricePerKg = parseFloat(ctx.message.text);
+      if (isNaN(context.pricePerKg)) {
+        console.log(`[Bot] Invalid price: ${ctx.message.text}`);
+        return ctx.reply(' Invalid price. Enter a number:');
+      }
+      console.log(`[Bot] Price set to ${context.pricePerKg}, moving to category step`);
+      context.step = 'create_product_category';
+      console.log(`[Bot] Sending category buttons...`);
+      return ctx.reply('Select category:', {
+        reply_markup: Markup.inlineKeyboard([
+          [Markup.button.callback('Smoked Fish', 'cat_fish'), Markup.button.callback('Grains', 'cat_grains')],
+          [Markup.button.callback('Rice', 'cat_rice'), Markup.button.callback('Other', 'cat_other')]
+        ]).reply_markup
+      }).then(() => {
+        console.log(`[Bot] Category buttons sent successfully`);
+      }).catch(err => {
+        console.error(`[Bot] Failed to send category buttons:`, err.message);
+      });
+    } else if (context.step === 'create_product_quantity') {
+      context.quantity = parseFloat(ctx.message.text);
+      if (isNaN(context.quantity)) {
+        return ctx.reply(' Invalid quantity. Enter a number:');
+      }
+      context.step = 'create_product_unit';
+      return ctx.reply(' <b>Unit of Measurement</b>\n\nEnter the unit for this product:\n\n<b>Examples:</b> kg, pieces, plots, acres, hectares, boxes, bags, liters, tons, pack, cartons, bundles, etc.\n\n<i>You can use any custom unit!</i>', { parse_mode: 'HTML' });
+    }
+    
+    // For other numeric steps during product/land creation, just return to let normal flow continue
+    return;
   }
   
+  // Otherwise handle as settings input
   if (!isAdmin(ctx)) return;
   if (!ctx.session?.awaitingInput) return;
 
