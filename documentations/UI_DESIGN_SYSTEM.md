@@ -1,10 +1,10 @@
-# AgroCrown Enterprise UI v2.0 - Design System Documentation
+﻿# 365extra Enterprise UI v2.0 - Design System Documentation
 
 ## 📋 Overview
 
 Complete professional-grade UI redesign with enterprise standards for aesthetics, responsiveness, functionality, and accessibility.
 
-**Access the new UI:** `agrocrown-enterprise.html`
+**Access the new UI:** `365extra-enterprise.html`
 
 ---
 
@@ -368,7 +368,7 @@ dist/
 │   └── whatsapp.css      ← WhatsApp integration
 ├── js/
 │   └── script.js         ← Application logic
-agrocrown-enterprise.html ← Main HTML file
+365extra-enterprise.html ← Main HTML file
 ```
 
 ---
@@ -411,7 +411,7 @@ agrocrown-enterprise.html ← Main HTML file
 
 ## 🚀 Quick Start
 
-1. **Open in browser:** `agrocrown-enterprise.html`
+1. **Open in browser:** `365extra-enterprise.html`
 2. **Responsive design:** Test at various breakpoints
 3. **Customize colors:** Edit CSS variables in `enterprise.css`
 4. **Add components:** Copy examples from components.css
@@ -440,7 +440,7 @@ agrocrown-enterprise.html ← Main HTML file
 ## 📞 Support
 
 For questions about the design system:
-1. Check component examples in `agrocrown-enterprise.html`
+1. Check component examples in `365extra-enterprise.html`
 2. Review CSS variables in `enterprise.css`
 3. Use component patterns from `components.css`
 
@@ -449,3 +449,4 @@ For questions about the design system:
 **Created:** May 12, 2026  
 **Design System:** Enterprise Professional v2.0  
 **Status:** Production Ready ✅
+

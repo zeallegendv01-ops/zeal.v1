@@ -1,7 +1,7 @@
-# Land Products Integration Guide
+﻿# Land Products Integration Guide
 
 ## Overview
-Your AgroCrown platform now supports both weight-based agricultural products (measured in kg) and land properties (measured in square meters). The system intelligently handles both types with separate UI, cart logic, and order processing.
+Your 365extra platform now supports both weight-based agricultural products (measured in kg) and land properties (measured in square meters). The system intelligently handles both types with separate UI, cart logic, and order processing.
 
 ---
 
@@ -220,3 +220,4 @@ Displays count as "X items" instead of "X products"
 4. **Monitor Orders**: View mixed-item orders in admin dashboard
 
 Ready to showcase both agricultural products AND land sales! 🌾🏡
+

@@ -1,0 +1,817 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+  <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0D0D0D">
+<meta name="description" content="Global Food Reserve - Premium-grade agricultural exports from West Africa, within and beyond. Organic certified, heritage-driven, field to world.">
+<meta name="keywords" content="365extra, agricultural exports, premium agro products, West Africa, organic farming, land listings, apartment rentals">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://365extra.com/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="365extra">
+<meta property="og:description" content="Global food reserve and premium agricultural exports from West Africa. Organic certified, heritage-driven, sustainably sourced.">
+<meta property="og:url" content="https://365extra.com/">
+<meta property="og:image" content="https://365extra.com/dist/img/download.jfif">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@365extra">
+<meta name="twitter:title" content="365extra - Premium Agricultural Exports">
+<meta name="twitter:description" content="Global food reserve and premium agricultural exports from West Africa. Organic certified, heritage-driven, sustainably sourced.">
+<meta name="twitter:image" content="https://365extra.com/dist/img/download.jfif">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="365extra">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%230d0d0b' width='192' height='192'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='100' fill='%23ffd700' font-family='Arial' font-weight='bold'></text></svg>">
+<title>365extra</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/dist/css/style.css">
+<link rel="stylesheet" href="/dist/css/whatsapp.css">
+</head>
+<body>
+
+<!--  PAGE LOADER  -->
+<div id="pageLoader" class="page-loader">
+  <div class="loader-content">
+    <div class="loader-spinner">
+      <div class="spinner-ring"></div>
+      <div class="spinner-ring"></div>
+      <div class="spinner-ring"></div>
+    </div>
+    <div class="loader-text">
+      <h2>365extra</h2>
+      <p>Loading your premium agriculture experience...</p>
+    </div>
+    <div class="loader-progress">
+      <div class="progress-bar"></div>
+    </div>
+    <div class="loader-hint">Click anywhere to enable sound</div>
+  </div>
+</div>
+
+<!--  SEARCH OVERLAY  -->
+<div id="searchOverlay" role="dialog" aria-modal="true" aria-label="Search products">
+  <div class="search-header">
+    <div>
+      <div class="search-label">Search Marketplace</div>
+      <div class="search-subtitle">Find products, lands and apartments instantly.</div>
+    </div>
+    <button id="searchClose" aria-label="Close search"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <div class="search-input-wrap">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <input type="text" id="searchInput" placeholder="Search by product, location or category" autocomplete="off">
+    <select id="searchSort" aria-label="Sort search results">
+      <option value="relevance">Relevance</option>
+      <option value="price-asc">Price low → high</option>
+      <option value="price-desc">Price high → low</option>
+    </select>
+  </div>
+  <div class="search-toolbar">
+    <div class="search-count" id="searchCount">Start typing to search products, lands and apartments</div>
+    <div class="search-category-filters" id="searchCategoryFilters"></div>
+  </div>
+  <div class="search-empty-state" id="searchEmptyState">
+    <div class="search-suggestions" id="searchSuggestions"></div>
+  </div>
+  <div class="search-results" id="searchResults"></div>
+  <div class="search-no-results" id="searchNoResults">No results found. Try another search.</div>
+</div>
+
+<!--  AUTH MODAL  -->
+<div class="modal-backdrop" id="authModal" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <div class="auth-visual">
+      <img src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=600&q=80" alt="">
+      <div class="auth-visual-content">
+        <h3>365extra Is The Food Basket</h3>
+        <p>Join a community of discerning buyers and producers across 12 nations.</p>
+      </div>
+    </div>
+    <div class="auth-form-panel">
+      <button class="modal-close" onclick="closeModal('authModal')"><i class="fa-solid fa-xmark"></i></button>
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchAuthTab('login',this)">Sign In</button>
+        <button class="auth-tab" onclick="switchAuthTab('register',this)">Register</button>
+      </div>
+      <div class="auth-panel active" id="loginPanel">
+        <div class="auth-field"><label>Email Address</label><input type="email" placeholder="you@example.com"></div>
+        <div class="auth-field"><label>Password</label><input type="password" placeholder=""></div>
+        <div class="auth-forgot" onclick="openForgotPasswordPanel()">Forgot password?</div>
+        <button class="auth-submit">Sign In</button>
+        <div class="auth-divider">or continue with</div>
+        <div class="auth-social">
+          <button class="auth-social-btn"><i class="fa-brands fa-google"></i> Google</button>
+          <button class="auth-social-btn"><i class="fa-brands fa-linkedin"></i> LinkedIn</button>
+        </div>
+      </div>
+      <div class="auth-panel" id="registerPanel">
+        <div class="auth-2col">
+          <div class="auth-field"><label>First Name</label><input type="text" placeholder="First"></div>
+          <div class="auth-field"><label>Last Name</label><input type="text" placeholder="Last"></div>
+        </div>
+        <div class="auth-field"><label>Email Address</label><input type="email" placeholder="you@example.com"></div>
+        <div class="auth-field"><label>Phone Number</label><input type="tel" placeholder="+234 xxx xxx xxxx"></div>
+        <div class="auth-field"><label>Password</label><input type="password" placeholder="Min. 8 characters"></div>
+        <div class="auth-field"><label>Account Type</label><input type="text" placeholder="Buyer / Distributor / Wholesaler"></div>
+        <button class="auth-submit">Create Account</button>
+        <div class="auth-divider">or continue with</div>
+        <div class="auth-social">
+          <button class="auth-social-btn"><i class="fa-brands fa-google"></i> Google</button>
+          <button class="auth-social-btn"><i class="fa-brands fa-linkedin"></i> LinkedIn</button>
+        </div>
+      </div>
+      <div class="auth-panel" id="forgotPanel">
+        <h3 style="text-align:center; margin-bottom:20px;">Reset Password</h3>
+        <div class="auth-field"><label>Email Address</label><input type="email" placeholder="you@example.com"></div>
+        <p style="font-size:0.85rem; color:#666; margin:15px 0;">We'll send you a link to reset your password.</p>
+        <button class="auth-submit">Send Reset Link</button>
+        <button class="auth-submit" style="background:transparent; color:#0d0d0b; border:1px solid #ccc; margin-top:10px;" onclick="switchAuthTab('login',document.querySelector('.auth-tab'))">Back to Login</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!--  CHART MODAL  -->
+<div class="modal-backdrop" id="chartModal" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('chartModal')"><i class="fa-solid fa-xmark"></i></button>
+    <div class="chart-modal-inner">
+      <div class="chart-modal-header">
+        <h2>Export <em>Analytics</em></h2>
+        <p>Real-time overview of product performance, seasonal demand, and global export volumes across our boutique range.</p>
+      </div>
+      <div class="chart-tabs">
+        <button class="chart-tab active" onclick="switchChart('revenue',this)">Revenue</button>
+        <button class="chart-tab" onclick="switchChart('volume',this)">Export Volume</button>
+        <button class="chart-tab" onclick="switchChart('demand',this)">Seasonal Demand</button>
+        <button class="chart-tab" onclick="switchChart('breakdown',this)">Product Mix</button>
+      </div>
+      <div class="chart-canvas-wrap"><canvas id="mainChart"></canvas></div>
+      <div class="chart-stats-row">
+        <div class="chart-stat"><span>Total Revenue (YTD)</span><strong id="statRevenue">2.4M</strong></div>
+        <div class="chart-stat"><span>Export Volume</span><strong id="statVolume">18.6T</strong></div>
+        <div class="chart-stat"><span>Total Orders</span><strong id="statOrders">156</strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!--  CART SIDEBAR  -->
+<div id="cartSidebar" class="cart-sidebar">
+  <div class="cart-sidebar-header">
+    <h2>Your <em>Selection</em></h2>
+    <button class="sidebar-close" onclick="toggleCartSidebar(false)"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+
+  <div class="sidebar-pages" data-page="1">
+    <div class="sidebar-page page-1">
+      <div class="cart-sidebar-body">
+        <div class="cart-empty-state" id="cartEmpty">
+          <div class="cart-empty-icon"><i class="fa-solid fa-basket-shopping"></i></div>
+          <p>Your selection is empty.<br>Browse below.</p>
+        </div>
+        <div class="cart-items-list" id="cartItemsList"></div>
+      </div>
+    </div>
+
+    <div class="sidebar-page page-2">
+      <div class="cart-sidebar-body">
+        <div class="cart-sidebar-footer" id="cartFooter" style="display:none;">
+          <div class="order-summary-glass">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="font-size:0.65rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(13,13,11,0.4);">Order Summary</span>
+              <button class="cart-clear" onclick="clearCart()">Clear all</button>
+            </div>
+            <div class="cart-summary-row"><span>Subtotal</span><span id="cartSubtotal">0.00</span></div>
+            <div class="cart-summary-row"><span>Total Weight</span><span id="cartTotalWeight">0 kg</span></div>
+            <div class="cart-summary-row"><span>Estimated shipping</span><span style="color:rgba(13,13,11,0.35);font-style:italic;font-size:0.8rem;">At checkout</span></div>
+            <div class="cart-summary-row total">
+              <span>Order Total</span>
+              <span class="total-amount" id="cartTotal">0.00</span>
+            </div>
+          </div>
+
+          <div id="landCheckoutSection" style="display:none; margin-top: 10px; padding: 10px; background: rgba(255,215,0,0.08); border-left: 3px solid #ffd700;">
+            <h4 style="margin: 0 0 12px 0; font-size: 0.85rem; font-weight: 700; color: #0d0d0b; display:flex; align-items:center; gap:0.5rem;"><span style="display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;"> <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C8.13401 2 5 5.13401 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13401 15.866 2 12 2Z" fill="currentColor"/><path d="M12 11.5C10.6193 11.5 9.5 10.3807 9.5 9C9.5 7.61929 10.6193 6.5 12 6.5C13.3807 6.5 14.5 7.61929 14.5 9C14.5 10.3807 13.3807 11.5 12 11.5Z" fill="white"/></svg></span>Real Estate</h4>
+            <p style="margin: 0 0 15px 0; font-size: 0.85rem; color: #666;">Contact our real estate specialist or proceed with online payment</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <button class="cart-checkout-btn" id="callDealerBtn" style="background: #2a5a1e; border: none;" onclick="callRealEstateDealer()">
+                <i class="fa-solid fa-phone"></i> Call Dealer
+              </button>
+              <button class="cart-checkout-btn" id="landPayNowBtn" style="background: #0d0d0b; border: none;" onclick="handleLandCheckout()">
+                <i class="fa-solid fa-lock"></i> Pay Now
+              </button>
+            </div>
+          </div>
+
+          <div id="productsCheckoutSection" style="display:none; margin-top: 10px;">
+            <div id="checkoutAddressSummary" style="margin-top: 5px; padding: 5px; background: rgba(255,215,0,0.05); border-left: 3px solid #ffd700;">
+              <p id="checkoutAddressSummaryText" style="margin: 0; font-size: 0.85rem; color: #555;">No delivery address added yet. Please enter your address before proceeding to checkout.</p>
+            </div>
+
+            <div class="checkout-btn-row">
+              <button class="cart-checkout-btn" id="enterAddressButton" onclick="openAddressModal()" style="background: #0d0d0b; border: none;">
+                <i class="fa-solid fa-map-marker-alt"></i> Enter Address
+              </button>
+              <button class="cart-checkout-btn" id="cartCheckout" onclick="handleCheckout()"><i class="fa-solid fa-lock"></i> Checkout</button>
+            </div>
+          </div>
+
+          <button class="cart-continue-btn" onclick="toggleCartSidebar(false)">← Continue Shopping</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="sidebar-page-toggle" onclick="toggleSidebarPage('cartSidebar')" aria-label="Toggle cart pages">
+    <span class="slide-label">View Checkout</span>
+    <i class="fa-solid fa-arrow-right"></i>
+  </button>
+</div>
+
+<!--  WHATSAPP BUBBLE  -->
+<div id="whatsappToggle" class="whatsapp-toggle hidden" title="Chat with us">
+  <i class="fa-brands fa-whatsapp"></i>
+</div>
+
+<!-- Cart toggle button (fixed) -->
+<button id="cartToggleBtn" class="cart-toggle-btn" onclick="toggleCartSidebar(true)" style="display:none;">
+  <i class="fa-solid fa-basket-shopping"></i>
+  <span id="cartCountBadge" class="cart-badge">0</span>
+</button>
+
+<!--  Scroll to top button  -->
+<button id="scrollTopBtn" class="scroll-top-btn" onclick="scrollToTop()" title="Scroll to top">
+  <i class="fa-solid fa-arrow-up"></i>
+</button>
+
+<!--  EMPTY CART WELCOME MODAL (Glassmorphic)  -->
+<div class="modal-backdrop" id="emptyCartModal" role="dialog" aria-modal="true">
+  <div class="modal-box glass-modal">
+    <button class="modal-close" onclick="closeModal('emptyCartModal')"><i class="fa-solid fa-xmark"></i></button>
+    <div class="glass-modal-content">
+      <div class="glass-modal-icon">
+        <i class="fa-solid fa-seedling"></i>
+      </div>
+      <h2 id="welcomeUserName">Welcome, <em>Guest</em>!</h2>
+      <p class="glass-modal-subtext">Your cart is empty. Discover our curated selection of premium, heritage-driven agricultural exports.</p>
+      <div class="glass-modal-actions">
+        <button class="glass-btn-primary" onclick="closeModal('emptyCartModal'); document.getElementById('products').scrollIntoView({behavior:'smooth'});">
+          Browse Products <i class="fa-solid fa-arrow-right"></i>
+        </button>
+        <button class="glass-btn-secondary" onclick="closeModal('emptyCartModal');">Dismiss</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!--  ADDRESS ENTRY MODAL  -->
+<div class="modal-backdrop" id="addressModal" role="dialog" aria-modal="true">
+  <div class="modal-box glass-modal">
+    <button class="modal-close" onclick="closeModal('addressModal')"><i class="fa-solid fa-xmark"></i></button>
+    <div class="glass-modal-content">
+      <div class="glass-modal-icon">
+        <i class="fa-solid fa-map-location-dot"></i>
+      </div>
+      <h2>Enter Delivery Address</h2>
+      <p class="glass-modal-subtext">Provide the address where you would like your order delivered.</p>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px;">
+        <div>
+          <label style="display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: #666;">Street Address *</label>
+          <input type="text" id="shippingStreet" placeholder="e.g., 12 Lekki Road" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem; box-sizing: border-box;">
+        </div>
+        <div>
+          <label style="display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: #666;">City *</label>
+          <input type="text" id="shippingCity" placeholder="e.g., Lagos" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem; box-sizing: border-box;">
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+        <div>
+          <label style="display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: #666;">State/Province *</label>
+          <input type="text" id="shippingState" placeholder="e.g., Lagos" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem; box-sizing: border-box;">
+        </div>
+        <div>
+          <label style="display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: #666;">Postal Code *</label>
+          <input type="text" id="shippingPostalCode" placeholder="e.g., 101241" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem; box-sizing: border-box;">
+        </div>
+      </div>
+      <div style="margin-top: 10px;">
+        <label style="display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: #666;">Country *</label>
+        <input type="text" id="shippingCountry" placeholder="Nigeria" value="Nigeria" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem; box-sizing: border-box;">
+      </div>
+      <div style="margin-top: 10px;">
+        <label style="display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: #666;">Delivery Notes (Optional)</label>
+        <textarea id="shippingNotes" placeholder="e.g., Handle with care, Ring bell before leaving..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; box-sizing: border-box; min-height: 90px; resize: vertical;"></textarea>
+      </div>
+      <div class="glass-modal-actions" style="margin-top: 16px; gap: 10px; display: flex; flex-wrap: wrap; justify-content: flex-end;">
+        <button class="glass-btn-secondary" onclick="closeModal('addressModal')">Cancel</button>
+        <button class="glass-btn-primary" onclick="saveAddressAndClose()">Save Address <i class="fa-solid fa-check"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!--  USER DASHBOARD SIDEBAR  -->
+<div id="dashboardSidebar" class="sidebar-overlay">
+  <div class="sidebar-panel">
+    <div class="cart-sidebar-header">
+      <h2>My <em>Dashboard</em></h2>
+      <button class="sidebar-close" onclick="toggleSidebar('dashboardSidebar', false)"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    
+    <div class="cart-sidebar-body">
+      <div class="dashboard-content" id="dashboardContent">
+        <!-- Dashboard stats -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px;margin-bottom:30px;">
+          <div style="background:#f4f2ed;padding:15px;border-radius:8px;text-align:center;">
+            <div style="font-size:24px;font-weight:bold;color:#0d0d0b;">0</div>
+            <div style="font-size:12px;color:#666;margin-top:5px;">Orders Placed</div>
+          </div>
+          <div style="background:#f4f2ed;padding:15px;border-radius:8px;text-align:center;">
+            <div style="font-size:24px;font-weight:bold;color:#0d0d0b;">0</div>
+            <div style="font-size:12px;color:#666;margin-top:5px;">Total Spent</div>
+          </div>
+          <div style="background:#f4f2ed;padding:15px;border-radius:8px;text-align:center;">
+            <div style="font-size:24px;font-weight:bold;color:#0d0d0b;">0</div>
+            <div style="font-size:12px;color:#666;margin-top:5px;">This Week</div>
+          </div>
+          <div style="background:#f4f2ed;padding:15px;border-radius:8px;text-align:center;">
+            <div style="font-size:24px;font-weight:bold;color:#0d0d0b;">0</div>
+            <div style="font-size:12px;color:#666;margin-top:5px;">Today</div>
+          </div>
+        </div>
+
+        <!-- Recent transactions -->
+        <h3 style="margin:30px 0 15px 0;font-family:'Cormorant Garamond',serif;font-size:18px;">Recent Transactions</h3>
+        <div id="recentTransactionsContainer" style="border-top:1px solid #ddd;padding-top:15px;">
+          <p style="text-align:center;color:#999;">Loading transactions...</p>
+        </div>
+
+        <!-- Top products -->
+        <h3 style="margin:30px 0 15px 0;font-family:'Cormorant Garamond',serif;font-size:18px;">Top Products</h3>
+        <div id="topProductsContainer" style="border-top:1px solid #ddd;padding-top:15px;">
+          <p style="text-align:center;color:#999;">Loading preferences...</p>
+        </div>
+
+        <button class="glass-btn-secondary" onclick="toggleSidebar('dashboardSidebar', false);logout();" style="width:100%;margin-top:20px;">Logout</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!--  PRODUCT DETAILS SIDEBAR  -->
+<div id="productDetailsSidebar" class="sidebar-overlay">
+  <div class="sidebar-panel">
+    <div class="cart-sidebar-header">
+      <h2><em>Product</em> Details</h2>
+      <button class="sidebar-close" onclick="toggleSidebar('productDetailsSidebar', false)"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="sidebar-pages" data-page="1">
+      <div class="sidebar-page page-1">
+        <div class="cart-sidebar-body">
+          <div id="productDetailsContent"></div>
+        </div>
+      </div>
+      <div class="sidebar-page page-2">
+        <div class="cart-sidebar-body">
+          <div id="productDetailsActions"></div>
+        </div>
+      </div>
+    </div>
+    <button class="sidebar-page-toggle" onclick="toggleSidebarPage('productDetailsSidebar')" aria-label="Toggle product detail pages">
+      <span class="slide-label">View Actions</span>
+      <i class="fa-solid fa-arrow-right"></i>
+    </button>
+  </div>
+</div>
+
+<!--  LAND DETAILS SIDEBAR  -->
+<div id="landDetailsSidebar" class="sidebar-overlay">
+  <div class="sidebar-panel">
+    <div class="cart-sidebar-header">
+      <h2><em>Land</em> Details</h2>
+      <button class="sidebar-close" onclick="toggleSidebar('landDetailsSidebar', false)"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="sidebar-pages" data-page="1">
+      <div class="sidebar-page page-1">
+        <div class="cart-sidebar-body">
+          <div id="landDetailsContent"></div>
+        </div>
+      </div>
+      <div class="sidebar-page page-2">
+        <div class="cart-sidebar-body">
+          <div id="landDetailsActions"></div>
+        </div>
+      </div>
+    </div>
+    <button class="sidebar-page-toggle" onclick="toggleSidebarPage('landDetailsSidebar')" aria-label="Toggle land detail pages">
+      <span class="slide-label">View Actions</span>
+      <i class="fa-solid fa-arrow-right"></i>
+    </button>
+  </div>
+</div>
+
+<!--  APARTMENT DETAILS SIDEBAR  -->
+<div id="apartmentDetailsSidebar" class="sidebar-overlay">
+  <div class="sidebar-panel">
+    <div class="cart-sidebar-header">
+      <h2><em>Apartment</em> Details</h2>
+      <button class="sidebar-close" onclick="toggleSidebar('apartmentDetailsSidebar', false)"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="sidebar-pages" data-page="1">
+      <div class="sidebar-page page-1">
+        <div class="cart-sidebar-body">
+          <div id="apartmentDetailsContent"></div>
+        </div>
+      </div>
+      <div class="sidebar-page page-2">
+        <div class="cart-sidebar-body">
+          <div id="apartmentDetailsActions"></div>
+        </div>
+      </div>
+    </div>
+    <button class="sidebar-page-toggle" onclick="toggleSidebarPage('apartmentDetailsSidebar')" aria-label="Toggle apartment detail pages">
+      <span class="slide-label">View Actions</span>
+      <i class="fa-solid fa-arrow-right"></i>
+    </button>
+  </div>
+</div>
+
+<!--  NAV  -->
+<nav>
+  <a href="#" class="nav-logo">365<em>extra</em></a>
+  <ul class="nav-links">
+    <li><a href="#about">About Us</a></li>
+    <li><a href="#products">Products</a></li>
+    <li><a href="#testimonial">Voices</a></li>
+    <li><a href="#contact">Contact</a></li>
+    <li><a href="#" onclick="openModal('chartModal');return false;">Analytics</a></li>
+  </ul> 
+  <div class="nav-cta">
+    <button class="nav-icon-btn" onclick="openSearch()" aria-label="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
+    <!-- <button class="nav-icon-btn" id="installAppBtn" style="display:none;" aria-label="Install App" title="Install app on home screen"><i class="fa-solid fa-download"></i></button> -->
+    <button class="nav-icon-btn" onclick="toggleCartSidebar(true)" aria-label="Cart" style="position:relative;">
+      <i class="fa-solid fa-bag-shopping"></i>
+      <span class="cart-nav-badge" id="cartNavBadge">0</span>
+    </button>
+
+    <button class="nav-reg-btn" id="authBtn" onclick="handleAuthButtonClick()">Register</button>
+    <button class="hamburger" id="menuBtn" aria-label="Open menu"><span></span><span></span><span></span></button>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <button class="mobile-menu-close" onclick="closeMobile()" aria-label="Close menu"><i class="fa-solid fa-xmark"></i></button>
+  <a href="#about"       onclick="closeMobile()">About Us</a>
+  <a href="#products"    onclick="closeMobile()">Products</a>
+  <a href="#testimonial" onclick="closeMobile()">Voices</a>
+  <a href="#contact"     onclick="closeMobile()">Contact</a>
+  <a href="#" onclick="closeMobile();openModal('chartModal');">Analytics</a>
+  <a href="#" onclick="closeMobile();openSearch();">Search</a>
+  <!-- <a href="#" id="mobileDownloadLink" onclick="closeMobile();document.getElementById('installAppBtn').click();" style="display:none;">Download App</a> -->
+  <a href="#" id="mobileAuthLink" onclick="closeMobile();handleAuthButtonClick();">Register</a>
+</div>
+
+<main>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-tag">Est. 2026 &nbsp;&nbsp; Nigeria</div>
+    <h1 class="headline">
+      <span class="ghost">Global</span>
+      <span class="solid">Food Reserve</span>
+    </h1>
+    <p class="hero-sub">Where heritage soil meets global palate. Premium-grade exports from the heart of West Africa curated, certified, and structured for the discerning.</p>
+    <div class="hero-actions">
+      <a href="#products" class="btn-primary">Explore More<i class="fa-solid fa-arrow-right"></i></a>
+      <a href="#about" class="btn-ghost">Our Story</a>
+    </div>
+  </div>
+  <div class="hero-right">
+    <video src="/dist/vid/1473139_People_Nature_3840x2160.mp4" alt="Aerial farm" loading="eager" loop muted autoplay></video>
+  </div>
+  <div class="hero-scroll">Classic</div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee-strip" aria-hidden="true">
+  <div class="marquee-track">
+    <div class="marquee-item">Organic Certified <span class="dot"></span></div>
+    <div class="marquee-item">West Africa Heritage <span class="dot"></span></div>
+    <div class="marquee-item">12 Export Nations <span class="dot"></span></div>
+    <div class="marquee-item">1 Month of Craft <span class="dot"></span></div>
+    <div class="marquee-item">Premium Grade <span class="dot"></span></div>
+    <div class="marquee-item">Field to World <span class="dot"></span></div>
+    <div class="marquee-item">Organic Certified <span class="dot"></span></div>
+    <div class="marquee-item">West Africa Heritage <span class="dot"></span></div>
+    <div class="marquee-item">12 Export Nations <span class="dot"></span></div>
+    <div class="marquee-item">1 Month of Craft <span class="dot"></span></div>
+    <div class="marquee-item">Premium Grade <span class="dot"></span></div>
+    <div class="marquee-item">Field to World <span class="dot"></span></div>
+  </div>
+</div>
+
+<!-- ABOUT -->
+<section class="about reveal" id="about">
+  <div class="about-img">
+    <img src="/dist/img/download.jfif" alt="Farmlands" loading="lazy">
+    <div class="about-img-badge">1+<span>Month of Heritage</span></div>
+  </div>
+  <div class="about-content">
+    <div class="section-label">Our Legacy</div>
+    <h2>Bridging Tradition<br>with <em>Global Luxury</em></h2>
+    <p>At Agro Crown, we don't simply harvest, we curate. Our journey began in the fertile soils of Eastern Nigeria, where we mastered the art of organic cultivation. Today, those heritage techniques reach a global audience, ensuring every export carries the highest standard of premium quality.</p>
+    <div class="stat-row">
+      <div class="stat-cell"><h4>1+</h4><p>Month Active</p></div>
+      <div class="stat-cell" style="padding-left:24px"><h4>12</h4><p>Export Nations</p></div>
+      <div class="stat-cell" style="padding-left:24px"><h4>100%</h4><p>Organic</p></div>
+    </div>
+    <div class="about-actions">
+      <a href="#contact" class="btn-primary">Get in Touch <i class="fa-solid fa-arrow-right"></i></a>
+      <button class="btn-ghost" onclick="openModal('chartModal')"><i class="fa-solid fa-chart-line"></i>&nbsp; View Analytics</button>
+    </div>
+  </div>
+</section>
+
+<!-- PRODUCTS -->
+<section class="products reveal" id="products"> 
+  <div class="products-header">
+    <div>
+      <div class="section-label">The Boutique</div>
+      <h2>Curated<br><em>Seasonal Exports</em></h2>
+    </div>
+    <p>Each product is selected at peak season, processed with minimal intervention, and prepared for export at a standard that honours both producer and consumer.</p>
+  </div>
+
+  <div class="product-search-bar">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <input type="text" id="productSearch" placeholder="Search products..." autocomplete="true" aria-label="Search products">
+    <button id="psClear" aria-label="Clear search"><i class="fa-solid fa-xmark"></i></button>
+    <span class="prod-count" id="prodCount">3 products</span>
+  </div>
+  <div class="product-category">
+    <!-- Categories will be dynamically rendered from backend products -->
+  </div>
+  <div class="product-grid" id="productGrid">
+    <div class="no-products-msg" id="noProductsMsg">No products match your search.</div>
+  </div>
+</section>
+
+<!-- TESTIMONIAL -->
+<section class="testimonial reveal" id="testimonial">
+  <div class="testimonial-left">
+    <div class="section-label">Voices</div>
+    <h2>What the<br>world says</h2>
+  </div>
+  <div class="testimonial-right">
+    <blockquote>
+      <span class="quote-mark">"</span>
+      <p>The quality of the smoked catfish from Agro Crown is unparalleled. It's rare to find an agricultural export that feels this intentional and premium.</p>
+      <div class="reviewer-info">
+        <div class="reviewer-avatar">OA</div>
+        <div>
+          <div class="reviewer-name">Okadigbo Angela</div>
+          <div class="reviewer-location">Anambra, Nigeria</div>
+        </div>
+      </div>
+    </blockquote>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section class="contact reveal" id="contact">
+  <div class="contact-left">
+    <div class="section-label">Acquisitions</div>
+    <h2>Inquiries<br>& <em>Orders</em></h2>
+    <p>Whether you're a wholesale buyer, a distributor, or an individual seeking premium agricultural exports, our team is here to assist.</p>
+    <div class="contact-detail">
+      <div class="contact-detail-icon"><i class="fa-solid fa-location-dot"></i></div>
+      <div><h5>Headquarters</h5><p>Anambra, Nigeria &nbsp;&nbsp; Achalla</p></div>
+    </div>
+    <div class="contact-detail">
+      <div class="contact-detail-icon"><i class="fa-solid fa-envelope"></i></div>
+      <div><h5>Export Desk</h5><p>Okadigbochinenyeangela1@gmail.com</p></div>
+    </div>
+    <div class="contact-detail">
+      <div class="contact-detail-icon"><i class="fa-solid fa-phone"></i></div>
+      <div><h5>Direct Line</h5><p>+234 8132120227</p></div>
+    </div>
+  </div>
+  <form class="contact-form" onsubmit="return false;">
+    <div class="form-row">
+      <input type="text" placeholder="Full Name">
+      <input type="email" placeholder="Email Address">
+    </div>
+    <input type="text" class="input-full" placeholder="Subject / Product of Interest">
+    <textarea rows="6" placeholder="Your message or order details"></textarea>
+    <button type="submit" class="btn-primary">Send Inquiry <i class="fa-solid fa-paper-plane"></i></button>
+  </form>
+</section>
+
+</main>
+
+<footer>
+  <div class="footer-backdrop"></div>
+  <div class="footer-content">
+    <!-- Newsletter Section -->
+    <div class="footer-newsletter">
+      <div class="newsletter-inner">
+        <div class="newsletter-text">
+          <h3>Join Our Community</h3>
+          <p>Get exclusive access to new products, special offers, and farming insights.</p>
+        </div>
+        <form class="newsletter-form" onsubmit="return false;">
+          <input type="email" placeholder="Your email address" required>
+          <button type="submit" class="newsletter-btn">Subscribe</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Main Footer Grid -->
+    <div class="footer-main">
+      <!-- Brand & About -->
+      <div class="footer-column footer-brand-column">
+        <div class="footer-brand">365<em>extra</em></div>
+        <p class="footer-description">Connecting premium agricultural producers with discerning buyers across the globe. Heritage-driven, quality-focused, sustainably sourced.</p>
+        
+        <div class="footer-socials">
+          <a href="https://instagram.com" target="_blank" rel="noopener" class="social-link" aria-label="Instagram">
+            <i class="fa-brands fa-instagram"></i>
+          </a>
+          <a href="https://linkedin.com" target="_blank" rel="noopener" class="social-link" aria-label="LinkedIn">
+            <i class="fa-brands fa-linkedin"></i>
+          </a>
+          <a href="https://youtube.com" target="_blank" rel="noopener" class="social-link" aria-label="YouTube">
+            <i class="fa-brands fa-youtube"></i>
+          </a>
+          <a href="https://twitter.com" target="_blank" rel="noopener" class="social-link" aria-label="Twitter">
+            <i class="fa-brands fa-twitter"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- Company Links -->
+      <div class="footer-column">
+        <h5 class="footer-title">Company</h5>
+        <ul class="footer-list">
+          <li><a href="#about">About Us</a></li>
+          <li><a href="#story">Our Story</a></li>
+          <li><a href="#sustainability">Sustainability</a></li>
+          <li><a href="#certifications">Certifications</a></li>
+          <li><a href="#careers">Careers</a></li>
+        </ul>
+      </div>
+
+      <!-- Products -->
+      <div class="footer-column">
+        <h5 class="footer-title">Products</h5>
+        <ul class="footer-list">
+          <li><a href="#smoked">Smoked Collection</a></li>
+          <li><a href="#grains">Grain Heritage</a></li>
+          <li><a href="#proteins">Premium Proteins</a></li>
+          <li><a href="#wholesale">Wholesale</a></li>
+          <li><a href="#bulk">Bulk Orders</a></li>
+        </ul>
+      </div>
+
+      <!-- Support -->
+      <div class="footer-column">
+        <h5 class="footer-title">Support</h5>
+        <ul class="footer-list">
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="#shipping">Shipping & Delivery</a></li>
+          <li><a href="#track">Track Order</a></li>
+          <li><a href="#returns">Returns Policy</a></li>
+          <li><a href="#contact">Contact Us</a></li>
+        </ul>
+      </div>
+
+      <!-- Contact -->
+      <div class="footer-column footer-contact-column">
+        <h5 class="footer-title">Get In Touch</h5>
+        <div class="contact-group">
+          <div class="contact-item">
+            <i class="fa-solid fa-phone"></i>
+            <div>
+              <span class="contact-label">Phone</span>
+              <a href="tel:+2341234567890">+234 (0) 123 456 7890</a>
+            </div>
+          </div>
+          <div class="contact-item">
+            <i class="fa-solid fa-envelope"></i>
+            <div>
+              <span class="contact-label">Email</span>
+              <a href="mailto:hello@365extra.com">hello@365extra.com</a>
+            </div>
+          </div>
+          <div class="contact-item">
+            <i class="fa-solid fa-location-dot"></i>
+            <div>
+              <span class="contact-label">Office</span>
+              <span>Lagos, Nigeria</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Bottom -->
+    <div class="footer-bottom">
+      <div class="footer-bottom-content">
+        <p class="footer-copyright">&copy; 2026 365extra Heritage. All rights reserved.</p>
+        <div class="footer-bottom-links">
+          <a href="#privacy">Privacy</a>
+          <a href="#terms">Terms</a>
+          <a href="#cookies">Cookies</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script src="/dist/js/api.js"></script>
+<script src="/dist/js/script.js"></script>
+
+<!-- ShieldAI Bot Detection & Protection -->
+<script type="module">
+  import ShieldAI from '/frontend-shield-ai.js';
+  
+  // Initialize ShieldAI with custom configuration
+  ShieldAI.init({
+    apiEndpoint: '/api/threat-analysis',
+    redirectUrl: '/blocked',
+    aiEnabled: true,
+    debug: false,
+    dryRun: false,
+    clearPageOnBlock: true,
+    
+    // Protections
+    blockRightClick: true,
+    disableCopy: true,
+    disableDrag: true,
+    disableTextSelection: true,
+    blockShortcuts: true,
+    enableScreenshotBlur: true,
+    disableContextMenu: true,
+    
+    // Detection
+    detectDevTools: true,
+    detectHeadless: true,
+    detectAutomation: true,
+    fingerprint: true,
+    
+    // Behavioral tracking
+    trackMouse: true,
+    trackKeyboard: true,
+    trackScroll: true,
+    trackTouch: true,
+    humanTimeout: 8000,
+    allowTouchDevices: true,
+    
+    // Thresholds
+    immediateAnalysisThreshold: 60,
+    autoBlockThreshold: 85,
+    aiAnalysisInterval: 15000,
+    
+    // Custom callbacks
+    onBlock: (reason, score) => {
+      console.warn(`[365extra] Blocked: ${reason} (score: ${score})`);
+    },
+    onSuspicious: (reason, score) => {
+      console.warn(`[365extra] Suspicious: ${reason} (score: ${score})`);
+    }
+  });
+</script>
+
+<div id="whatsappWidget" class="whatsapp-widget hidden">
+  <!-- Header -->
+  <div class="whatsapp-widget-header">
+    <h3>365extra Support</h3>
+    <button id="whatsappClose" class="whatsapp-close-btn">&times;</button>
+  </div>
+
+  <!-- Chat Area -->
+  <div id="chatArea" class="whatsapp-form">
+    <div id="chatMessages" class="wa-messages">
+      <div class="wa-msg bot">
+        <p>Hello!  Welcome to 365extra</p>
+      </div>
+      <div class="wa-msg bot">
+        <p>How can we help you today?</p>
+      </div>
+    </div>
+    <div class="wa-input-group">
+      <input type="text" id="chatInput" placeholder="Type a message..." class="wa-chat-input">
+      <button id="chatSend" class="wa-send-btn"><i class="fa-solid fa-paper-plane"></i></button>
+    </div>
+  </div>
+</div>
+<!-- WhatsApp Widget -->
+<script src="/dist/js/whatsapp.js"></script>
+</body>
+</html>
+

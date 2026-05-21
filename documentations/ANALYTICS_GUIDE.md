@@ -1,4 +1,4 @@
-# Analytics & User Dashboard Documentation
+﻿# Analytics & User Dashboard Documentation
 
 ## Overview
 This document describes the updated analytics system that fixes the hardcoded product issue and adds personalized user dashboards and multiple admin bot support.
@@ -251,7 +251,7 @@ Then any of these three users can:
 1. **`backend/server.js`** - Added analytics routes
 2. **`backend/telegram-bot/bot.js`** - Multiple admin support
 3. **`dist/js/script.js`** - Dynamic analytics fetching & user dashboard
-4. **`agrocrown.html`** - User dashboard modal & dynamic stat elements
+4. **`365extra.html`** - User dashboard modal & dynamic stat elements
 
 ### Database Usage
 The system automatically calculates analytics from existing data:
@@ -336,3 +336,4 @@ Response: Personal transaction analytics for logged-in user
 - Predictive analytics for demand forecasting
 - Product comparison charts
 - Customer segmentation analysis
+

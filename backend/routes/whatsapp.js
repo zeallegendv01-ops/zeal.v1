@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { protect } = require('../middleware/auth');
@@ -280,11 +280,11 @@ function getAutomatedResponse(message) {
   const lowerMessage = message.toLowerCase();
 
   if (lowerMessage.includes('price') || lowerMessage.includes('cost') || lowerMessage.includes('₦')) {
-    return 'Hey! 💰 For current pricing, please check our website at agrocrown.com or let us know which product you\'re interested in. Our team will provide detailed pricing info!';
+    return 'Hey! 💰 For current pricing, please check our website at 365extra.com or let us know which product you\'re interested in. Our team will provide detailed pricing info!';
   }
   
   if (lowerMessage.includes('order') || lowerMessage.includes('buy') || lowerMessage.includes('purchase')) {
-    return 'Great! 📦 You can place orders directly on our website at agrocrown.com. Our team will process your order ASAP. Need help? Feel free to ask!';
+    return 'Great! 📦 You can place orders directly on our website at 365extra.com. Our team will process your order ASAP. Need help? Feel free to ask!';
   }
   
   if (lowerMessage.includes('delivery') || lowerMessage.includes('shipping') || lowerMessage.includes('ship')) {
@@ -292,18 +292,19 @@ function getAutomatedResponse(message) {
   }
   
   if (lowerMessage.includes('product') || lowerMessage.includes('catalog') || lowerMessage.includes('sell') || lowerMessage.includes('what')) {
-    return '🌾 AgroCrown specializes in premium agricultural products:\n🐟 Smoked Catfish\n🥔 Pure Garri\n🥜 Kola Nuts\n🍚 Premium Rice\n\nVisit agrocrown.com for our full catalog!';
+    return '🌾 365extra specializes in premium agricultural products:\n🐟 Smoked Catfish\n🥔 Pure Garri\n🥜 Kola Nuts\n🍚 Premium Rice\n\nVisit 365extra.com for our full catalog!';
   }
   
   if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
-    return '👋 Hello! Welcome to AgroCrown! 🌾 We\'re a premium agricultural export company. How can we help you today?';
+    return '👋 Hello! Welcome to 365extra! 🌾 We\'re a premium agricultural export company. How can we help you today?';
   }
 
   if (lowerMessage.includes('thank')) {
     return 'You\'re welcome! 😊 Feel free to reach out anytime. We\'re here to help!';
   }
 
-  return '✅ Thanks for reaching out! We\'ve received your message. Our team will get back to you within 1-2 hours. For faster service, visit agrocrown.com!';
+  return '✅ Thanks for reaching out! We\'ve received your message. Our team will get back to you within 1-2 hours. For faster service, visit 365extra.com!';
 }
 
 module.exports = router;
+

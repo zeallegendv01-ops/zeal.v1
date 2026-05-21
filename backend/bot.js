@@ -1,4 +1,5 @@
-﻿require('dotenv').config({ path: './.env' });
+﻿const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const { Telegraf, Markup } = require('telegraf');
 const axios = require('axios');
 const FormData = require('form-data');
@@ -227,6 +228,34 @@ const setCache = (key, data, ttl = 30000) => {
   cache.set(key, { data, ttl, timestamp: Date.now() });
 };
 
+const SLIDER_IMAGES_MAX = 4;
+
+const promptApartmentSliderImageCount = async (ctx, context) => {
+  context.step = 'apartment_slider_image_count';
+  return ctx.reply(` <b>Slider Image Count</b>
+
+How many slider images do you want for this apartment? Enter a number between 1 and ${SLIDER_IMAGES_MAX}, or type SKIP to keep the current image only.`, { parse_mode: 'HTML' });
+};
+
+const finalizeApartmentSliderImages = async (ctx, context) => {
+  const images = Array.isArray(context.sliderImages) && context.sliderImages.length > 0
+    ? context.sliderImages.slice(0, SLIDER_IMAGES_MAX)
+    : context.image
+      ? [context.image]
+      : [];
+
+  context.images = images;
+  if (images.length > 0) {
+    context.image = images[0];
+  }
+
+  return saveApartmentListing(ctx, context);
+};
+
+const clearUserContext = (userId) => {
+  delete userContext[userId];
+};
+
 const clearCache = (pattern) => {
   if (!pattern) {
     cache.clear();
@@ -338,13 +367,17 @@ bot.start(errorWrapper(async (ctx) => {
   // Admin users get the admin dashboard
   if (isAdmin(ctx)) {
     return ctx.reply(
-      ' <b>AgroCrown Admin Dashboard</b>\n\n' +
+      ' <b>365extra Admin Dashboard</b>\n\n' +
       ' <b>Available Commands:</b>\n\n' +
       ' <b>Products & Land:</b>\n' +
       ' /addproduct - Add product or land property\n' +
       ' /products - List all products & land\n' +
       ' /editproduct &lt;name&gt; - Edit product/land\n' +
       ' /deleteproduct &lt;name&gt; - Delete product/land\n\n' +
+      ' <b>Categories:</b>\n' +
+      ' /categories - List all categories\n' +
+      ' /editcategory - Rename a category\n' +
+      ' /deletecategory - Move products from one category to another\n\n' +
       ' <b>Users:</b>\n' +
       ' /users - List all users\n' +
       ' /user &lt;email&gt; - View user details\n\n' +
@@ -363,6 +396,7 @@ bot.start(errorWrapper(async (ctx) => {
         reply_markup: Markup.inlineKeyboard([
           [Markup.button.callback(' Products', 'products_menu')],
           [Markup.button.callback(' Land', 'land_menu')],
+          [Markup.button.callback(' Apartments', 'apartment_menu')],
           [Markup.button.callback(' Orders', 'orders_menu')],
           [Markup.button.callback(' Users', 'users_menu')],
           [Markup.button.callback(' Stats', 'stats_menu')],
@@ -373,15 +407,15 @@ bot.start(errorWrapper(async (ctx) => {
   }
 
   // Regular users get website access
-  const websiteUrl = process.env.WEBSITE_URL || 'https://agrocrown.example.com';
+  const websiteUrl = process.env.WEBSITE_URL || 'https://365extra.example.com';
   return ctx.reply(
-    ' <b>Welcome to AgroCrown</b>\n\n' +
+    ' <b>Welcome to 365extra</b>\n\n' +
     'Premium Agricultural Exports from West Africa\n\n' +
     'Browse our collection of farm-fresh products, view analytics, and place orders on our website.',
     {
       parse_mode: 'HTML',
       reply_markup: Markup.inlineKeyboard([
-        [Markup.button.url(' Open AgroCrown Website', websiteUrl)],
+        [Markup.button.url(' Open 365extra Website', websiteUrl)],
         [Markup.button.url(' View on Mobile', websiteUrl)]
       ]).reply_markup
     }
@@ -407,9 +441,10 @@ bot.command('products', errorWrapper(async (ctx) => {
     return ctx.reply(' No products found.');
   }
 
-  // Separate products and land
-  const agriProducts = products.filter(p => p.type !== 'land');
+  // Separate products, land, and apartments
+  const agriProducts = products.filter(p => p.type !== 'land' && p.type !== 'apartment');
   const landProducts = products.filter(p => p.type === 'land');
+  const apartments = products.filter(p => p.type === 'apartment');
 
   // Send agricultural products
   if (agriProducts.length > 0) {
@@ -470,10 +505,51 @@ bot.command('products', errorWrapper(async (ctx) => {
     }
   }
 
+  // Send apartments
+  if (apartments.length > 0) {
+    await ctx.reply(' <b>Apartments</b>\n\nShowing up to 5 listings:', { parse_mode: 'HTML' });
+    
+    for (let i = 0; i < Math.min(apartments.length, 5); i++) {
+      const apt = apartments[i];
+      const typeLabel = {
+        'room': '🏠 Single Room',
+        'self-contained': '🏠 Self-Contained',
+        'house': '🏡 House',
+        'flat': '🏢 Flat'
+      }[apt.apartmentType] || apt.apartmentType;
+      
+      const listingLabel = apt.listingType === 'rent' ? 'For Rent' : 'For Sale';
+      const priceDisplay = apt.listingType === 'rent' 
+        ? `${apt.pricePerMonth.toLocaleString()}/month`
+        : `${apt.price.toLocaleString()} (total)`;
+      
+      const caption = ` <b>${apt.name}</b>\n\n` +
+        ` Type: ${typeLabel}\n` +
+        ` Location: ${apt.apartmentAddress}\n` +
+        ` ${apt.bedrooms}BR / ${apt.bathrooms}BA • ${apt.apartmentAreaSqMeters}m²\n` +
+        ` Status: ${apt.furnished ? '✓ Furnished' : '○ Unfurnished'}\n` +
+        ` Listing: ${listingLabel}\n` +
+        ` Price: ${priceDisplay}\n` +
+        `${apt.apartmentFeatures && apt.apartmentFeatures.length > 0 ? ` Features: ${apt.apartmentFeatures.join(', ')}\n` : ''}` +
+        ` ${apt.description || 'Premium apartment'}\n` +
+        ` ID: <code>${apt._id}</code>`;
+
+      if (apt.image) {
+        await ctx.replyWithPhoto(apt.image, {
+          caption: caption,
+          parse_mode: 'HTML'
+        });
+      } else {
+        await ctx.reply(caption, { parse_mode: 'HTML' });
+      }
+    }
+  }
+
   // Send summary message
   const summaryMessage = ` <b>Products Summary</b>\n\n` +
     ` Agricultural Products: ${agriProducts.length}\n` +
     ` Land Properties: ${landProducts.length}\n` +
+    ` Apartments: ${apartments.length}\n` +
     `\nTotal: ${products.length} items`;
 
   ctx.reply(summaryMessage, { parse_mode: 'HTML' });
@@ -487,7 +563,8 @@ bot.command('addproduct', errorWrapper(async (ctx) => {
     parse_mode: 'HTML',
     reply_markup: Markup.inlineKeyboard([
       [Markup.button.callback(' Agricultural Product', 'add_product_type')],
-      [Markup.button.callback(' Land Property', 'add_land_type')]
+      [Markup.button.callback(' Land Property', 'add_land_type')],
+      [Markup.button.callback(' Apartment', 'add_apartment_type')]
     ]).reply_markup
   });
 }));
@@ -546,6 +623,84 @@ bot.command('deleteproduct', errorWrapper(async (ctx) => {
   }
 }));
 
+// CATEGORY COMMANDS
+bot.command('categories', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+
+  try {
+    const response = await api.get('/products');
+    const products = response.data.data || [];
+    const categories = [...new Set(products.map(p => p.category).filter(Boolean))].sort();
+
+    if (categories.length === 0) {
+      return ctx.reply(' No categories found.');
+    }
+
+    let message = ' <b>All Categories</b>\n\n';
+    categories.forEach((cat, i) => {
+      const count = products.filter(p => p.category === cat).length;
+      message += `${i + 1}. <b>${cat}</b> (${count} product${count !== 1 ? 's' : ''})\n`;
+    });
+
+    ctx.reply(message, { parse_mode: 'HTML' });
+  } catch (error) {
+    ctx.reply(' Error: ' + error.message);
+  }
+}));
+
+bot.command('editcategory', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+
+  try {
+    const response = await api.get('/products');
+    const products = response.data.data || [];
+    const categories = [...new Set(products.map(p => p.category).filter(Boolean))].sort();
+
+    if (categories.length === 0) {
+      return ctx.reply(' No categories found.');
+    }
+
+    userContext[ctx.from.id] = { step: 'edit_category_select', command: 'editcategory' };
+
+    let message = ' <b>Rename Category</b>\n\nSelect a category to rename:\n\n';
+    categories.forEach((cat, i) => {
+      message += `${i + 1}. ${cat}\n`;
+    });
+    message += `\nReply with the number (1-${categories.length}):`;
+
+    ctx.reply(message, { parse_mode: 'HTML' });
+  } catch (error) {
+    ctx.reply(' Error: ' + error.message);
+  }
+}));
+
+bot.command('deletecategory', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+
+  try {
+    const response = await api.get('/products');
+    const products = response.data.data || [];
+    const categories = [...new Set(products.map(p => p.category).filter(Boolean))].sort();
+
+    if (categories.length === 0) {
+      return ctx.reply(' No categories found.');
+    }
+
+    userContext[ctx.from.id] = { step: 'delete_category_select_source', command: 'deletecategory' };
+
+    let message = ' <b>Move Products from Category</b>\n\nSelect the category to move from:\n\n';
+    categories.forEach((cat, i) => {
+      const count = products.filter(p => p.category === cat).length;
+      message += `${i + 1}. ${cat} (${count} product${count !== 1 ? 's' : ''})\n`;
+    });
+    message += `\nReply with the number (1-${categories.length}):`;
+
+    ctx.reply(message, { parse_mode: 'HTML' });
+  } catch (error) {
+    ctx.reply(' Error: ' + error.message);
+  }
+}));
+
 // USERS COMMANDS
 bot.command('users', errorWrapper(async (ctx) => {
   if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
@@ -553,6 +708,7 @@ bot.command('users', errorWrapper(async (ctx) => {
   try {
     const response = await api.get('/auth/users'); // Assuming there's a users endpoint
     const users = response.data.data || [];
+
 
     if (users.length === 0) {
       return ctx.reply(' No users found.');
@@ -758,7 +914,7 @@ bot.command('stats', errorWrapper(async (ctx) => {
     setCache('stats', statsData, CACHE_DURATIONS.stats);
   }
 
-  const message = ` <b>AgroCrown Statistics</b>\n\n` +
+  const message = ` <b>365extra Statistics</b>\n\n` +
     ` Products: <b>${statsData.products.length}</b>\n` +
     ` Users: <b>${statsData.users.length}</b>\n` +
     ` Total Orders: <b>${statsData.orders.length}</b>\n` +
@@ -855,17 +1011,68 @@ bot.hears(/^(\d+(?:\.\d{1,2})?)$/, errorWrapper(async (ctx) => {
       }
       console.log(`[Bot] Price set to ${context.pricePerKg}, moving to category step`);
       context.step = 'create_product_category';
-      console.log(`[Bot] Sending category buttons...`);
-      return ctx.reply('Select category:', {
-        reply_markup: Markup.inlineKeyboard([
-          [Markup.button.callback('Smoked Fish', 'cat_fish'), Markup.button.callback('Grains', 'cat_grains')],
-          [Markup.button.callback('Rice', 'cat_rice'), Markup.button.callback('Other', 'cat_other')]
-        ]).reply_markup
-      }).then(() => {
-        console.log(`[Bot] Category buttons sent successfully`);
-      }).catch(err => {
-        console.error(`[Bot] Failed to send category buttons:`, err.message);
-      });
+      console.log(`[Bot] Sending category options...`);
+      
+      // Fetch categories dynamically from backend
+      try {
+        const categoriesResponse = await axios.get(`${API_BASE_URL}/products/categories`, { timeout: 5000 });
+        let categories = categoriesResponse.data?.data || [];
+        
+        // Build keyboard with dynamic categories
+        let keyboard = [];
+        
+        // Add up to 8 categories in rows of 2
+        for (let i = 0; i < Math.min(categories.length, 8); i += 2) {
+          const row = [];
+          row.push(Markup.button.callback(categories[i], `cat_${categories[i]}`));
+          if (i + 1 < categories.length) {
+            row.push(Markup.button.callback(categories[i + 1], `cat_${categories[i + 1]}`));
+          }
+          keyboard.push(row);
+        }
+        
+        // Always add custom category option
+        keyboard.push([Markup.button.callback('➕ Custom Category', 'cat_custom')]);
+        
+        console.log('[Bot] Fetched categories:', categories);
+        
+        return ctx.reply('📂 <b>Select Category</b>\n\nChoose from existing categories or create a custom one:', {
+          parse_mode: 'HTML',
+          reply_markup: Markup.inlineKeyboard(keyboard).reply_markup
+        }).then(() => {
+          console.log(`[Bot] Dynamic category options sent successfully`);
+        }).catch(err => {
+          console.error(`[Bot] Failed to send category options:`, err.message);
+        });
+      } catch (error) {
+        console.error('[Bot] Failed to fetch categories, using fallback:', error.message);
+        
+        // Fallback to hardcoded if API fails
+        return ctx.reply('📂 <b>Select Category</b>\n\nChoose from available categories or create a custom one:', {
+          parse_mode: 'HTML',
+          reply_markup: Markup.inlineKeyboard([
+            [Markup.button.callback('Smoked Fish', 'cat_Smoked Fish'), Markup.button.callback('Grains', 'cat_Grains')],
+            [Markup.button.callback('Rice', 'cat_Rice'), Markup.button.callback('Other', 'cat_Other')],
+            [Markup.button.callback('➕ Custom Category', 'cat_custom')]
+          ]).reply_markup
+        }).then(() => {
+          console.log(`[Bot] Fallback category options sent`);
+        }).catch(err => {
+          console.error(`[Bot] Failed to send fallback category options:`, err.message);
+        });
+      }
+    } else if (context.step === 'custom_category_input') {
+      // Handle custom category input
+      const customCategory = ctx.message.text?.trim();
+      if (!customCategory || customCategory.length === 0) {
+        return ctx.reply('❌ Category name cannot be empty. Please enter a category name:');
+      }
+      if (customCategory.length > 50) {
+        return ctx.reply('❌ Category name is too long (max 50 characters). Please try again:');
+      }
+      context.category = customCategory;
+      context.step = 'create_product_quantity';
+      return ctx.reply(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
     } else if (context.step === 'create_product_quantity') {
       context.quantity = parseFloat(ctx.message.text);
       if (isNaN(context.quantity)) {
@@ -997,6 +1204,92 @@ bot.action('land_search', async (ctx) => {
   return ctx.editMessageText(' <b>Search Land Properties</b>\n\nEnter location or property name:', { parse_mode: 'HTML' });
 });
 
+// APARTMENT MENU
+bot.action('apartment_menu', async (ctx) => {
+  await ctx.answerCbQuery();
+  return safeEditMessageText(ctx,
+    ' Apartments Management\n\nSelect action:',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('View All Apartments', 'apartment_list')],
+      [Markup.button.callback('Create New', 'apartment_create')],
+      [Markup.button.callback('Search Apartments', 'apartment_search')],
+      [Markup.button.callback(' Back', 'main_menu')]
+    ])
+  );
+});
+
+bot.action('apartment_create', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id] = { step: 'create_apartment_type_custom', type: 'apartment', command: 'addapartment' };
+  return ctx.editMessageText(' <b>Create New Apartment</b>\n\nEnter apartment type:\n\n<b>Examples:</b> Room, Self-Contained, House, Flat, Studio, Penthouse, Duplex, Bungalow, Villa, etc.\n\n<i>You can use any custom type!</i>', { parse_mode: 'HTML' });
+});
+
+bot.action('apartment_list', async (ctx) => {
+  await ctx.answerCbQuery();
+  try {
+    const response = await api.get('/products');
+    const products = response.data.data || [];
+    const apartments = products.filter(p => p.type === 'apartment');
+
+    if (apartments.length === 0) {
+      return ctx.editMessageText(' No apartments found.');
+    }
+
+    await ctx.editMessageText(' <b>Apartments</b>\n\nShowing available listings:', { parse_mode: 'HTML' });
+    
+    for (let i = 0; i < Math.min(apartments.length, 5); i++) {
+      const apt = apartments[i];
+      const typeLabel = {
+        'room': '🏠 Single Room',
+        'self-contained': '🏠 Self-Contained',
+        'house': '🏡 House',
+        'flat': '🏢 Flat'
+      }[apt.apartmentType] || apt.apartmentType;
+      
+      const listingLabel = apt.listingType === 'rent' ? 'For Rent' : 'For Sale';
+      const priceDisplay = apt.listingType === 'rent' 
+        ? `${apt.pricePerMonth.toLocaleString()}/month`
+        : `${apt.price.toLocaleString()} (total)`;
+      
+      const caption = ` <b>${apt.name}</b>\n\n` +
+        ` Type: ${typeLabel}\n` +
+        ` Location: ${apt.apartmentAddress}\n` +
+        ` ${apt.bedrooms}BR / ${apt.bathrooms}BA\n` +
+        ` Size: ${apt.apartmentAreaSqMeters}m²\n` +
+        ` Status: ${apt.furnished ? '✓ Furnished' : '○ Unfurnished'}\n` +
+        ` Listing: ${listingLabel}\n` +
+        ` Price: ${priceDisplay}\n` +
+        `${apt.apartmentFeatures && apt.apartmentFeatures.length > 0 ? ` Features: ${apt.apartmentFeatures.join(', ')}\n` : ''}` +
+        ` ${apt.description || 'Premium apartment'}\n` +
+        ` ID: <code>${apt._id}</code>`;
+
+      if (apt.image) {
+        await ctx.replyWithPhoto(apt.image, {
+          caption: caption,
+          parse_mode: 'HTML'
+        });
+      } else {
+        await ctx.reply(caption, { parse_mode: 'HTML' });
+      }
+    }
+
+    return ctx.reply(` <b>Summary</b>\n\nTotal Apartments: ${apartments.length}`, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback(' Back', 'apartment_menu')]
+      ]).reply_markup
+    });
+  } catch (error) {
+    return ctx.editMessageText(' Error: ' + error.message);
+  }
+});
+
+bot.action('apartment_search', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id] = { step: 'search_apartment' };
+  return ctx.editMessageText(' <b>Search Apartments</b>\n\nEnter location, apartment name, or features:', { parse_mode: 'HTML' });
+});
+
 // First products_list handler (updated with land display)
 bot.action('products_list', async (ctx) => {
   await ctx.answerCbQuery();
@@ -1109,6 +1402,127 @@ bot.action('add_land_type', async (ctx) => {
   return ctx.editMessageText(' <b>Create New Land Property</b>\n\nEnter property name:', { parse_mode: 'HTML' });
 });
 
+bot.action('add_apartment_type', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id] = { step: 'apartment_type_select', type: 'apartment', command: 'addapartment' };
+  console.log(`[Bot] Apartment creation started for user ${ctx.from.id}`);
+  return ctx.editMessageText(' <b>Create New Apartment Listing</b>\n\nSelect apartment type:', {
+    parse_mode: 'HTML',
+    reply_markup: Markup.inlineKeyboard([
+      [Markup.button.callback('🏠 Room', 'apt_type_room')],
+      [Markup.button.callback('🏠 Self-Contained', 'apt_type_selfcontained')],
+      [Markup.button.callback('🏡 House', 'apt_type_house')],
+      [Markup.button.callback('🏢 Flat', 'apt_type_flat')]
+    ]).reply_markup
+  });
+});
+
+// Apartment type selection callbacks
+bot.action('apt_type_room', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id].type = 'apartment';
+  userContext[ctx.from.id].apartmentType = 'room';
+  userContext[ctx.from.id].step = 'apartment_listing_type';
+  return ctx.editMessageText(' <b>Listing Type</b>\n\nIs this apartment for rent or sale?', {
+    parse_mode: 'HTML',
+    reply_markup: Markup.inlineKeyboard([
+      [Markup.button.callback('💰 For Rent', 'apt_listing_rent')],
+      [Markup.button.callback('🏷️ For Sale', 'apt_listing_sale')]
+    ]).reply_markup
+  });
+});
+
+bot.action('apt_type_selfcontained', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id].type = 'apartment';
+  userContext[ctx.from.id].apartmentType = 'self-contained';
+  userContext[ctx.from.id].step = 'apartment_listing_type';
+  return ctx.editMessageText(' <b>Listing Type</b>\n\nIs this apartment for rent or sale?', {
+    parse_mode: 'HTML',
+    reply_markup: Markup.inlineKeyboard([
+      [Markup.button.callback('💰 For Rent', 'apt_listing_rent')],
+      [Markup.button.callback('🏷️ For Sale', 'apt_listing_sale')]
+    ]).reply_markup
+  });
+});
+
+bot.action('apt_type_house', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id].type = 'apartment';
+  userContext[ctx.from.id].apartmentType = 'house';
+  userContext[ctx.from.id].step = 'apartment_listing_type';
+  return ctx.editMessageText(' <b>Listing Type</b>\n\nIs this apartment for rent or sale?', {
+    parse_mode: 'HTML',
+    reply_markup: Markup.inlineKeyboard([
+      [Markup.button.callback('💰 For Rent', 'apt_listing_rent')],
+      [Markup.button.callback('🏷️ For Sale', 'apt_listing_sale')]
+    ]).reply_markup
+  });
+});
+
+bot.action('apt_type_flat', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id].type = 'apartment';
+  userContext[ctx.from.id].apartmentType = 'flat';
+  userContext[ctx.from.id].step = 'apartment_listing_type';
+  return ctx.editMessageText(' <b>Listing Type</b>\n\nIs this apartment for rent or sale?', {
+    parse_mode: 'HTML',
+    reply_markup: Markup.inlineKeyboard([
+      [Markup.button.callback('💰 For Rent', 'apt_listing_rent')],
+      [Markup.button.callback('🏷️ For Sale', 'apt_listing_sale')]
+    ]).reply_markup
+  });
+});
+
+// Apartment listing type selection
+bot.action('apt_listing_rent', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id].listingType = 'rent';
+  userContext[ctx.from.id].step = 'create_apartment_name';
+  return ctx.editMessageText(' <b>Create New Apartment</b>\n\nEnter apartment name (e.g., "Luxury 2BR Lekki"):', { parse_mode: 'HTML' });
+});
+
+bot.action('apt_listing_sale', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id].listingType = 'sale';
+  userContext[ctx.from.id].step = 'create_apartment_name';
+  return ctx.editMessageText(' <b>Create New Apartment</b>\n\nEnter apartment name (e.g., "Luxury 2BR Lekki"):', { parse_mode: 'HTML' });
+});
+
+// Apartment furnished status
+bot.action('apt_furnished_yes', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id].furnished = true;
+  userContext[ctx.from.id].step = 'create_apartment_features';
+  return ctx.editMessageText(' <b>Apartment Features</b> (Optional)\n\nEnter apartment features separated by commas:\n\n<b>Examples:</b> balcony, parking, garden, security, gym, pool, air conditioning, wifi\n\nOr type "none" to skip:', { parse_mode: 'HTML' });
+});
+
+bot.action('apt_furnished_no', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id].furnished = false;
+  userContext[ctx.from.id].step = 'create_apartment_features';
+  return ctx.editMessageText(' <b>Apartment Features</b> (Optional)\n\nEnter apartment features separated by commas:\n\n<b>Examples:</b> balcony, parking, garden, security, gym, pool, air conditioning, wifi\n\nOr type "none" to skip:', { parse_mode: 'HTML' });
+});
+
+// Apartment image handlers
+bot.action('apartment_image_upload', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id].step = 'upload_apartment_image';
+  return ctx.editMessageText(' 📸 <b>Upload Photo</b>\n\nSend a photo of the apartment:', { parse_mode: 'HTML' });
+});
+
+bot.action('apartment_image_url', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id].step = 'apartment_image_url_text';
+  return ctx.editMessageText(' 🔗 <b>Image URL</b>\n\nEnter the image URL:', { parse_mode: 'HTML' });
+});
+
+bot.action('apartment_image_skip', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id].image = null;
+  await saveApartmentListing(ctx, userContext[ctx.from.id]);
+});
+
 bot.on('text', errorWrapper(async (ctx) => {
   const userId = ctx.from.id;
   const text = ctx.message.text;
@@ -1156,17 +1570,46 @@ bot.on('text', errorWrapper(async (ctx) => {
         }
         console.log(`[Bot] Price set to ${context.pricePerKg}, moving to category step`);
         context.step = 'create_product_category';
-        console.log(`[Bot] Sending category buttons...`);
-        return ctx.reply('Select category:', {
+        console.log(`[Bot] Sending category options...`);
+        return ctx.reply('Select category or type a custom one:', {
           reply_markup: Markup.inlineKeyboard([
             [Markup.button.callback('Smoked Fish', 'cat_fish'), Markup.button.callback('Grains', 'cat_grains')],
-            [Markup.button.callback('Rice', 'cat_rice'), Markup.button.callback('Other', 'cat_other')]
+            [Markup.button.callback('Rice', 'cat_rice'), Markup.button.callback('Other', 'cat_other')],
+            [Markup.button.callback('Custom Category', 'cat_custom')]
           ]).reply_markup
         }).then(() => {
-          console.log(`[Bot] Category buttons sent successfully`);
+          console.log(`[Bot] Category options sent successfully`);
         }).catch(err => {
-          console.error(`[Bot] Failed to send category buttons:`, err.message);
+          console.error(`[Bot] Failed to send category options:`, err.message);
         });
+        // Break here to prevent fall-through
+        break;
+
+      case 'custom_category_input':
+        // Handle custom category input
+        console.log(`[Bot] Processing custom category input for user ${userId}`);
+        const customCat = ctx.message.text?.trim();
+        console.log(`[Bot] Custom category text: "${customCat}"`);
+        
+        if (!customCat || customCat.length === 0) {
+          console.log(`[Bot] Empty category input, requesting again`);
+          return ctx.reply('❌ Category name cannot be empty. Please enter a category name:');
+        }
+        if (customCat.length > 50) {
+          console.log(`[Bot] Category name too long: ${customCat.length} characters`);
+          return ctx.reply('❌ Category name is too long (max 50 characters). Please try again:');
+        }
+        
+        // Set the category
+        context.category = customCat;
+        console.log(`[Bot] Custom category set to: "${context.category}" for user ${userId}`);
+        
+        // Move to next step
+        context.step = 'create_product_quantity';
+        console.log(`[Bot] Moving to create_product_quantity step`);
+        
+        return ctx.reply(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
+        break;
 
       case 'create_product_quantity':
       context.quantity = parseFloat(ctx.message.text);
@@ -1323,6 +1766,201 @@ bot.on('text', errorWrapper(async (ctx) => {
       await saveLandProperty(ctx, context);
       break;
 
+    // ════════════════════════ APARTMENT CREATION ════════════════════════
+    case 'create_apartment_type_custom':
+      context.apartmentType = ctx.message.text.trim();
+      if (!context.apartmentType) {
+        return ctx.reply(' ⚠️ <b>Apartment type cannot be empty.</b>\n\nPlease enter an apartment type, for example: Studio, Penthouse, Duplex, Flat, or House.', { parse_mode: 'HTML' });
+      }
+      context.step = 'apartment_listing_type';
+      return ctx.reply(' <b>Listing Type</b>\n\nIs this apartment for rent or sale?', {
+        parse_mode: 'HTML',
+        reply_markup: Markup.inlineKeyboard([
+          [Markup.button.callback('💰 For Rent', 'apt_listing_rent')],
+          [Markup.button.callback('🏷️ For Sale', 'apt_listing_sale')]
+        ]).reply_markup
+      });
+
+    case 'create_apartment_name':
+      context.name = ctx.message.text;
+      context.step = 'create_apartment_description';
+      return ctx.reply(' <b>Apartment Description</b>\n\nEnter a detailed description of the apartment:', { parse_mode: 'HTML' });
+
+    case 'create_apartment_description':
+      context.description = ctx.message.text;
+      context.step = 'create_apartment_address';
+      return ctx.reply(' <b>Address/Location</b>\n\nEnter the full address of the apartment:', { parse_mode: 'HTML' });
+
+    case 'create_apartment_address':
+      context.apartmentAddress = ctx.message.text;
+      context.step = 'create_apartment_bedrooms';
+      return ctx.reply(' <b>Number of Bedrooms</b>\n\nEnter the number of bedrooms (e.g., 1, 2, 3, 4):', { parse_mode: 'HTML' });
+
+    case 'create_apartment_bedrooms':
+      context.bedrooms = parseInt(ctx.message.text);
+      if (isNaN(context.bedrooms) || context.bedrooms < 0) {
+        return ctx.reply(' ⚠️ <b>Invalid number</b>\n\nPlease enter a valid number (e.g., 1, 2, 3):', { parse_mode: 'HTML' });
+      }
+      context.step = 'create_apartment_bathrooms';
+      return ctx.reply(' <b>Number of Bathrooms</b>\n\nEnter the number of bathrooms (e.g., 1, 2, 3):', { parse_mode: 'HTML' });
+
+    case 'create_apartment_bathrooms':
+      context.bathrooms = parseInt(ctx.message.text);
+      if (isNaN(context.bathrooms) || context.bathrooms < 0) {
+        return ctx.reply(' ⚠️ <b>Invalid number</b>\n\nPlease enter a valid number (e.g., 1, 2, 3):', { parse_mode: 'HTML' });
+      }
+      context.step = 'create_apartment_area';
+      return ctx.reply(' <b>Apartment Size</b>\n\nEnter the area in square meters (e.g., 120 for 120 m²):', { parse_mode: 'HTML' });
+
+    case 'create_apartment_area':
+      context.apartmentAreaSqMeters = parseFloat(ctx.message.text);
+      if (isNaN(context.apartmentAreaSqMeters) || context.apartmentAreaSqMeters <= 0) {
+        return ctx.reply(' ⚠️ <b>Invalid area</b>\n\nPlease enter a valid number greater than 0:', { parse_mode: 'HTML' });
+      }
+      context.step = 'create_apartment_furnished';
+      return ctx.reply(' <b>Is the apartment furnished?</b>', {
+        reply_markup: Markup.inlineKeyboard([
+          [Markup.button.callback('✓ Yes, Furnished', 'apt_furnished_yes')],
+          [Markup.button.callback('✗ No, Unfurnished', 'apt_furnished_no')]
+        ]).reply_markup
+      });
+
+    case 'create_apartment_features':
+      context.apartmentFeatures = ctx.message.text.split(',').map(f => f.trim()).filter(f => f);
+      context.step = 'create_apartment_price';
+      const priceLabel = context.listingType === 'rent' 
+        ? 'Enter monthly rent price in Naira (e.g., 150000):'
+        : 'Enter total sale price in Naira (e.g., 5000000):';
+      return ctx.reply(` <b>Price</b>\n\n${priceLabel}`, { parse_mode: 'HTML' });
+
+    case 'create_apartment_price':
+      const priceField = context.listingType === 'rent' ? 'pricePerMonth' : 'price';
+      context[priceField] = parseFloat(ctx.message.text);
+      if (isNaN(context[priceField]) || context[priceField] <= 0) {
+        return ctx.reply(' ⚠️ <b>Invalid price</b>\n\nPlease enter a valid number greater than 0:', { parse_mode: 'HTML' });
+      }
+      context.step = 'create_apartment_image';
+      return ctx.reply(' <b>Upload Image</b>\n\nYou can:\n1. Upload a photo\n2. Provide an image URL\n3. Skip for now', {
+        reply_markup: Markup.inlineKeyboard([
+          [Markup.button.callback('Upload Photo', 'apartment_image_upload')],
+          [Markup.button.callback('Image URL', 'apartment_image_url')],
+          [Markup.button.callback('Skip', 'apartment_image_skip')]
+        ]).reply_markup
+      });
+
+    case 'apartment_image_url_text':
+      context.image = ctx.message.text;
+      if (!context.image.match(/^https?:\/\/.+/)) {
+        return ctx.reply(' Invalid URL. Please provide a valid image URL starting with http:// or https://');
+      }
+      context.sliderImages = [context.image];
+      await promptApartmentSliderImageCount(ctx, context);
+      break;
+
+    case 'apartment_slider_image_count':
+      if (text.trim().toLowerCase() === 'skip') {
+        return await finalizeApartmentSliderImages(ctx, context);
+      }
+
+      const sliderCount = parseInt(text.trim(), 10);
+      if (isNaN(sliderCount) || sliderCount < 1 || sliderCount > SLIDER_IMAGES_MAX) {
+        return ctx.reply(` Please enter a number between 1 and ${SLIDER_IMAGES_MAX}, or type SKIP to keep just the current image.`, { parse_mode: 'HTML' });
+      }
+
+      context.sliderImageCount = sliderCount;
+      if (sliderCount === 1) {
+        return await finalizeApartmentSliderImages(ctx, context);
+      }
+
+      context.step = 'apartment_slider_image_upload_next';
+      return ctx.reply(` Send image 2 of ${sliderCount} now, or type SKIP to finish after the first image. You can send another photo or an image URL.`, { parse_mode: 'HTML' });
+
+    case 'apartment_slider_image_upload_next':
+      if (text.trim().toLowerCase() === 'skip') {
+        return await finalizeApartmentSliderImages(ctx, context);
+      }
+
+      if (text.match(/^https?:\/\/.+/)) {
+        context.sliderImages = context.sliderImages || [];
+        context.sliderImages.push(text.trim());
+        if (context.sliderImages.length >= (context.sliderImageCount || 2)) {
+          return await finalizeApartmentSliderImages(ctx, context);
+        }
+
+        const nextImageNumber = context.sliderImages.length + 1;
+        return ctx.reply(` Got it. Send image ${nextImageNumber} of ${context.sliderImageCount}, or type SKIP to finish early.`, { parse_mode: 'HTML' });
+      }
+
+      return ctx.reply(' Please send a valid image URL or photo. Type SKIP to finish with the images you have provided.', { parse_mode: 'HTML' });
+
+    case 'search_apartment':
+      const searchQuery = ctx.message.text.toLowerCase();
+      try {
+        const response = await api.get('/products');
+        const products = response.data.data || [];
+        const results = products.filter(p => 
+          p.type === 'apartment' && (
+            p.name.toLowerCase().includes(searchQuery) ||
+            p.apartmentAddress.toLowerCase().includes(searchQuery) ||
+            (p.apartmentFeatures && p.apartmentFeatures.some(f => f.toLowerCase().includes(searchQuery)))
+          )
+        );
+
+        if (results.length === 0) {
+          delete userContext[ctx.from.id];
+          return ctx.reply(` No apartments found matching "${searchQuery}".`);
+        }
+
+        await ctx.reply(` <b>Search Results</b>\n\n<b>Found ${results.length} apartment(s)</b>\n\nShowing results:`, { parse_mode: 'HTML' });
+        
+        for (let i = 0; i < Math.min(results.length, 5); i++) {
+          const apt = results[i];
+          const typeLabel = {
+            'room': '🏠 Single Room',
+            'self-contained': '🏠 Self-Contained',
+            'house': '🏡 House',
+            'flat': '🏢 Flat'
+          }[apt.apartmentType] || ('🏠 ' + (apt.apartmentType.charAt(0).toUpperCase() + apt.apartmentType.slice(1)));
+          
+          const listingLabel = apt.listingType === 'rent' ? 'For Rent' : 'For Sale';
+          const priceDisplay = apt.listingType === 'rent' 
+            ? `${apt.pricePerMonth.toLocaleString()}/month`
+            : `${apt.price.toLocaleString()} (total)`;
+          
+          const caption = ` <b>${apt.name}</b>\n\n` +
+            ` Type: ${typeLabel}\n` +
+            ` Location: ${apt.apartmentAddress}\n` +
+            ` ${apt.bedrooms}BR / ${apt.bathrooms}BA • ${apt.apartmentAreaSqMeters}m²\n` +
+            ` Status: ${apt.furnished ? '\u2713 Furnished' : '\u25cb Unfurnished'}\n` +
+            ` Listing: ${listingLabel}\n` +
+            ` Price: ${priceDisplay}\n` +
+            ` ${apt.description || 'Premium apartment'}\n` +
+            ` ID: <code>${apt._id}</code>`;
+
+          if (apt.image) {
+            await ctx.replyWithPhoto(apt.image, {
+              caption: caption,
+              parse_mode: 'HTML'
+            });
+          } else {
+            await ctx.reply(caption, { parse_mode: 'HTML' });
+          }
+        }
+
+        delete userContext[ctx.from.id];
+        return ctx.reply(` <b>Search Complete</b>`, {
+          reply_markup: Markup.inlineKeyboard([
+            [Markup.button.callback('Back to Apartments', 'apartment_menu')]
+          ]).reply_markup
+        });
+      } catch (error) {
+        delete userContext[ctx.from.id];
+        return ctx.reply(' Error: ' + error.message);
+      }
+      break;
+
+    // ════════════════════════════════════════════════════════════════════
+
     case 'edit_product_select_field':
       const fieldNumber = parseInt(ctx.message.text);
       const fields = ['name', 'description', 'pricePerKg', 'quantity', 'category', 'unit', 'minLimit', 'maxLimit'];
@@ -1350,6 +1988,127 @@ bot.on('text', errorWrapper(async (ctx) => {
         await deleteProduct(ctx, context);
       } else {
         return ctx.reply(' Cancelled.');
+      }
+      break;
+
+    case 'edit_category_select':
+      const editCatIndex = parseInt(ctx.message.text) - 1;
+      if (isNaN(editCatIndex)) {
+        return ctx.reply('❌ Please enter a valid number');
+      }
+      try {
+        const prodResp = await api.get('/products');
+        const prods = prodResp.data.data || [];
+        const cats = [...new Set(prods.map(p => p.category).filter(Boolean))].sort();
+        
+        if (editCatIndex < 0 || editCatIndex >= cats.length) {
+          return ctx.reply(`❌ Invalid selection. Choose a number between 1 and ${cats.length}`);
+        }
+        
+        context.oldCategory = cats[editCatIndex];
+        context.step = 'edit_category_input_new_name';
+        return ctx.reply(` <b>Enter New Category Name</b>\n\nCurrent: <b>${context.oldCategory}</b>\n\nEnter the new name (or "CANCEL" to abort):`, { parse_mode: 'HTML' });
+      } catch (error) {
+        delete userContext[userId];
+        return ctx.reply('❌ Error: ' + error.message);
+      }
+      break;
+
+    case 'edit_category_input_new_name':
+      if (ctx.message.text.toLowerCase() === 'cancel') {
+        delete userContext[userId];
+        return ctx.reply('✅ Cancelled.');
+      }
+      
+      const newCatName = ctx.message.text.trim();
+      if (!newCatName || newCatName.length === 0) {
+        return ctx.reply('❌ Category name cannot be empty. Please try again:');
+      }
+      if (newCatName.length > 50) {
+        return ctx.reply('❌ Category name is too long (max 50 characters). Please try again:');
+      }
+      
+      try {
+        // Update all products in the old category to have the new category
+        const prodResp = await api.get('/products');
+        const productsToUpdate = prodResp.data.data.filter(p => p.category === context.oldCategory);
+        
+        let updated = 0;
+        for (const product of productsToUpdate) {
+          await api.put(`/products/${product._id}`, { category: newCatName });
+          updated++;
+        }
+        
+        delete userContext[userId];
+        ctx.reply(` <b>Category Renamed!</b>\n\n<b>${context.oldCategory}</b> → <b>${newCatName}</b>\n\n✅ Updated ${updated} product${updated !== 1 ? 's' : ''}`, { parse_mode: 'HTML' });
+      } catch (error) {
+        delete userContext[userId];
+        ctx.reply('❌ Error updating category: ' + error.message);
+      }
+      break;
+
+    case 'delete_category_select_source':
+      const delCatIndex = parseInt(ctx.message.text) - 1;
+      if (isNaN(delCatIndex)) {
+        return ctx.reply('❌ Please enter a valid number');
+      }
+      try {
+        const prodResp = await api.get('/products');
+        const prods = prodResp.data.data || [];
+        const cats = [...new Set(prods.map(p => p.category).filter(Boolean))].sort();
+        
+        if (delCatIndex < 0 || delCatIndex >= cats.length) {
+          return ctx.reply(`❌ Invalid selection. Choose a number between 1 and ${cats.length}`);
+        }
+        
+        context.sourceCategory = cats[delCatIndex];
+        context.step = 'delete_category_select_target';
+        
+        // Show target categories (all except the source)
+        const targetCats = cats.filter(c => c !== context.sourceCategory);
+        let message = ` <b>Move to Target Category</b>\n\nMoving from: <b>${context.sourceCategory}</b>\n\nSelect where to move these products:\n\n`;
+        targetCats.forEach((cat, i) => {
+          const count = prods.filter(p => p.category === cat).length;
+          message += `${i + 1}. ${cat} (${count} existing)\n`;
+        });
+        message += `\nReply with the number (1-${targetCats.length}):`;
+        
+        return ctx.reply(message, { parse_mode: 'HTML' });
+      } catch (error) {
+        delete userContext[userId];
+        return ctx.reply('❌ Error: ' + error.message);
+      }
+      break;
+
+    case 'delete_category_select_target':
+      const targetIndex = parseInt(ctx.message.text) - 1;
+      if (isNaN(targetIndex)) {
+        return ctx.reply('❌ Please enter a valid number');
+      }
+      try {
+        const prodResp = await api.get('/products');
+        const prods = prodResp.data.data || [];
+        const allCats = [...new Set(prods.map(p => p.category).filter(Boolean))].sort();
+        const targetCats = allCats.filter(c => c !== context.sourceCategory);
+        
+        if (targetIndex < 0 || targetIndex >= targetCats.length) {
+          return ctx.reply(`❌ Invalid selection. Choose a number between 1 and ${targetCats.length}`);
+        }
+        
+        const targetCategory = targetCats[targetIndex];
+        const productsToMove = prods.filter(p => p.category === context.sourceCategory);
+        
+        let moved = 0;
+        for (const product of productsToMove) {
+          await api.put(`/products/${product._id}`, { category: targetCategory });
+          moved++;
+        }
+        
+        delete userContext[userId];
+        ctx.reply(` <b>Products Moved!</b>\n\n<b>${context.sourceCategory}</b> → <b>${targetCategory}</b>\n\n✅ Moved ${moved} product${moved !== 1 ? 's' : ''}`, { parse_mode: 'HTML' });
+      } catch (error) {
+        delete userContext[userId];
+        ctx.reply('❌ Error moving products: ' + error.message);
       }
       break;
 
@@ -1486,7 +2245,7 @@ bot.on('text', errorWrapper(async (ctx) => {
   }
 }));
 
-bot.action(/^cat_(.+)$/, async (ctx) => {
+bot.action(/^cat_(?!custom)(.+)$/, async (ctx) => {
   const category = ctx.match[1];
   const categoryMap = {
     'fish': 'Smoked Fish',
@@ -1496,8 +2255,11 @@ bot.action(/^cat_(.+)$/, async (ctx) => {
   };
 
   const context = userContext[ctx.from.id];
-  context.category = categoryMap[category];
+  // Check if category is in the map (lowercase), otherwise use the category as-is (for dynamic categories)
+  context.category = categoryMap[category] || category;
   context.step = 'create_product_quantity';
+
+  console.log(`[Bot] Category selected: "${category}" -> set as: "${context.category}"`);
 
   await ctx.answerCbQuery();
   return ctx.reply(`Category: <b>${context.category}</b>\n\nEnter quantity in kg:`, { parse_mode: 'HTML' });
@@ -1582,6 +2344,13 @@ bot.action('land_image_skip', async (ctx) => {
 
 async function saveProduct(ctx, context) {
   try {
+    // Validate critical fields before attempting to save
+    if (!context.category) {
+      console.error('Missing category for product creation', { userId: ctx.from.id, context });
+      delete userContext[ctx.from.id];
+      return ctx.reply(' Error: Product category is required.\n\nPlease use /addproduct to start over and select or enter a category.');
+    }
+
     const productData = {
       name: context.name,
       description: context.description,
@@ -1593,6 +2362,7 @@ async function saveProduct(ctx, context) {
       minLimit: context.minLimit || 1,
       maxLimit: context.maxLimit || 1000,
       image: context.image || 'https://images.unsplash.com/photo-1599056377759-3388006e62e0?auto=format&fit=crop&w=400&q=70',
+      images: Array.isArray(context.images) ? context.images.slice(0, SLIDER_IMAGES_MAX) : undefined,
       // Option 2: Include Base64 image data if available
       imageData: context.imageData,
       imageMimeType: context.imageMimeType || 'image/jpeg',
@@ -1675,6 +2445,7 @@ async function saveLandProperty(ctx, context) {
       minLimit: context.minLimit || 1,
       maxLimit: context.maxLimit || context.numberOfPlots,
       image: context.image || 'https://images.unsplash.com/photo-1551632786-de41ec4a306b?auto=format&fit=crop&w=400&q=70',
+      images: Array.isArray(context.images) ? context.images.slice(0, SLIDER_IMAGES_MAX) : undefined,
       // Option 2: Include Base64 image data if available
       imageData: context.imageData,
       imageMimeType: context.imageMimeType || 'image/jpeg'
@@ -1732,6 +2503,109 @@ async function saveLandProperty(ctx, context) {
     
     // Provide detailed error message
     let errorMsg = ' Error creating land property: ';
+    if (error.response?.data?.message) {
+      errorMsg += error.response.data.message;
+    } else if (error.response?.status === 400) {
+      errorMsg += 'Invalid data provided. Please check all fields and try again.';
+    } else if (error.response?.status === 500) {
+      errorMsg += 'Server error. Please try again later.';
+    } else if (error.code === 'ETIMEDOUT') {
+      errorMsg += 'Request timeout. Please try again.';
+    } else if (error.code === 'ECONNREFUSED') {
+      errorMsg += 'Cannot connect to server. Please try again later.';
+    } else {
+      errorMsg += error.message || 'Unknown error occurred.';
+    }
+    
+    return ctx.reply(errorMsg);
+  }
+}
+
+async function saveApartmentListing(ctx, context) {
+  try {
+    const apartmentData = {
+      name: context.name,
+      description: context.description,
+      type: 'apartment',
+      category: 'Apartment',
+      apartmentType: context.apartmentType,
+      listingType: context.listingType,
+      apartmentAddress: context.apartmentAddress,
+      bedrooms: context.bedrooms,
+      bathrooms: context.bathrooms,
+      apartmentAreaSqMeters: context.apartmentAreaSqMeters,
+      furnished: context.furnished,
+      apartmentFeatures: context.apartmentFeatures || [],
+      image: context.image || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=400&q=70',
+      images: Array.isArray(context.images) ? context.images.slice(0, SLIDER_IMAGES_MAX) : undefined,
+      imageData: context.imageData,
+      imageMimeType: context.imageMimeType || 'image/jpeg',
+      unit: 'units',
+      minLimit: 1,
+      maxLimit: 1
+    };
+
+    // Set price based on listing type
+    if (context.listingType === 'rent') {
+      apartmentData.pricePerMonth = parseFloat(context.pricePerMonth);
+      if (isNaN(apartmentData.pricePerMonth) || apartmentData.pricePerMonth <= 0) {
+        return ctx.reply(' Invalid rent price. Please enter a positive number.');
+      }
+    } else {
+      apartmentData.price = parseFloat(context.price);
+      if (isNaN(apartmentData.price) || apartmentData.price <= 0) {
+        return ctx.reply(' Invalid sale price. Please enter a positive number.');
+      }
+    }
+
+    // Validate required fields
+    const requiredFields = ['name', 'description', 'apartmentAddress', 'bedrooms', 'bathrooms', 'apartmentAreaSqMeters'];
+    for (const field of requiredFields) {
+      if (apartmentData[field] === undefined || apartmentData[field] === null) {
+        console.error(`Missing required field: ${field}`, { apartmentData });
+        return ctx.reply(` Error: Missing ${field}. Please try again.`);
+      }
+    }
+
+    console.log('Saving apartment listing:', { userId: ctx.from.id, apartmentData });
+    const response = await queueRequest(() => api.post('/products', apartmentData));
+    console.log('Apartment listing saved successfully:', response.data.data);
+    
+    clearCache('products');
+    clearCache('stats');
+    delete userContext[ctx.from.id];
+    
+    const typeLabel = {
+      'room': 'Single Room',
+      'self-contained': 'Self-Contained',
+      'house': 'House',
+      'flat': 'Flat'
+    }[context.apartmentType] || context.apartmentType;
+
+    const priceDisplay = context.listingType === 'rent' 
+      ? `NGN${context.pricePerMonth.toLocaleString()}/month`
+      : `NGN${context.price.toLocaleString()}`;
+
+    const furnishedStatus = context.furnished ? '✓ Furnished' : '○ Unfurnished';
+
+    return ctx.reply(` Apartment Listing Created Successfully!\n\n<b>${response.data.data.name}</b>\n Type: ${typeLabel}\n Address: ${context.apartmentAddress}\n ${context.bedrooms}BR / ${context.bathrooms}BA\n Size: ${context.apartmentAreaSqMeters}m²\n Status: ${furnishedStatus}\n Price: ${priceDisplay}\n${context.apartmentFeatures.length > 0 ? ` Features: ${context.apartmentFeatures.join(', ')}\n` : ''} ID: <code>${response.data.data._id}</code>`, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([[Markup.button.callback('Back to Menu', 'products_menu')]]).reply_markup
+    });
+  } catch (error) {
+    console.error('Error saving apartment listing:', {
+      userId: ctx.from.id,
+      errorMessage: error.message,
+      errorCode: error.code,
+      errorStatus: error.response?.status,
+      errorData: error.response?.data,
+      fullError: error
+    });
+    
+    delete userContext[ctx.from.id];
+    
+    // Provide detailed error message
+    let errorMsg = ' Error creating apartment listing: ';
     if (error.response?.data?.message) {
       errorMsg += error.response.data.message;
     } else if (error.response?.status === 400) {
@@ -1864,64 +2738,58 @@ bot.action('image_url', async (ctx) => {
 bot.action('image_skip', async (ctx) => {
   await ctx.answerCbQuery();
   const context = userContext[ctx.from.id];
+  
+  // Validate context has required fields before saving
+  if (!context || !context.category) {
+    console.warn(`[Bot] Cannot skip image - missing required fields. User: ${ctx.from.id}`, { 
+      hasContext: !!context,
+      hasCategory: context?.category,
+      step: context?.step
+    });
+    return ctx.reply(' Error: Missing category. Please use /addproduct to start over.');
+  }
+  
   context.image = 'https://images.unsplash.com/photo-1599056377759-3388006e62e0?auto=format&fit=crop&w=400&q=70';
   await saveProduct(ctx, context);
 });
 
-// CATEGORY SELECTION HANDLERS
-bot.action('cat_fish', errorWrapper(async (ctx) => {
-  console.log(`[Bot] cat_fish callback from user ${ctx.from.id}`);
+// CATEGORY SELECTION HANDLERS - Dynamic categories
+// Handle any category button (e.g., cat_Roasted Corn, cat_Table Water, etc.)
+bot.action(/^cat_(?!custom)(.+)$/, errorWrapper(async (ctx) => {
+  const categoryMatch = ctx.match[1];
+  const userId = ctx.from.id;
+  
+  console.log(`[Bot] Category selected: "${categoryMatch}" from user ${userId}`);
   await ctx.answerCbQuery();
-  const context = userContext[ctx.from.id];
-  console.log(`[Bot] Context for cat_fish:`, { step: context?.step, name: context?.name });
+  
+  const context = userContext[userId];
+  console.log(`[Bot] Context for category:`, { step: context?.step, name: context?.name });
+  
   if (context && context.step === 'create_product_category') {
-    context.category = 'Smoked Fish';
+    // Set the selected category
+    context.category = categoryMatch;
     context.step = 'create_product_quantity';
+    
+    console.log(`[Bot] Category set to: "${context.category}" for user ${userId}`);
+    
     return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
   } else {
-    console.warn(`[Bot] Invalid context for cat_fish - step: ${context?.step}`);
+    console.warn(`[Bot] Invalid context for category - step: ${context?.step}`);
+    return ctx.answerCbQuery('❌ Session expired. Please try again.');
   }
 }, 'addproduct'));
 
-bot.action('cat_grains', errorWrapper(async (ctx) => {
-  console.log(`[Bot] cat_grains callback from user ${ctx.from.id}`);
+// Legacy handlers kept for backward compatibility
+bot.action('cat_custom', errorWrapper(async (ctx) => {
+  console.log(`[Bot] cat_custom callback from user ${ctx.from.id}`);
   await ctx.answerCbQuery();
   const context = userContext[ctx.from.id];
-  console.log(`[Bot] Context for cat_grains:`, { step: context?.step, name: context?.name });
   if (context && context.step === 'create_product_category') {
-    context.category = 'Grains';
-    context.step = 'create_product_quantity';
-    return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
+    context.step = 'custom_category_input';
+    console.log(`[Bot] Moving to custom_category_input step`);
+    return ctx.editMessageText('✏️ <b>Enter Custom Category Name</b>\n\nType the category name you want to create:\n\n<i>Examples: Organic Rice, Premium Catfish, Exotic Spices</i>', { parse_mode: 'HTML' });
   } else {
-    console.warn(`[Bot] Invalid context for cat_grains - step: ${context?.step}`);
-  }
-}, 'addproduct'));
-
-bot.action('cat_rice', errorWrapper(async (ctx) => {
-  console.log(`[Bot] cat_rice callback from user ${ctx.from.id}`);
-  await ctx.answerCbQuery();
-  const context = userContext[ctx.from.id];
-  console.log(`[Bot] Context for cat_rice:`, { step: context?.step, name: context?.name });
-  if (context && context.step === 'create_product_category') {
-    context.category = 'Rice';
-    context.step = 'create_product_quantity';
-    return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
-  } else {
-    console.warn(`[Bot] Invalid context for cat_rice - step: ${context?.step}`);
-  }
-}, 'addproduct'));
-
-bot.action('cat_other', errorWrapper(async (ctx) => {
-  console.log(`[Bot] cat_other callback from user ${ctx.from.id}`);
-  await ctx.answerCbQuery();
-  const context = userContext[ctx.from.id];
-  console.log(`[Bot] Context for cat_other:`, { step: context?.step, name: context?.name });
-  if (context && context.step === 'create_product_category') {
-    context.category = 'Other';
-    context.step = 'create_product_quantity';
-    return ctx.editMessageText(' <b>Stock Quantity</b>\n\nEnter the available quantity in kg (e.g., 1000):', { parse_mode: 'HTML' });
-  } else {
-    console.warn(`[Bot] Invalid context for cat_other - step: ${context?.step}`);
+    console.warn(`[Bot] Invalid step for cat_custom - expected 'create_product_category', got: ${context?.step}`);
   }
 }, 'addproduct'));
 
@@ -2190,7 +3058,7 @@ bot.action('stats_menu', async (ctx) => {
 bot.action('main_menu', async (ctx) => {
   await ctx.answerCbQuery();
   return safeEditMessageText(ctx,
-    ' AgroCrown Admin Dashboard\n\nSelect an option:',
+    ' 365extra Admin Dashboard\n\nSelect an option:',
     Markup.inlineKeyboard([
       [Markup.button.callback(' Products', 'products_menu')],
       [Markup.button.callback(' Orders', 'orders_menu')],
@@ -2471,8 +3339,8 @@ bot.on('photo', errorWrapper(async (ctx) => {
   const userId = ctx.from.id;
   const context = userContext[userId];
 
-  if (!context || (context.step !== 'create_product_image_upload' && context.step !== 'create_land_image_upload')) {
-    return ctx.reply(' Please use the product or land property creation flow to upload images.');
+if (!context || (context.step !== 'create_product_image_upload' && context.step !== 'create_land_image_upload' && context.step !== 'upload_apartment_image' && context.step !== 'apartment_slider_image_upload_next')) {
+    return ctx.reply(' Please use the product, land, or apartment creation flow to upload images.');
   }
 
   try {
@@ -2522,12 +3390,30 @@ bot.on('photo', errorWrapper(async (ctx) => {
       context.image = uploadResponse.data.data.imageUrl;
     }
     
+    const sizeInfo = context.compressedSize ? ` (${(context.compressedSize / 1024).toFixed(2)}KB)` : '';
+
     if (context.type === 'land') {
-      const sizeInfo = context.compressedSize ? ` (${(context.compressedSize / 1024).toFixed(2)}KB)` : '';
       await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nCreating land property...`, { parse_mode: 'HTML' });
       await saveLandProperty(ctx, context);
+    } else if (context.type === 'apartment') {
+      context.sliderImages = context.sliderImages || [];
+      context.sliderImages.push(context.image);
+      if (context.step === 'upload_apartment_image') {
+        await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nNow choose how many slider images you want.`, { parse_mode: 'HTML' });
+        await promptApartmentSliderImageCount(ctx, context);
+      } else {
+        const currentCount = context.sliderImages.length;
+        const totalCount = context.sliderImageCount || currentCount;
+        if (currentCount >= totalCount) {
+          await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nCollected ${currentCount} image(s). Saving apartment listing...`, { parse_mode: 'HTML' });
+          await finalizeApartmentSliderImages(ctx, context);
+        } else {
+          const nextImageNumber = currentCount + 1;
+          await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nSend photo ${nextImageNumber} of ${totalCount}, or type SKIP to finish early.`, { parse_mode: 'HTML' });
+          context.step = 'apartment_slider_image_upload_next';
+        }
+      }
     } else {
-      const sizeInfo = context.compressedSize ? ` (${(context.compressedSize / 1024).toFixed(2)}KB)` : '';
       await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nCreating product...`, { parse_mode: 'HTML' });
       await saveProduct(ctx, context);
     }
@@ -2622,3 +3508,4 @@ process.once('SIGTERM', () => {
   clearCache();
   bot.stop('SIGTERM');
 });
+

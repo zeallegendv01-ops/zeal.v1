@@ -1,6 +1,6 @@
-# AgroCrown Telegram Admin Bot
+﻿# 365extra Telegram Admin Bot
 
-A Telegram bot dashboard for managing AgroCrown products, orders, and users with full CRUD functionality and real-time notifications.
+A Telegram bot dashboard for managing 365extra products, orders, and users with full CRUD functionality and real-time notifications.
 
 ## Features
 
@@ -198,7 +198,7 @@ Click the buttons in order notifications to:
 
 ## API Integration
 
-The bot connects to your AgroCrown backend API:
+The bot connects to your 365extra backend API:
 
 - Uses JWT authentication
 - Handles all CRUD operations
@@ -233,3 +233,4 @@ Only users with the `ADMIN_TELEGRAM_ID` can access the bot. All other users will
 - Payment status updates
 - Inventory alerts
 - Bulk imports
+

@@ -1,4 +1,4 @@
-# AgroCrown Backend Startup Guide
+﻿# 365extra Backend Startup Guide
 
 ## Initial Setup (First Time Only)
 
@@ -23,7 +23,7 @@ MongoDB connected: <connection_string>
 🔗 Database connection ready, initializing admin user...
 ✅ Admin user created successfully
 [Bot] Starting bot, waiting for server to be ready...
-[Token Refresh] Attempting to login with: admin@agrocrown.com
+[Token Refresh] Attempting to login with: admin@365extra.com
 [Token Refresh] Token refreshed successfully
 🤖 Bot started successfully!
 ```
@@ -78,7 +78,7 @@ curl -X POST http://localhost:4000/api/auth/register \
   -d '{
     "firstName": "Admin",
     "lastName": "User",
-    "email": "admin@agrocrown.com",
+    "email": "admin@365extra.com",
     "password": "admin123",
     "accountType": "Distributor",
     "phone": "1234567890"
@@ -93,7 +93,7 @@ PORT=4000
 MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?appName=appname
 JWT_SECRET=your_jwt_secret
 JWT_EXPIRE=7d
-ADMIN_EMAIL=admin@agrocrown.com
+ADMIN_EMAIL=admin@365extra.com
 ADMIN_PASSWORD=admin123
 TELEGRAM_BOT_TOKEN=<your_token>
 ADMIN_TELEGRAM_ID=<your_id>
@@ -102,8 +102,9 @@ API_BASE_URL=http://localhost:4000/api
 
 ## Default Credentials
 
-- **Email**: admin@agrocrown.com
+- **Email**: admin@365extra.com
 - **Password**: admin123
 
 ⚠️ **IMPORTANT**: Change these in production!
+
 

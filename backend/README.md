@@ -1,6 +1,6 @@
-# AgroCrown Backend
+﻿# 365extra Backend
 
-Node.js/Express backend API for AgroCrown agricultural export platform.
+Node.js/Express backend API for 365extra agricultural export platform.
 
 ## Features
 
@@ -32,7 +32,7 @@ cp .env.example .env
 4. Update `.env` with your configuration:
 ```
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/agrocrown
+MONGODB_URI=mongodb://localhost:27017/365extra
 JWT_SECRET=your_secure_secret_key
 JWT_EXPIRE=7d
 NODE_ENV=development
@@ -128,3 +128,4 @@ npm start
 - Real-time notifications
 - Rate limiting
 - API documentation (Swagger)
+

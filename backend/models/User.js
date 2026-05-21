@@ -35,11 +35,27 @@ const userSchema = new mongoose.Schema({
     trim: true
   },
   address: {
-    country: String,
-    state: String,
+    street: String,
     city: String,
-    postalCode: String
+    state: String,
+    postalCode: String,
+    country: String
   },
+  cart: [
+    {
+      product: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product'
+      },
+      quantity: Number,
+      weight: Number,
+      pricePerKg: Number,
+      addedAt: {
+        type: Date,
+        default: Date.now
+      }
+    }
+  ],
   company: {
     type: String,
     trim: true

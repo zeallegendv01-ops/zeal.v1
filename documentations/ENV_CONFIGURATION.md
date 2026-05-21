@@ -1,4 +1,4 @@
-# Environment Configuration Guide
+﻿# Environment Configuration Guide
 
 ## Setup Instructions
 
@@ -66,7 +66,7 @@ JWT_TOKEN=your_jwt_secret_here
 
 # Server Configuration
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/agrocrown
+MONGODB_URI=mongodb://localhost:27017/365extra
 
 # Email Configuration
 SMTP_HOST=smtp.gmail.com
@@ -186,7 +186,7 @@ API_BASE_URL=http://localhost:5000/api
 JWT_TOKEN=your_jwt_secret_for_analytics_auth
 
 # Database (required for analytics to work)
-MONGODB_URI=mongodb://localhost:27017/agrocrown
+MONGODB_URI=mongodb://localhost:27017/365extra
 
 # Analytics Routes (auto-enabled, no config needed)
 # GET /api/analytics/dashboard   (admin only)
@@ -239,3 +239,4 @@ Need help?
 3. Check exact Telegram ID (no spaces, must be numeric)
 4. Restart bot after any changes
 5. Check `ANALYTICS_GUIDE.md` for more details
+

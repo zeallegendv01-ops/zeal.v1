@@ -1,7 +1,7 @@
-const { spawn } = require('child_process');
+﻿const { spawn } = require('child_process');
 const path = require('path');
 
-console.log('🚀 Starting AgroCrown Backend...\n');
+console.log('🚀 Starting 365extra Backend...\n');
 
 // Start server
 const server = spawn('node', ['server.js'], {
@@ -11,7 +11,7 @@ const server = spawn('node', ['server.js'], {
 });
 
 // Start bot
-const bot = spawn('node', ['telegram-bot/bot.js'], {
+const bot = spawn('node', ['bot.js'], {
   cwd: __dirname,
   stdio: 'inherit',
   shell: true
@@ -30,3 +30,4 @@ bot.on('error', (err) => console.error('Bot error:', err));
 
 server.on('exit', (code) => console.log('Server exited with code:', code));
 bot.on('exit', (code) => console.log('Bot exited with code:', code));
+

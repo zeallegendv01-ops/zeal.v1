@@ -1,7 +1,7 @@
-const CACHE_NAME = 'agrocrown-v1';
+﻿const CACHE_NAME = '365extra-v1';
 const ASSETS_TO_CACHE = [
   '/',
-  '/agrocrown.html',
+  '/365extra.html',
   '/dist/js/script.js',
   '/dist/js/api.js',
   '/index.html'
@@ -110,3 +110,4 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+

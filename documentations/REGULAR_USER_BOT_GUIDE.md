@@ -1,4 +1,4 @@
-# Regular User Bot Access - Setup Guide
+﻿# Regular User Bot Access - Setup Guide
 
 ## What Changed
 
@@ -22,7 +22,7 @@ Bot shows: Admin Dashboard menu
 Regular user clicks /start
     ↓
 Bot shows: Welcome message + buttons
-    ├─ 🌐 Open AgroCrown Website
+    ├─ 🌐 Open 365extra Website
     └─ 📱 View on Mobile
 ```
 
@@ -40,7 +40,7 @@ WEBSITE_URL=http://localhost:3000
 Replace with your actual website URL:
 - **Local**: `http://localhost:3000`
 - **Production**: `https://yourdomain.com`
-- **Hosting**: `https://agrocrown.example.com`
+- **Hosting**: `https://365extra.example.com`
 
 ### Full .env Example
 ```env
@@ -87,7 +87,7 @@ Edit file: `backend/telegram-bot/bot.js` (around line 172)
 
 ```javascript
 // Change this text:
-'🌾 <b>Welcome to AgroCrown</b>\n\n' +
+'🌾 <b>Welcome to 365extra</b>\n\n' +
 'Premium Agricultural Exports from West Africa\n\n' +
 'Browse our collection of farm-fresh products, view analytics, and place orders on our website.'
 ```
@@ -95,7 +95,7 @@ Edit file: `backend/telegram-bot/bot.js` (around line 172)
 ### Change Button Text
 Edit buttons (around line 181):
 ```javascript
-[Markup.button.url('🌐 Open AgroCrown Website', websiteUrl)],
+[Markup.button.url('🌐 Open 365extra Website', websiteUrl)],
 [Markup.button.url('📱 View on Mobile', websiteUrl)]
 ```
 
@@ -128,7 +128,7 @@ Edit buttons (around line 181):
 
 If `WEBSITE_URL` is not in `.env`, bot uses default:
 ```
-https://agrocrown.example.com
+https://365extra.example.com
 ```
 
 You should definitely set it in `.env` to use your actual URL!
@@ -139,14 +139,14 @@ You should definitely set it in `.env` to use your actual URL!
 
 ### Regular User View:
 ```
-🌾 Welcome to AgroCrown
+🌾 Welcome to 365extra
 
 Premium Agricultural Exports from West Africa
 
 Browse our collection of farm-fresh products, view analytics, 
 and place orders on our website.
 
-[🌐 Open AgroCrown Website]
+[🌐 Open 365extra Website]
 [📱 View on Mobile]
 ```
 
@@ -160,3 +160,4 @@ Clicking either button opens your website.
 ✅ Regular users see website buttons  
 ✅ Configurable via `WEBSITE_URL` in `.env`  
 ✅ Works on desktop, mobile, and web Telegram
+

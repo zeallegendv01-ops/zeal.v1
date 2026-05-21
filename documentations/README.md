@@ -1,12 +1,12 @@
-# AgroCrown - Premium Agricultural Export Platform
+﻿# 365extra - Premium Agricultural Export Platform
 
 A comprehensive full-stack platform for managing premium agricultural exports from West Africa. Features a responsive frontend, Node.js/Express backend with MongoDB, and a Telegram admin dashboard.
 
 ## Project Structure
 
 ```
-AgroCrown/
-├── agrocrown (3).html          # Main frontend HTML
+365extra/
+├── 365extra (3).html          # Main frontend HTML
 ├── dist/
 │   ├── css/style.css          # Styling
 │   ├── js/
@@ -61,7 +61,7 @@ Create `.env` file:
 
 ```env
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/agrocrown
+MONGODB_URI=mongodb://localhost:27017/365extra
 JWT_SECRET=your_super_secret_key_change_in_production
 JWT_EXPIRE=7d
 NODE_ENV=development
@@ -107,7 +107,7 @@ npm run dev
 
 ### 4. Frontend
 
-Open `agrocrown (3).html` in your browser or serve it via a local server:
+Open `365extra (3).html` in your browser or serve it via a local server:
 
 ```bash
 # Using Python
@@ -339,7 +339,7 @@ python -m http.server 8000
 
 4. **Open Browser**
 ```
-http://localhost:8000/agrocrown%20(3).html
+http://localhost:8000/365extra%20(3).html
 ```
 
 5. **Telegram**
@@ -395,7 +395,7 @@ Open Telegram and search for your bot, then use `/start`
 **Backend (.env)**
 ```
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/agrocrown
+MONGODB_URI=mongodb://localhost:27017/365extra
 JWT_SECRET=your_secret
 JWT_EXPIRE=7d
 NODE_ENV=development
@@ -453,7 +453,7 @@ For issues or questions:
 
 ## Get Started
 
-Everything is ready to use! Follow the Quick Start section above to get your AgroCrown platform running.
+Everything is ready to use! Follow the Quick Start section above to get your 365extra platform running.
 
 ---
 
@@ -473,7 +473,7 @@ Everything is ready to use! Follow the Quick Start section above to get your Agr
 /editproduct "Organic Tomatoes"
 /deleteproduct "Fresh Maize"
 /user john@example.com
-/user admin@agrocrown.com
+/user admin@365extra.com
 
 MongoDB - password: msZwytn0hLpX0DkN
 MongoDB - username: jamessubtle3_db_user

@@ -1,6 +1,6 @@
-{
-  "name": "AgroCrown - Premium Agricultural Exports",
-  "short_name": "AgroCrown",
+﻿{
+  "name": "365extra - Premium Agricultural Exports",
+  "short_name": "365extra",
   "description": "Global Food Reserve - Premium-grade agricultural exports from West Africa. Organic certified, heritage-driven, field to world.",
   "start_url": "/",
   "scope": "/",
@@ -72,3 +72,4 @@
     }
   ]
 }
+

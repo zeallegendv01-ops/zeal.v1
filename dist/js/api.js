@@ -319,6 +319,20 @@ class ApiService {
       return { success: false, message: 'Network error.' };
     }
   }
+
+  // SETTINGS ENDPOINTS
+  async getSettings() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/settings`, {
+        method: 'GET',
+        headers: this.getHeaders()
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Get settings error:', error);
+      return { success: false, data: {}, message: 'Network error.' };
+    }
+  }
 }
 
 const apiService = new ApiService();

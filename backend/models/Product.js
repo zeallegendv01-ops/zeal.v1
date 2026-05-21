@@ -16,12 +16,111 @@ const productSchema = new mongoose.Schema({
     required: [true, 'Please provide a description']
   },
   
-  // Product Type: 'product' (weight-based) or 'land' (area-based)
+  // Product Type: 'product' (weight-based), 'land' (area-based), or 'apartment' (unit-based)
   type: {
     type: String,
-    enum: ['product', 'land'],
+    enum: ['product', 'land', 'apartment'],
     default: 'product'
   },
+
+  // ════════════════════════ FOR APARTMENTS ════════════════════════
+  // Apartment type: custom types allowed (e.g., room, self-contained, house, flat, studio, penthouse, duplex)
+  apartmentType: {
+    type: String,
+    validate: {
+      validator: function(v) {
+        return this.type !== 'apartment' || v;
+      },
+      message: 'Apartment type is required for apartments'
+    }
+  },
+
+  // Apartment listing type: 'rent' or 'sale'
+  listingType: {
+    type: String,
+    enum: ['rent', 'sale'],
+    validate: {
+      validator: function(v) {
+        return this.type !== 'apartment' || v;
+      },
+      message: 'Listing type (rent or sale) is required for apartments'
+    }
+  },
+
+  // For rent: price per month, for sale: total price
+  pricePerMonth: {
+    type: Number,
+    min: 0,
+    validate: {
+      validator: function(v) {
+        return this.type !== 'apartment' || this.listingType !== 'rent' || (v && v > 0);
+      },
+      message: 'Monthly price required for apartment rentals'
+    }
+  },
+
+  price: {
+    type: Number,
+    min: 0,
+    validate: {
+      validator: function(v) {
+        return this.type !== 'apartment' || this.listingType !== 'sale' || (v && v > 0);
+      },
+      message: 'Sale price required for apartment sales'
+    }
+  },
+
+  // Apartment specs
+  bedrooms: {
+    type: Number,
+    min: 0,
+    validate: {
+      validator: function(v) {
+        return this.type !== 'apartment' || (v !== undefined && v !== null);
+      },
+      message: 'Number of bedrooms is required for apartments'
+    }
+  },
+
+  bathrooms: {
+    type: Number,
+    min: 0,
+    validate: {
+      validator: function(v) {
+        return this.type !== 'apartment' || (v !== undefined && v !== null);
+      },
+      message: 'Number of bathrooms is required for apartments'
+    }
+  },
+
+  furnished: {
+    type: Boolean,
+    default: false
+  },
+
+  apartmentAreaSqMeters: {
+    type: Number,
+    min: 0,
+    validate: {
+      validator: function(v) {
+        return this.type !== 'apartment' || (v && v > 0);
+      },
+      message: 'Area in square meters is required for apartments'
+    }
+  },
+
+  // Apartment location details (more detailed than land)
+  apartmentAddress: {
+    type: String,
+    validate: {
+      validator: function(v) {
+        return this.type !== 'apartment' || v;
+      },
+      message: 'Address is required for apartments'
+    }
+  },
+
+  apartmentFeatures: [String], // e.g., ["balcony", "parking", "garden", "security"]
 
   // ════════════════════════ FOR PRODUCTS (Weight-based) ════════════════════════
   pricePerKg: {
@@ -43,10 +142,21 @@ const productSchema = new mongoose.Schema({
 
   category: {
     type: String,
-    enum: ['Smoked Fish', 'Grains', 'Rice', 'Other', 'Land'],
+    required: [true, 'Please provide a category'],
+    trim: true,
     validate: {
       validator: function(v) {
-        return this.type === 'land' ? v === 'Land' : v !== 'Land';
+        // For land products, category must be 'Land'
+        // For apartments, category must be 'Apartment'
+        // For regular products, category cannot be 'Land' or 'Apartment'
+        if (this.type === 'land') return v === 'Land';
+        if (this.type === 'apartment') return v === 'Apartment';
+        return v !== 'Land' && v !== 'Apartment';
+      },
+      message: function() {
+        if (this.type === 'land') return 'Land products must have category "Land"';
+        if (this.type === 'apartment') return 'Apartment products must have category "Apartment"';
+        return 'Regular products cannot use "Land" or "Apartment" as category';
       }
     }
   },

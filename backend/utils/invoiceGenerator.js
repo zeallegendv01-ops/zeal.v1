@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Invoice Generator - Creates professional HTML/PDF invoices for orders
  */
 
@@ -33,7 +33,7 @@ function generateInvoiceHTML(order) {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Invoice - AgroCrown</title>
+      <title>Invoice - 365extra</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; line-height: 1.6; }
@@ -73,7 +73,7 @@ function generateInvoiceHTML(order) {
         <!-- Header -->
         <div class="header">
           <div>
-            <div class="logo">🌾 AgroCrown</div>
+            <div class="logo">🌾 365extra</div>
             <div class="logo-subtitle">Premium Agricultural Exports</div>
           </div>
           <div class="invoice-info">
@@ -93,14 +93,18 @@ function generateInvoiceHTML(order) {
             <p><strong>${order.buyer.firstName} ${order.buyer.lastName}</strong></p>
             <p>${order.buyer.email}</p>
             ${order.buyer.phone ? `<p>📱 ${order.buyer.phone}</p>` : ''}
-            ${order.shippingAddress ? `<p>📍 ${order.shippingAddress}</p>` : ''}
+            ${order.shippingAddress ? `<p>📍 <strong>Delivery Address:</strong><br>
+              ${order.shippingAddress.street || 'N/A'}<br>
+              ${order.shippingAddress.city || ''} ${order.shippingAddress.state || ''} ${order.shippingAddress.postalCode || ''}<br>
+              ${order.shippingAddress.country || 'Nigeria'}
+            </p>` : ''}
           </div>
           <div class="seller-info">
             <div class="section-title">From</div>
-            <p><strong>AgroCrown Heritage Ltd.</strong></p>
+            <p><strong>365extra Heritage Ltd.</strong></p>
             <p>Lagos, Nigeria</p>
-            <p>📧 support@agrocrown.com</p>
-            <p>🌐 www.agrocrown.com</p>
+            <p>📧 support@365extra.com</p>
+            <p>🌐 www.365extra.com</p>
           </div>
         </div>
 
@@ -158,8 +162,8 @@ function generateInvoiceHTML(order) {
         <!-- Footer -->
         <div class="footer">
           <p>Thank you for your purchase! Your order is being processed.</p>
-          <p>For support, contact us via Telegram or email: support@agrocrown.com</p>
-          <p style="margin-top: 10px; color: #bbb;">AgroCrown Heritage © 2026. All Rights Reserved.</p>
+          <p>For support, contact us via Telegram or email: support@365extra.com</p>
+          <p style="margin-top: 10px; color: #bbb;">365extra Heritage © 2026. All Rights Reserved.</p>
         </div>
       </div>
     </body>
@@ -170,3 +174,4 @@ function generateInvoiceHTML(order) {
 module.exports = {
   generateInvoiceHTML
 };
+

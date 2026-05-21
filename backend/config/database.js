@@ -1,8 +1,8 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/agrocrown', {
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/365extra', {
       serverSelectionTimeoutMS: 45000,    // Increased timeout for server selection
       socketTimeoutMS: 90000,             // Increased socket timeout to 90 seconds
       connectTimeoutMS: 45000,            // Increased connection timeout
@@ -21,3 +21,4 @@ const connectDB = async () => {
 };
 
 module.exports = connectDB;
+

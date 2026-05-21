@@ -173,6 +173,59 @@ class TelegramNotifier {
 
     return message;
   }
+
+  async notifyPaymentFailure(order, paymentData, failureReason) {
+    if (!this.adminId || !this.botToken) {
+      console.log('Telegram credentials not configured');
+      return;
+    }
+
+    const message = this.formatPaymentFailureMessage(order, paymentData, failureReason);
+    return await this.sendMessage(this.adminId, message, {
+      replyMarkup: {
+        inline_keyboard: [
+          [
+            { text: 'View Order', callback_data: `order_${order._id}` },
+            { text: 'Retry Payment', callback_data: `retry_${order._id}` }
+          ],
+          [
+            { text: 'Cancel Order', callback_data: `cancel_${order._id}` }
+          ]
+        ]
+      }
+    });
+  }
+
+  formatPaymentFailureMessage(order, paystackData, failureReason) {
+    let message = ` <b>⚠️ PAYMENT FAILED</b>\n\n`;
+    message += ` <b>Order:</b> ${order.orderNumber}\n`;
+    message += ` <b>Customer:</b> ${order.buyer.firstName} ${order.buyer.lastName}\n`;
+    message += ` <b>Email:</b> ${order.buyer.email}\n`;
+    message += ` <b>Phone:</b> ${order.buyer.phone || 'Not provided'}\n\n`;
+
+    message += ` <b>Items in Order:</b>\n`;
+    order.items.forEach((item, index) => {
+      message += `${index + 1}. ${item.product.name}\n`;
+      message += `   Quantity: ${item.quantity}  Weight: ${item.weight}kg\n`;
+      message += `   Price: ${item.pricePerUnit}/kg  Subtotal: ${item.subtotal.toFixed(2)}\n\n`;
+    });
+
+    message += ` <b>Order Amount:</b>\n`;
+    message += `Subtotal: ${order.subtotal.toFixed(2)}\n`;
+    message += `Shipping: ${order.shippingCost.toFixed(2)}\n`;
+    message += `Tax: ${order.tax.toFixed(2)}\n`;
+    message += `<b>Total: ${order.total.toFixed(2)}</b>\n\n`;
+
+    message += ` <b>Failure Details:</b>\n`;
+    message += ` Reason: ${failureReason || 'Payment declined'}\n`;
+    message += ` Reference: ${paystackData?.reference || 'N/A'}\n`;
+    message += ` Status: FAILED\n`;
+    message += ` Date: ${new Date(paystackData?.created_at || order.createdAt).toLocaleString()}\n`;
+
+    message += ` <b>⚠️ ACTION REQUIRED:</b> Customer needs to retry payment or contact support`;
+
+    return message;
+  }
 }
 
 module.exports = new TelegramNotifier();

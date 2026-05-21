@@ -1,9 +1,16 @@
 ﻿/*  PWA SERVICE WORKER & INSTALL PROMPT  */
 
 // Dynamic API Base URL
-const API_BASE_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:4000/api'
-  : `${window.location.protocol}//${window.location.host}/api`;
+let API_BASE_URL;
+if (window.location.hostname === 'localhost') {
+  API_BASE_URL = 'http://localhost:4000/api';
+} else if (window.location.protocol === 'file:' || !window.location.host) {
+  // When opening the HTML file directly (file://), default to local backend
+  API_BASE_URL = 'http://localhost:4000/api';
+  console.warn('[WARN] Running from file:// - defaulting API_BASE_URL to', API_BASE_URL);
+} else {
+  API_BASE_URL = `${window.location.protocol}//${window.location.host}/api`;
+}
 
 console.log('[DEBUG] API_BASE_URL:', API_BASE_URL);
 
@@ -13,28 +20,53 @@ let appSettings = {
   shippingFee: 2500   // Default fallback
 };
 
-// Fetch settings from backend API
-async function loadAppSettings() {
+// Settings poll interval reference
+let _settingsPollIntervalId = null;
+
+// Internal: fetch settings once and apply them
+async function fetchAndApplySettings() {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
     const response = await fetch(`${API_BASE_URL}/settings`, { signal: controller.signal });
     clearTimeout(timeoutId);
-    
-    if (response.ok) {
-      const result = await response.json();
-      if (result.success && result.data) {
-        appSettings.taxRate = result.data.taxRate || 10;
-        appSettings.shippingFee = result.data.shippingFee || 2500;
-        console.log('[OK] Settings loaded:', appSettings);
+
+    if (!response.ok) {
+      console.warn('[WARN] Failed to load settings, status:', response.status);
+      return null;
+    }
+
+    const result = await response.json();
+    if (result && result.success && result.data) {
+      const newTax = result.data.taxRate !== undefined ? result.data.taxRate : 10;
+      const newShipping = result.data.shippingFee !== undefined ? result.data.shippingFee : 2500;
+
+      const changed = (newTax !== appSettings.taxRate) || (newShipping !== appSettings.shippingFee);
+
+      appSettings.taxRate = newTax;
+      appSettings.shippingFee = newShipping;
+
+      if (changed) {
+        console.log('[OK] Settings updated:', appSettings);
+        // If cart is visible or totals are rendered, refresh display
+        if (typeof updateCartDisplay === 'function') updateCartDisplay();
       }
-    } else {
-      console.warn('[WARN] Failed to load settings, using defaults');
+
+      return appSettings;
     }
   } catch (err) {
-    console.warn('[WARN] Settings API call failed, using defaults:', err.message);
+    console.warn('[WARN] Settings API call failed:', err.message);
+    return null;
   }
+}
+
+// Fetch settings from backend API and start polling for changes
+async function loadAppSettings() {
+  await fetchAndApplySettings();
+
+  // Start polling every 10 seconds to pick up changes made via bot/admin
+  if (_settingsPollIntervalId) clearInterval(_settingsPollIntervalId);
+  _settingsPollIntervalId = setInterval(fetchAndApplySettings, 10000);
 }
 
 let deferredPrompt = null;
@@ -95,17 +127,109 @@ window.addEventListener('appinstalled', () => {
 
 /*  MODAL HELPERS  */
 function openModal(id){
-  document.getElementById(id).classList.add('open');
+  const modal = document.getElementById(id);
+  if(modal) modal.classList.add('open');
   document.body.style.overflow='hidden';
   if(id==='chartModal'){
     initAnalyticsOnOpen();
   }
+  if(id==='cartModal'){
+    loadUserAddressForCheckout();
+  }
 }
 function closeModal(id){
-  document.getElementById(id).classList.remove('open');
-  if(!document.querySelector('.modal-backdrop.open') && !document.getElementById('searchOverlay').classList.contains('open'))
+  const modal = document.getElementById(id);
+  if(modal) modal.classList.remove('open');
+  if(!document.querySelector('.modal-backdrop.open') && !document.getElementById('searchOverlay')?.classList.contains('open'))
     document.body.style.overflow='';
 }
+
+function toggleCartSidebar(show) {
+  const sidebar = document.getElementById('cartSidebar');
+  const toggleBtn = document.getElementById('cartToggleBtn');
+  if (show) {
+    sidebar.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    const pages = sidebar.querySelector('.sidebar-pages');
+    if (pages) pages.dataset.page = '1';
+    const button = sidebar.querySelector('.sidebar-page-toggle .slide-label');
+    if (button) button.textContent = 'Checkout';
+    const arrow = sidebar.querySelector('.sidebar-page-toggle i');
+    if (arrow) {
+      arrow.classList.remove('fa-arrow-left');
+      arrow.classList.add('fa-arrow-right');
+    }
+  } else {
+    sidebar.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+}
+
+function toggleSidebar(sidebarId, show) {
+  const sidebar = document.getElementById(sidebarId);
+  if (!sidebar) return;
+  
+  if (show) {
+    sidebar.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    const pages = sidebar.querySelector('.sidebar-pages');
+    if (pages) pages.dataset.page = '1';
+    const button = sidebar.querySelector('.sidebar-page-toggle .slide-label');
+    if (button) button.textContent = sidebarId === 'cartSidebar' ? 'Checkout' : 'View Actions';
+    const arrow = sidebar.querySelector('.sidebar-page-toggle i');
+    if (arrow) {
+      arrow.classList.remove('fa-arrow-left');
+      arrow.classList.add('fa-arrow-right');
+    }
+  } else {
+    sidebar.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+}
+
+function toggleSidebarPage(sidebarId) {
+  const sidebar = document.getElementById(sidebarId);
+  if (!sidebar) return;
+  const pages = sidebar.querySelector('.sidebar-pages');
+  if (!pages) return;
+  const currentPage = pages.dataset.page === '2' ? '2' : '1';
+  const targetPage = currentPage === '1' ? '2' : '1';
+  pages.dataset.page = targetPage;
+
+  const buttonLabel = sidebar.querySelector('.sidebar-page-toggle .slide-label');
+  if (buttonLabel) {
+    if (sidebarId === 'cartSidebar') {
+      buttonLabel.textContent = targetPage === '2' ? 'Back' : 'Checkout';
+    } else {
+      buttonLabel.textContent = targetPage === '2' ? 'Back' : 'View Actions';
+    }
+  }
+
+  const arrow = sidebar.querySelector('.sidebar-page-toggle i');
+  if (arrow) {
+    arrow.classList.toggle('fa-arrow-right', targetPage === '1');
+    arrow.classList.toggle('fa-arrow-left', targetPage === '2');
+  }
+}
+
+// Close sidebars on overlay click
+document.querySelectorAll('.sidebar-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      toggleSidebar(overlay.id, false);
+    }
+  });
+});
+
+// Handle escape key for sidebars
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.sidebar-overlay.active').forEach(overlay => {
+      toggleSidebar(overlay.id, false);
+    });
+  }
+});
+
 document.querySelectorAll('.modal-backdrop').forEach(m=>{
   m.addEventListener('click',e=>{ if(e.target===m) closeModal(m.id); });
 });
@@ -115,6 +239,517 @@ document.addEventListener('keydown',e=>{
     closeSearch();
   }
 });
+
+/*  SCROLL TO TOP FUNCTIONALITY  */
+const scrollTopBtn = document.getElementById('scrollTopBtn');
+
+window.addEventListener('scroll', () => {
+  if (window.scrollY > 300) {
+    scrollTopBtn?.classList.add('show');
+  } else {
+    scrollTopBtn?.classList.remove('show');
+  }
+});
+
+function scrollToTop() {
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth'
+  });
+}
+
+/*  PRODUCT & LAND CARD CLICK HANDLERS  */
+function addProductCardClickHandlers() {
+  document.querySelectorAll('.product-card').forEach(card => {
+    if (!card.hasListener) {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.product-btn') || e.target.closest('.wrange') || e.target.closest('.card-share-btn')) {
+          return; // Don't open modal if clicking "Add to Selection", slider, or share button
+        }
+        const productId = card.getAttribute('data-product-id');
+        const product = allProducts.find(p => p._id === productId);
+        if (product) {
+          showProductDetails(product);
+        }
+      });
+      card.hasListener = true;
+    }
+  });
+}
+
+function addLandCardClickHandlers() {
+  document.querySelectorAll('.land-card').forEach(card => {
+    if (!card.hasListener) {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.land-btn') || e.target.closest('.land-range') || e.target.closest('.card-share-btn')) {
+          return; // Don't open modal if clicking buttons, slider, or share button
+        }
+        const landId = card.getAttribute('data-product-id');
+        const land = allProducts.find(p => p._id === landId);
+        if (land) {
+          showLandDetails(land);
+        }
+      });
+      card.hasListener = true;
+    }
+  });
+}
+
+function addApartmentCardClickHandlers() {
+  document.querySelectorAll('.apartment-card').forEach(card => {
+    if (!card.hasListener) {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.apartment-btn') || e.target.closest('.card-share-btn')) {
+          return; // Don't open modal if clicking "Add to Selection" or share button
+        }
+        const apartmentId = card.getAttribute('data-product-id');
+        const apartment = allProducts.find(p => p._id === apartmentId);
+        if (apartment) {
+          showApartmentDetails(apartment);
+        }
+      });
+      card.hasListener = true;
+    }
+  });
+}
+
+function addCardShareButtonHandlers() {
+  document.querySelectorAll('.card-share-btn').forEach(btn => {
+    if (!btn.hasListener) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const type = btn.dataset.shareType;
+        const id = btn.dataset.shareId;
+        const title = decodeURIComponent(btn.dataset.shareTitle || '');
+        if (type && id) {
+          shareListing(type, id, title);
+        }
+      });
+      btn.hasListener = true;
+    }
+  });
+}
+
+function showProductDetails(product) {
+  const price = product.pricePerKg || 0;
+  const unit = product.unit || 'kg';
+  const certification = product.certification?.organic ? 'Organic (Certified)' : '';
+  
+  const productImages = Array.isArray(product.images) && product.images.length > 0
+    ? product.images.slice(0, 4)
+    : [product.image || 'https://via.placeholder.com/400x300?text=Product'];
+
+  const content = `
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+      ${createDetailImageSlider(productImages, `product-detail-${product._id}`)}
+      
+      <div>
+        <h2 style="font-family: var(--serif); font-size: 28px; margin-bottom: 8px; color: #0d0d0b;">${product.name}</h2>
+        <p style="color: var(--gold-lt); font-size: 14px; font-weight: 700; letter-spacing: 0.5px;">${product.category}</p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+        <div style="background: linear-gradient(135deg, rgba(212, 175, 55, 0.08), rgba(212, 175, 55, 0.04)); padding: 16px; border-radius: 8px; border: 1px solid rgba(212, 175, 55, 0.15);">
+          <div style="font-size: 11px; color: #666; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.5px;">PRICE PER UNIT</div>
+          <div style="font-size: 20px; font-weight: 700; color: #0d0d0b;">${price.toLocaleString()}.00</div>
+          <div style="font-size: 12px; color: #999; margin-top: 2px;">/ ${unit}</div>
+        </div>
+        <div style="background: linear-gradient(135deg, rgba(46, 80, 22, 0.08), rgba(46, 80, 22, 0.04)); padding: 16px; border-radius: 8px; border: 1px solid rgba(46, 80, 22, 0.15);">
+          <div style="font-size: 11px; color: #666; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.5px;">AVAILABLE STOCK</div>
+          <div style="font-size: 20px; font-weight: 700; color: #0d0d0b;">${product.quantity}</div>
+          <div style="font-size: 12px; color: #999; margin-top: 2px;">${unit}</div>
+        </div>
+      </div>
+
+      <div class="detail-panel">
+        <div style="font-size: 11px; color: #666; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">SELECT QUANTITY</div>
+        <div class="weight-slider-wrap">
+          <div class="weight-slider-label">
+            <span>Weight (${unit})</span>
+            <span class="wval" id="productDetailWeight">1 ${unit}</span>
+          </div>
+          <input type="range" class="wrange" id="productDetailWeightSlider" min="1" max="100" value="1" step="1"
+            oninput="document.getElementById('productDetailWeight').textContent = this.value + ' ${unit}'; const totalValue = (${price.toLocaleString()} * this.value).toLocaleString() + '.00'; document.getElementById('productDetailTotal').innerHTML = totalValue; document.getElementById('productDetailTotalFooter').innerHTML = totalValue; document.getElementById('productDetailSelectedQty')?.textContent = this.value + ' ${unit}'; document.getElementById('productDetailActionTotal')?.textContent = 'NGN ' + totalValue;">
+          <div style="font-size: 13px; font-weight: 600; color: var(--gold-lt); min-width: 80px; text-align: right;">
+            <span id="productDetailTotal">${price.toLocaleString()}.00</span>
+          </div>
+        </div>
+        <div class="detail-total-row">
+          <span>Total</span>
+          <span style="font-weight:700;">NGN<span id="productDetailTotalFooter">${price.toLocaleString()}.00</span></span>
+        </div>
+      </div>
+
+      ${certification ? `
+        <div class="detail-card" style="display: flex; align-items: center; gap: 12px;">
+          <i class="fa-solid fa-leaf" style="color: var(--gold-lt); font-size: 1.1rem;"></i>
+          <span style="font-size: 0.95rem; color: var(--gold); font-weight: 700;">${certification}</span>
+        </div>
+      ` : ''}
+
+      ${product.description ? `
+        <div>
+          <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 10px; color: #0d0d0b; letter-spacing: 0.5px;">DESCRIPTION</h3>
+          <p style="color: rgba(13, 13, 11, 0.7); line-height: 1.7; font-size: 13px;">${product.description}</p>
+        </div>
+      ` : ''}
+
+      ${product.minLimit ? `
+        <div style="background: #fff3cd; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #ffc107; font-size: 13px; color: #856404;">
+          <strong>Minimum Order:</strong> ${product.minLimit} ${unit}
+        </div>
+      ` : ''}
+
+    </div>
+  `;
+  document.getElementById('productDetailsContent').innerHTML = content;
+  document.getElementById('productDetailsActions').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:18px;">
+      <div class="order-summary-glass" style="padding:16px;">
+        <div style="font-size:0.8rem; font-weight:700; color:rgba(13,13,11,0.7); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Checkout Actions</div>
+        <div style="display:flex;justify-content:space-between; margin-bottom:10px;"><span>Selected Qty</span><strong id="productDetailSelectedQty">1 ${unit}</strong></div>
+        <div style="display:flex;justify-content:space-between; font-weight:700;"><span>Total</span><span id="productDetailActionTotal">NGN ${price.toLocaleString()}.00</span></div>
+      </div>
+      <button class="btn-primary" onclick="addProductDetailToCart('${product._id}')" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 600;">
+        <i class="fa-solid fa-basket-shopping" style="margin-right: 8px;"></i> Add to Selection
+      </button>
+      <button class="cart-continue-btn" onclick="toggleSidebar('productDetailsSidebar', false)">← Back to Products</button>
+    </div>
+  `;
+  toggleSidebar('productDetailsSidebar', true);
+}
+
+function addProductDetailToCart(productId) {
+  if(!apiService.isAuthenticated()){
+    showNotification('Please sign in to add items to your cart', 'error');
+    openModal('authModal');
+    return;
+  }
+
+  const product = allProducts.find(p => p._id === productId);
+  if(!product){
+    showNotification('Product not found', 'error');
+    return;
+  }
+
+  const weight = parseInt(document.getElementById('productDetailWeightSlider')?.value || 1);
+  addToCart(product, weight);
+  toggleSidebar('productDetailsSidebar', false);
+}
+
+function getInlineSvgIcon(icon) {
+  const style = 'display:inline-block; vertical-align:middle; width:1em; height:1em; margin-right:0.35rem; fill:currentColor;';
+  const icons = {
+    house: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="${style}"><path d="M3 9.5L12 2l9 7.5V21a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5z"/></svg>`,
+    building: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="${style}"><path d="M4 22V8l8-6 8 6v14H4zm7-11h2v2h-2v-2zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2zm3-8h2v2h-2v-2zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2z"/></svg>`,
+    check: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="${style}"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    circle: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="${style}"><circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/></svg>`,
+    cross: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="${style}"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+    download: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="${style}"><path d="M12 3v12m0 0l-4-4m4 4l4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+    retry: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="${style}"><path d="M12 5a7 7 0 1 0 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 5V1m0 0L8 5m4-4l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    info: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="${style}"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 16h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+    package: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="${style}"><path d="M4 7l8-4 8 4v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3v4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 7l8 4 8-4" fill="none" stroke="currentColor" stroke-width="2"/></svg>`,
+    message: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="${style}"><path d="M4 4h16v12H5.5L4 18.5V4z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 8h8M8 12h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
+  };
+  return icons[icon] || '';
+}
+
+function getApartmentTypeLabel(apartmentType) {
+  const labelMap = {
+    'room': 'Single Room',
+    'self-contained': 'Self-Contained',
+    'house': 'House',
+    'flat': 'Flat'
+  };
+  const iconMap = {
+    'room': 'house',
+    'self-contained': 'house',
+    'house': 'house',
+    'flat': 'building'
+  };
+  const label = labelMap[apartmentType] || (apartmentType ? apartmentType.charAt(0).toUpperCase() + apartmentType.slice(1) : 'Apartment');
+  return `${getInlineSvgIcon(iconMap[apartmentType] || 'building')} ${label}`;
+}
+
+function getFurnishedLabel(isFurnished) {
+  return isFurnished
+    ? `${getInlineSvgIcon('check')} Furnished`
+    : `${getInlineSvgIcon('circle')} Unfurnished`;
+}
+
+function getDetailBullet(icon, text) {
+  return `${getInlineSvgIcon(icon)} ${text}`;
+}
+
+const detailSliderState = {};
+
+function sanitizeSliderId(id) {
+  return id.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function createDetailImageSlider(images, sliderId) {
+  const safeId = sanitizeSliderId(sliderId);
+  const sliderImages = Array.isArray(images) && images.length > 0 ? images.slice(0, 4) : ['https://via.placeholder.com/800x400?text=No+Image'];
+  const mainImage = sliderImages[0];
+
+  const thumbnails = sliderImages.map((src, index) => `
+      <img
+        src="${src}"
+        onclick="setDetailSlide('${safeId}', ${index})"
+        style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid rgba(255,255,255,0.8); opacity: ${index === 0 ? '1' : '0.6'}; transition: opacity 0.2s;"
+        alt="Thumbnail ${index + 1}" />
+    `).join('');
+
+  detailSliderState[safeId] = { images: sliderImages, index: 0 };
+
+  return `
+    <div id="${safeId}-slider" style="position: relative; display: flex; flex-direction: column; gap: 12px;">
+      <div style="position: relative;">
+        <img id="${safeId}-main" src="${mainImage}" alt="Detail Image" style="width: 100%; height: 300px; object-fit: cover; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);" />
+        ${sliderImages.length > 1 ? `
+          <button onclick="prevDetailSlide('${safeId}')" style="position:absolute; top:50%; left:10px; transform:translateY(-50%); background:rgba(0,0,0,0.45); color:#fff; border:none; border-radius:50%; width:34px; height:34px; cursor:pointer;">‹</button>
+          <button onclick="nextDetailSlide('${safeId}')" style="position:absolute; top:50%; right:10px; transform:translateY(-50%); background:rgba(0,0,0,0.45); color:#fff; border:none; border-radius:50%; width:34px; height:34px; cursor:pointer;">›</button>
+        ` : ''}
+      </div>
+      <div id="${safeId}-thumbs" style="display: flex; gap: 10px; justify-content: flex-start; overflow-x: auto;">
+        ${thumbnails}
+      </div>
+    </div>
+  `;
+}
+
+function setDetailSlide(sliderId, index) {
+  const state = detailSliderState[sliderId];
+  if (!state || index < 0 || index >= state.images.length) return;
+  state.index = index;
+  const main = document.getElementById(`${sliderId}-main`);
+  if (main) {
+    main.src = state.images[index];
+  }
+  const thumbs = document.querySelectorAll(`#${sliderId}-thumbs img`);
+  thumbs.forEach((thumb, thumbIndex) => {
+    thumb.style.opacity = thumbIndex === index ? '1' : '0.6';
+  });
+}
+
+function prevDetailSlide(sliderId) {
+  const state = detailSliderState[sliderId];
+  if (!state) return;
+  const nextIndex = (state.index - 1 + state.images.length) % state.images.length;
+  setDetailSlide(sliderId, nextIndex);
+}
+
+function nextDetailSlide(sliderId) {
+  const state = detailSliderState[sliderId];
+  if (!state) return;
+  const nextIndex = (state.index + 1) % state.images.length;
+  setDetailSlide(sliderId, nextIndex);
+}
+
+function showApartmentDetails(apartment) {
+  const inferredApartmentType = (() => {
+    const desc = (apartment.description || '').toLowerCase();
+    if (desc.includes('self-contained') || desc.includes('self contained')) return 'self-contained';
+    if (desc.includes('flat')) return 'flat';
+    if (desc.includes('room')) return 'room';
+    if (desc.includes('house')) return 'house';
+    return apartment.type || 'apartment';
+  })();
+  const apartmentType = apartment.apartmentType || apartment.apartment_type || inferredApartmentType;
+  const listingType = apartment.listingType || apartment.listing_type || (apartment.pricePerMonth || apartment.pricePer_month ? 'rent' : 'sale');
+  const rawRentPrice = apartment.pricePerMonth || apartment.price_per_month || apartment.rentPrice || apartment.rent_price || apartment.price || 0;
+  const rawSalePrice = apartment.price || apartment.salePrice || apartment.sale_price || apartment.pricePerMonth || 0;
+  const pricePerUnit = listingType === 'rent'
+    ? parseFloat(rawRentPrice) || parseFloat(rawSalePrice) || 0
+    : parseFloat(rawSalePrice) || parseFloat(rawRentPrice) || 0;
+  const listingLabel = listingType === 'rent' ? 'For Rent' : 'For Sale';
+  const priceDisplay = pricePerUnit > 0
+    ? `NGN${pricePerUnit.toLocaleString()}${listingType === 'rent' ? '/year' : ''}`
+    : 'Price on request';
+
+  const typeLabel = getApartmentTypeLabel(apartmentType);
+
+  const bedrooms = Number(apartment.bedrooms || apartment.beds || apartment.bedroom || 0);
+  const bathrooms = Number(apartment.bathrooms || apartment.baths || apartment.bathroom || 0);
+  const area = Number(apartment.apartmentAreaSqMeters || apartment.areaSqMeters || apartment.apartment_area_sq_meters || apartment.area || 0);
+  const address = apartment.apartmentAddress || apartment.apartment_address || apartment.location || apartment.address || 'Location not specified';
+  const category = apartment.category || 'Apartment';
+
+  const apartmentImages = Array.isArray(apartment.images) && apartment.images.length > 0
+    ? apartment.images.slice(0, 4)
+    : [apartment.image || 'https://via.placeholder.com/400x300?text=Apartment'];
+
+  const content = `
+    <div style="display: flex; flex-direction: column; gap: 3px;padding-bottom: 20px; overflow-y:auto; height:100%;">
+      ${createDetailImageSlider(apartmentImages, `apartment-detail-${apartment._id}`)}
+      
+      <div>
+        <h2 style="font-family: var(--serif); font-size: 28px; margin-bottom: 8px;">${apartment.name || 'Apartment Listing'}</h2>
+        <p style="color: #666; font-size: 14px;"><i class="fa-solid fa-map-location-marker"></i> ${address}</p>
+        <p style="color: #999; font-size: 12px; margin-top: 4px;">Category: ${category}</p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+        <div style="background: #f4f2ed; padding: 15px; border-radius: 6px;">
+          <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Price</div>
+          <div style="font-size: 18px; font-weight: 700; color: #0d0d0b;">${priceDisplay}</div>
+        </div>
+        <div style="background: #f4f2ed; padding: 15px; border-radius: 6px;">
+          <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Type</div>
+          <div style="font-size: 18px; font-weight: 700; color: #0d0d0b;">${typeLabel}</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+        <div style="background: #f4f2ed; padding: 12px; border-radius: 6px; text-align: center;">
+          <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Bedrooms</div>
+          <div style="font-size: 18px; font-weight: 700; color: #0d0d0b;">${bedrooms > 0 ? bedrooms : 'N/A'}</div>
+        </div>
+        <div style="background: #f4f2ed; padding: 12px; border-radius: 6px; text-align: center;">
+          <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Bathrooms</div>
+          <div style="font-size: 18px; font-weight: 700; color: #0d0d0b;">${bathrooms > 0 ? bathrooms : 'N/A'}</div>
+        </div>
+        <div style="background: #f4f2ed; padding: 12px; border-radius: 6px; text-align: center;">
+          <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Area</div>
+          <div style="font-size: 18px; font-weight: 700; color: #0d0d0b;">${area > 0 ? area + 'm²' : 'N/A'}</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; font-size: 14px;">
+        <div style="background: rgba(42, 90, 30, 0.1); padding: 10px; border-radius: 6px; flex: 1; display:flex; align-items:center; justify-content:center;">
+          ${getFurnishedLabel(apartment.furnished)}
+        </div>
+        <div style="background: rgba(212, 175, 55, 0.1); padding: 10px; border-radius: 6px; flex: 1; display:flex; align-items:center; justify-content:center;">
+          ${listingLabel}
+        </div>
+      </div>
+
+      ${apartment.apartmentFeatures && apartment.apartmentFeatures.length > 0 ? `
+        <div>
+          <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Features</h3>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            ${apartment.apartmentFeatures.map(f => `<span style="background: #f4f2ed; padding: 6px 12px; border-radius: 4px; font-size: 13px;">${f}</span>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${apartment.description ? `
+        <div>
+          <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Description</h3>
+          <p style="color: rgba(13, 13, 11, 0.7); line-height: 1.6;">${apartment.description}</p>
+        </div>
+      ` : ''}
+
+    </div>
+  `;
+  document.getElementById('apartmentDetailsContent').innerHTML = content;
+  document.getElementById('apartmentDetailsActions').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:18px;overflow-y:auto; height:100%;">
+      <div class="order-summary-glass" style="padding:16px;">
+        <div style="font-size:0.8rem; font-weight:700; color:rgba(13,13,11,0.7); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Listing Actions</div>
+        <div style="display:flex;justify-content:space-between; margin-bottom:10px;"><span>Type</span><strong>${listingLabel}</strong></div>
+        <div style="display:flex;justify-content:space-between; font-weight:700;"><span>Price</span><span>${priceDisplay}</span></div>
+      </div>
+      <button class="btn-primary" onclick="toggleSidebar('apartmentDetailsSidebar', false); addToCart({...${ JSON.stringify(apartment).replace(/'/g, "\\'")}}, 1)" style="width: 100%;">
+        <i class="fa-solid fa-basket-shopping" style="margin-right: 8px;"></i> Add to Selection
+      </button>
+      <button class="cart-continue-btn" onclick="toggleSidebar('apartmentDetailsSidebar', false)">← Back to Listings</button>
+    </div>
+  `;
+  toggleSidebar('apartmentDetailsSidebar', true);
+}
+
+function showLandDetails(land) {
+  const totalPrice = land.landPricingType === 'fixed' 
+    ? land.pricePerPlot 
+    : (land.pricePerSqMeter * land.areaSqMeters);
+
+  const legalStatusLabel = {
+    'freehold': 'Freehold',
+    'leasehold': 'Leasehold',
+    'government': 'Government Land',
+    'communal': 'Communal',
+    'unknown': 'Unknown'
+  };
+
+  const landImages = Array.isArray(land.images) && land.images.length > 0
+    ? land.images.slice(0, 4)
+    : [land.image || 'https://via.placeholder.com/400x300?text=Land'];
+
+  const content = `
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      ${createDetailImageSlider(landImages, `land-detail-${land._id}`)}
+      
+      <div>
+        <h2 style="font-family: var(--serif); font-size: 28px; margin-bottom: 8px; color: #0d0d0b;">${land.name}</h2>
+        <p style="color: #666; font-size: 14px;"><i class="fa-solid fa-map-marker-alt" style="color: var(--gold-lt); margin-right: 6px;"></i> ${land.location}</p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+        <div style="background: linear-gradient(135deg, rgba(212, 175, 55, 0.08), rgba(212, 175, 55, 0.04)); padding: 16px; border-radius: 8px; border: 1px solid rgba(212, 175, 55, 0.15);">
+          <div style="font-size: 11px; color: #666; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.5px;">TOTAL PRICE</div>
+          <div style="font-size: 20px; font-weight: 700; color: #0d0d0b;">NGN ${totalPrice.toLocaleString()}</div>
+        </div>
+        <div style="background: linear-gradient(135deg, rgba(46, 80, 22, 0.08), rgba(46, 80, 22, 0.04)); padding: 16px; border-radius: 8px; border: 1px solid rgba(46, 80, 22, 0.15);">
+          <div style="font-size: 11px; color: #666; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.5px;">AREA</div>
+          <div style="font-size: 20px; font-weight: 700; color: #0d0d0b;">${land.areaSqMeters.toLocaleString()}</div>
+          <div style="font-size: 12px; color: #999; margin-top: 2px;">m²</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+        <div style="background: #f9f7f4; padding: 14px; border-radius: 8px; border: 1px solid #e9e6de;">
+          <div style="font-size: 11px; color: #666; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.5px;">LEGAL STATUS</div>
+          <div style="font-size: 14px; font-weight: 700; color: #0d0d0b;">${legalStatusLabel[land.legalStatus || 'unknown']}</div>
+        </div>
+        <div style="background: #f9f7f4; padding: 14px; border-radius: 8px; border: 1px solid #e9e6de;">
+          <div style="font-size: 11px; color: #666; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.5px;">NUMBER OF PLOTS</div>
+          <div style="font-size: 14px; font-weight: 700; color: #0d0d0b;">${land.numberOfPlots || 1}</div>
+        </div>
+      </div>
+
+      ${land.description ? `
+        <div>
+          <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 10px; color: #0d0d0b; letter-spacing: 0.5px;">DESCRIPTION</h3>
+          <p style="color: rgba(13, 13, 11, 0.7); line-height: 1.7; font-size: 13px;">${land.description}</p>
+        </div>
+      ` : ''}
+
+    </div>
+  `;
+  document.getElementById('landDetailsContent').innerHTML = content;
+  document.getElementById('landDetailsActions').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:18px;">
+      <div class="order-summary-glass" style="padding:16px;">
+        <div style="font-size:0.8rem; font-weight:700; color:rgba(13,13,11,0.7); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Property Actions</div>
+        <div style="display:flex;justify-content:space-between; margin-bottom:10px;"><span>Area</span><strong>${land.areaSqMeters > 0 ? land.areaSqMeters + 'm²' : 'N/A'}</strong></div>
+        <div style="display:flex;justify-content:space-between; font-weight:700;"><span>Total</span><span>NGN ${totalPrice.toLocaleString()}</span></div>
+      </div>
+      <button class="btn-primary" onclick="addLandDetailToCart('${land._id}')" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 600;">
+        <i class="fa-solid fa-handshake" style="margin-right: 8px;"></i> Inquire Now
+      </button>
+      <button class="cart-continue-btn" onclick="toggleSidebar('landDetailsSidebar', false)">← Back to Listings</button>
+    </div>
+  `;
+  toggleSidebar('landDetailsSidebar', true);
+}
+
+function addLandDetailToCart(landId) {
+  if(!apiService.isAuthenticated()){
+    showNotification('Please sign in to inquire about land', 'error');
+    openModal('authModal');
+    return;
+  }
+
+  const land = allProducts.find(p => p._id === landId);
+  if(!land){
+    showNotification('Land property not found', 'error');
+    return;
+  }
+
+  addToCart(land, 1);
+  toggleSidebar('landDetailsSidebar', false);
+}
 
 /*  AUTH TABS  */
 function switchAuthTab(tab,btn){
@@ -130,10 +765,17 @@ function openForgotPasswordPanel(){
 
 /*  GLOBAL SEARCH OVERLAY  */
 let globalProducts = [
-  {name:"Artesian Smoked Catfish",price:"45,000.00 / kg",img:"https://images.unsplash.com/photo-1599056377759-3388006e62e0?auto=format&fit=crop&w=400&q=70",tags:"artesian smoked catfish fish"},
-  {name:"Traditional Pure Garri", price:"18,000.00 / kg",img:"https://images.unsplash.com/photo-1590540179852-2110a54f813a?auto=format&fit=crop&w=400&q=70",tags:"traditional pure garri cassava grain"},
-  {name:"Whole Exquisite Kola Nuts",price:"32,000.00 / kg",img:"https://images.unsplash.com/photo-1614701838030-f7034d61053f?auto=format&fit=crop&w=400&q=70",tags:"whole exquisite kola nuts cola nut"},
+  {_id:'1', type:'product', name:"Artesian Smoked Catfish",price:45000,img:"https://images.unsplash.com/photo-1599056377759-3388006e62e0?auto=format&fit=crop&w=400&q=70",category:'Seafood',description:'Smoked fish',tags:"artesian smoked catfish fish"},
+  {_id:'2', type:'product', name:"Traditional Pure Garri", price:18000,img:"https://images.unsplash.com/photo-1590540179852-2110a54f813a?auto=format&fit=crop&w=400&q=70",category:'Grains',description:'Cassava garri',tags:"traditional pure garri cassava grain"},
+  {_id:'3', type:'product', name:"Whole Exquisite Kola Nuts",price:32000,img:"https://images.unsplash.com/photo-1614701838030-f7034d61053f?auto=format&fit=crop&w=400&q=70",category:'Nuts',description:'Kola nut',tags:"whole exquisite kola nuts cola nut"},
 ];
+let searchResultsData = [];
+let selectedSearchIndex = -1;
+let searchSortOrder = 'relevance';
+let searchCategoryFilter = 'all';
+let recentSearches = JSON.parse(window.localStorage.getItem('searchHistory') || '[]');
+let popularSearchTerms = ['organic produce', 'farm-to-table', 'farmland', 'self-contained', 'riverside living', 'apartment', 'wholesale'];
+let searchCategories = [];
 
 async function loadGlobalProducts(){
   try{
@@ -148,10 +790,15 @@ async function loadGlobalProducts(){
     if(data.success){
       console.log('Global products loaded:', data.data);
       globalProducts = data.data.map(p => ({
-        name: p.name,
-        price: `${(p.pricePerKg * 1000).toLocaleString()}.00 / kg`,
-        img: p.image.replace("w=700", "w=400").replace("q=80", "q=70"),
-        tags: `${p.name.toLowerCase()} ${p.description.toLowerCase()}`
+        _id: p._id || p.id || '',
+        type: p.type || 'product',
+        name: p.name || p.title || '',
+        price: p.pricePerKg || p.pricePerMonth || p.price || 0,
+        img: p.image ? p.image.replace("w=700", "w=400").replace("q=80", "q=70") : 'https://via.placeholder.com/400',
+        category: p.category || p.apartmentType || p.type || '',
+        description: p.description || '',
+        tags: `${(p.name || '').toLowerCase()} ${(p.category || '').toLowerCase()} ${(p.description || '').toLowerCase()} ${(p.apartmentAddress || '').toLowerCase()} ${(p.location || '').toLowerCase()}`.trim(),
+        sourceItem: p
       }));
     } else {
       console.warn('Failed to load products:', data.message);
@@ -160,53 +807,463 @@ async function loadGlobalProducts(){
     console.error('Error loading products:', e.message);
     // Use fallback products if API fails
   }
+
+  await loadSearchCategories().catch(catError => {
+    console.warn('[WARN] Failed to load search categories:', catError);
+  });
+}
+
+async function loadSearchCategories() {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(`${API_BASE_URL}/products/categories`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (data.success && Array.isArray(data.data)) {
+      searchCategories = data.data
+        .filter(cat => cat && String(cat).trim() !== '')
+        .map(cat => String(cat).trim());
+      console.log('[DEBUG] Search categories loaded:', searchCategories);
+      if (document.getElementById('searchOverlay')?.classList.contains('open')) {
+        renderSearchCategoryFilters();
+      }
+    } else {
+      throw new Error(data.message || 'Unexpected categories payload');
+    }
+  } catch (error) {
+    console.warn('[WARN] Could not load categories from backend:', error.message || error);
+    searchCategories = [];
+  }
 }
 
 function openSearch(){
-  document.getElementById('searchOverlay').classList.add('open');
+  const searchOverlay = document.getElementById('searchOverlay');
+  if(searchOverlay) searchOverlay.classList.add('open');
   document.body.style.overflow='hidden';
-  setTimeout(()=>document.getElementById('searchInput').focus(),60);
+  const searchInput = document.getElementById('searchInput');
+  if(searchInput) setTimeout(()=>searchInput.focus(),60);
   renderGlobalSearch('');
 }
 function closeSearch(){
-  document.getElementById('searchOverlay').classList.remove('open');
-  document.getElementById('searchInput').value='';
+  const searchOverlay = document.getElementById('searchOverlay');
+  if(searchOverlay) searchOverlay.classList.remove('open');
+  const searchInput = document.getElementById('searchInput');
+  if(searchInput) searchInput.value='';
   if(!document.querySelector('.modal-backdrop.open')) document.body.style.overflow='';
 }
-document.getElementById('searchOverlay').addEventListener('click',e=>{
-  if(e.target===document.getElementById('searchOverlay')) closeSearch();
+const searchOverlay = document.getElementById('searchOverlay');
+if(searchOverlay) searchOverlay.addEventListener('click',e=>{
+  if(e.target===searchOverlay) closeSearch();
 });
-document.getElementById('searchClose').addEventListener('click',closeSearch);
-function renderGlobalSearch(q){
-  const res=document.getElementById("searchResults");
-  const none=document.getElementById("searchNoResults");
-  const term=q.trim().toLowerCase();
-  if(!term){res.innerHTML="";none.style.display="none";return;}
-  const matched=globalProducts.filter(p=>p.tags.includes(term)||p.name.toLowerCase().includes(term));
-  none.style.display=matched.length?"none":"block";
-  res.innerHTML=matched.map(p=>`
-    <div class="search-result-card" onclick="closeSearch();document.getElementById('products').scrollIntoView({behavior:'smooth'});">
-      <img src="${p.img}" alt="${p.name}" loading="lazy">
-      <div class="search-result-info"><h4>${p.name}</h4><p>${p.price}</p></div>
-    </div>`).join("");
+const searchClose = document.getElementById('searchClose');
+if(searchClose) searchClose.addEventListener('click',closeSearch);
+
+function renderGlobalSearch(q) {
+  const res = document.getElementById('searchResults');
+  const none = document.getElementById('searchNoResults');
+  const count = document.getElementById('searchCount');
+  const filters = document.getElementById('searchCategoryFilters');
+  const suggestions = document.getElementById('searchSuggestions');
+  const emptyState = document.getElementById('searchEmptyState');
+  if (!res || !none || !count || !filters || !suggestions || !emptyState) return;
+
+  const term = q.trim().toLowerCase();
+  const source = allProducts.length ? allProducts : globalProducts;
+  if (!term) {
+    searchResultsData = [];
+    selectedSearchIndex = -1;
+    renderSearchCategoryFilters();
+
+    if (searchCategoryFilter !== 'all') {
+      const matched = source
+        .filter(item => isSearchCategoryMatch(item, searchCategoryFilter))
+        .map(item => ({
+          ...item,
+          img: item.img || item.image || (item.sourceItem && (item.sourceItem.img || item.sourceItem.image)) || 'https://via.placeholder.com/400'
+        }))
+        .sort(sortSearchItems);
+
+      searchResultsData = matched;
+      selectedSearchIndex = matched.length ? 0 : -1;
+      emptyState.style.display = 'none';
+      none.style.display = matched.length ? 'none' : 'block';
+      res.innerHTML = matched.map((item, index) => `
+        <div class="search-result-card" data-search-index="${index}" tabindex="0">
+          <div class="result-thumbnail"><img src="${item.img || 'https://via.placeholder.com/400'}" alt="${item.name}" loading="lazy"></div>
+          <div class="search-result-info">
+            <div class="search-result-badge ${item.type}">${item.type}</div>
+            <h4>${highlightMatch(item.name || '', '')}</h4>
+            <p>${highlightMatch(item.category || item.description || '', '')}</p>
+            <div class="result-meta">
+              <span>${item.priceLabel || (item.price > 0 ? `NGN ${Number(item.price).toLocaleString()}` : 'Price unavailable')}</span>
+              <span>${item.category || ''}</span>
+            </div>
+            <div class="search-card-actions">
+              <button type="button" class="search-card-action" data-search-index="${index}" aria-label="View ${item.name}">View item</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      attachSearchResultHandlers(res);
+
+      updateSearchSelection();
+      count.textContent = matched.length
+        ? `${matched.length} result${matched.length === 1 ? '' : 's'} for "${searchCategoryFilter}"`
+        : `No results in "${searchCategoryFilter}"`;
+      return;
+    }
+
+    emptyState.style.display = 'block';
+    none.style.display = 'none';
+    res.innerHTML = '';
+    count.textContent = 'Search products, lands and apartments by typing a keyword.';
+    renderSearchSuggestions();
+    return;
+  }
+
+  emptyState.style.display = 'none';
+  const matched = getMatchedSearchItems(source, term)
+    .filter(item => searchCategoryFilter === 'all' || item.category?.toString().trim().toLowerCase() === searchCategoryFilter.toLowerCase() || item.type === searchCategoryFilter.toLowerCase())
+    .sort(sortSearchItems);
+
+  searchResultsData = matched;
+  selectedSearchIndex = matched.length ? 0 : -1;
+
+  count.textContent = matched.length
+    ? `${matched.length} result${matched.length === 1 ? '' : 's'} for "${q}"`
+    : `No results for "${q}"`;
+
+  none.style.display = matched.length ? 'none' : 'block';
+  res.innerHTML = matched.map((item, index) => `
+    <div class="search-result-card" data-search-index="${index}" tabindex="0">
+      <div class="result-thumbnail"><img src="${item.img || 'https://via.placeholder.com/400'}" alt="${item.name}" loading="lazy"></div>
+      <div class="search-result-info">
+        <div class="search-result-badge ${item.type}">${item.type}</div>
+        <h4>${highlightMatch(item.name || '', term)}</h4>
+        <p>${highlightMatch(item.category || item.description || '', term)}</p>
+        <div class="result-meta">
+          <span>${item.priceLabel || (item.price > 0 ? `NGN ${Number(item.price).toLocaleString()}` : 'Price unavailable')}</span>
+          <span>${item.category || ''}</span>
+        </div>
+        <div class="search-card-actions">
+          <button type="button" class="search-card-action" data-search-index="${index}" aria-label="View ${item.name}">View item</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  attachSearchResultHandlers(res);
+
+  updateSearchSelection();
 }
-document.getElementById('searchInput').addEventListener('input',function(){ renderGlobalSearch(this.value); });
+
+function getMatchedSearchItems(source, term) {
+  return source.map(item => {
+    const sourceItem = item.sourceItem || item;
+    const type = (item.type || sourceItem.type || 'product').toString();
+    const name = item.name || item.title || sourceItem.name || sourceItem.title || '';
+    const category = item.category || sourceItem.category || sourceItem.apartmentType || sourceItem.apartment_type || type || 'Unknown';
+    const description = item.description || item.summary || sourceItem.description || sourceItem.details || '';
+    const rawPrice = Number(
+      item.price || item.pricePerKg || item.pricePerMonth || item.cost || item.amount ||
+      item.pricePerPlot || item.pricePerSqMeter || item.pricePerMeter || item.pricePerUnit ||
+      sourceItem.price || sourceItem.pricePerKg || sourceItem.pricePerMonth || sourceItem.cost || sourceItem.amount ||
+      sourceItem.pricePerPlot || sourceItem.pricePerSqMeter || sourceItem.pricePerMeter || sourceItem.pricePerUnit ||
+      0
+    );
+    const img = item.img || item.image || sourceItem.img || sourceItem.image || (Array.isArray(sourceItem.images) ? sourceItem.images[0] : undefined) || sourceItem.thumbnail || sourceItem.banner || sourceItem.picture || sourceItem.photos?.[0] || 'https://via.placeholder.com/400';
+    const listingType = item.listingType || sourceItem.listingType || sourceItem.listing_type || '';
+    const landPricingType = item.landPricingType || sourceItem.landPricingType || sourceItem.land_pricing_type || '';
+
+    const priceLabel = (() => {
+      if (type === 'product') {
+        return rawPrice > 0 ? `NGN ${rawPrice.toLocaleString()}.00 / kg` : 'Price unavailable';
+      }
+      if (type === 'apartment') {
+        if (listingType === 'rent') return rawPrice > 0 ? `NGN ${rawPrice.toLocaleString()}.00 / month` : 'Price unavailable';
+        if (listingType === 'sale') return rawPrice > 0 ? `NGN ${rawPrice.toLocaleString()}` : 'Price unavailable';
+        return rawPrice > 0 ? `NGN ${rawPrice.toLocaleString()}` : 'Price unavailable';
+      }
+      if (type === 'land') {
+        const pricing = landPricingType.toString().toLowerCase();
+        if (pricing === 'per-plot') {
+          return rawPrice > 0 ? `NGN ${rawPrice.toLocaleString()}.00 / plot` : 'Price unavailable';
+        }
+        if (pricing === 'per-sq-meter' || pricing === 'per-sqm' || pricing === 'per-meter' || pricing === 'per-square-meter') {
+          return rawPrice > 0 ? `NGN ${rawPrice.toLocaleString()}.00 / sq m` : 'Price unavailable';
+        }
+        return rawPrice > 0 ? `NGN ${rawPrice.toLocaleString()}` : 'Price unavailable';
+      }
+      return rawPrice > 0 ? `NGN ${rawPrice.toLocaleString()}` : 'Price unavailable';
+    })();
+
+    return {
+      _id: item._id || item.id || sourceItem._id || sourceItem.id || '',
+      type: type.toString().toLowerCase(),
+      name,
+      category,
+      description,
+      img,
+      price: rawPrice,
+      priceLabel,
+      listingType,
+      sourceItem
+    };
+  }).filter(item => {
+    const t = (term || '').toString().trim().toLowerCase();
+    if (!t) return true;
+    const tFirst = t.charAt(0);
+    const nameFirst = (item.name || '').toString().trim().toLowerCase().charAt(0);
+    const catFirst = (item.category || '').toString().trim().toLowerCase().charAt(0);
+    const descFirst = (item.description || '').toString().trim().toLowerCase().charAt(0);
+    const tags = (item.sourceItem?.tags || '').toString().toLowerCase();
+    const tagFirstMatch = tags.split(',').some(tag => tag.trim().charAt(0) === tFirst);
+    return nameFirst === tFirst || catFirst === tFirst || descFirst === tFirst || tagFirstMatch;
+  });
+}
+
+function isSearchCategoryMatch(item, filter) {
+  const normalized = filter.toString().trim().toLowerCase();
+  const categoryValue = (item.category || item.apartmentType || item.type || '').toString().trim().toLowerCase();
+  if (normalized === 'land' && item.type === 'land') return true;
+  if (item.type === 'apartment' && categoryValue === normalized) return true;
+  return categoryValue === normalized || item.type === normalized;
+}
+
+function sortSearchItems(a, b) {
+  if (searchSortOrder === 'price-asc') {
+    return Number(a.price || 0) - Number(b.price || 0);
+  }
+  if (searchSortOrder === 'price-desc') {
+    return Number(b.price || 0) - Number(a.price || 0);
+  }
+  return 0;
+}
+
+function highlightMatch(text, term) {
+  if (!term) return text;
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
+}
+
+function renderSearchCategoryFilters() {
+  const container = document.getElementById('searchCategoryFilters');
+  if (!container) return;
+  const source = allProducts.length ? allProducts : globalProducts;
+
+  const productCategories = searchCategories.length
+    ? [...new Set(searchCategories.map(cat => String(cat).trim()).filter(Boolean))]
+    : [...new Set(source.map(item => item.category || '').filter(Boolean))];
+
+  const typeCategories = [...new Set(source.map(item => {
+    if (item.type === 'land') return 'land';
+    if (item.type === 'apartment') return item.apartmentType || item.apartment_type || 'apartment';
+    return null;
+  }).filter(Boolean))];
+
+  const categories = [...new Set([...productCategories, ...typeCategories])];
+  const pills = ['all', ...categories].map(cat => `
+    <span class="search-pill ${searchCategoryFilter === cat.toString().toLowerCase() ? 'active' : ''}" onclick="applySearchCategoryFilter('${cat.replace(/'/g, "\\'")}')">${cat === 'all' ? 'All' : cat}</span>
+  `).join('');
+
+  container.innerHTML = pills;
+}
+
+function applySearchCategoryFilter(category) {
+  searchCategoryFilter = category.toString().trim().toLowerCase();
+  renderGlobalSearch(document.getElementById('searchInput')?.value || '');
+}
+
+function renderSearchSuggestions() {
+  const container = document.getElementById('searchSuggestions');
+  if (!container) return;
+
+  const recent = recentSearches.slice(-5).reverse();
+  const productSuggestions = globalProducts
+    .filter(item => item.name)
+    .map(item => item.name)
+    .filter((name, index, arr) => arr.indexOf(name) === index)
+    .slice(0, 6);
+
+  const categorySuggestions = globalProducts
+    .map(item => item.category || item.apartmentType || item.type || '')
+    .filter(Boolean)
+    .filter((term, index, arr) => arr.indexOf(term) === index)
+    .slice(0, 4);
+
+  const items = [...new Set([...recent, ...productSuggestions, ...categorySuggestions, ...popularSearchTerms])].slice(0, 8);
+  if (items.length === 0) {
+    items.push(...popularSearchTerms.slice(0, 8));
+  }
+
+  container.innerHTML = items.map(term => `
+    <button type="button" class="search-suggestion-pill" onclick="selectSearchSuggestion('${term.replace(/'/g, "\\'")}')">${term}</button>
+  `).join('');
+}
+
+function selectSearchSuggestion(term) {
+  const input = document.getElementById('searchInput');
+  if (!input) return;
+  input.value = term;
+  saveRecentSearch(term);
+  renderGlobalSearch(term);
+}
+
+function attachSearchResultHandlers(container) {
+  if (!container) return;
+
+  container.querySelectorAll('.search-result-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const idx = parseInt(card.dataset.searchIndex, 10);
+      if (!isNaN(idx) && searchResultsData[idx]) {
+        openSearchResult(searchResultsData[idx]);
+      }
+    });
+
+    card.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        const idx = parseInt(card.dataset.searchIndex, 10);
+        if (!isNaN(idx) && searchResultsData[idx]) {
+          openSearchResult(searchResultsData[idx]);
+        }
+      }
+    });
+  });
+
+  container.querySelectorAll('.search-card-action').forEach(button => {
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      const idx = parseInt(button.dataset.searchIndex, 10);
+      if (!isNaN(idx) && searchResultsData[idx]) {
+        openSearchResult(searchResultsData[idx]);
+      }
+    });
+  });
+}
+
+function openSharedItemFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  let type = params.get('shareType');
+  let id = params.get('shareId');
+
+  if (!type || !id) {
+    const match = window.location.pathname.match(/\/share\/(product|land|apartment)\/([^\/]+)/i);
+    if (match) {
+      type = match[1];
+      id = decodeURIComponent(match[2]);
+    }
+  }
+
+  if (!type || !id) return;
+
+  const item = allProducts.find(p => p._id === id || p.id === id || p.name?.toLowerCase() === id.toLowerCase());
+  if (!item) return;
+
+  if (type === 'land') showLandDetails(item);
+  else if (type === 'apartment') showApartmentDetails(item);
+  else showProductDetails(item);
+
+  if (params.has('shareType') && params.has('shareId')) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+}
+
+function updateSearchSelection() {
+  const cards = document.querySelectorAll('.search-result-card');
+  cards.forEach((card, index) => {
+    card.classList.toggle('selected', index === selectedSearchIndex);
+    if (index === selectedSearchIndex) card.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  });
+}
+
+function openSearchResult(searchItem) {
+  if (!searchItem || !searchItem.sourceItem) return;
+  const item = allProducts.find(p => p._id === searchItem._id || p.id === searchItem._id || p.name === searchItem.name);
+  if (item) {
+    closeSearch();
+    if (item.type === 'land') showLandDetails(item);
+    else if (item.type === 'apartment') showApartmentDetails(item);
+    else showProductDetails(item);
+  } else {
+    closeSearch();
+    const fallback = searchItem.sourceItem;
+    if (fallback.type === 'land') showLandDetails(fallback);
+    else if (fallback.type === 'apartment') showApartmentDetails(fallback);
+    else showProductDetails(fallback);
+  }
+  saveRecentSearch(document.getElementById('searchInput')?.value || searchItem.name || '');
+}
+
+function saveRecentSearch(term) {
+  if (!term) return;
+  const normalized = term.trim().toLowerCase();
+  if (!normalized || recentSearches.includes(normalized)) return;
+  recentSearches.push(normalized);
+  if (recentSearches.length > 8) recentSearches.shift();
+  window.localStorage.setItem('searchHistory', JSON.stringify(recentSearches));
+}
+
+const searchInput = document.getElementById('searchInput');
+if (searchInput) {
+  searchInput.addEventListener('input', function () { renderGlobalSearch(this.value); });
+  searchInput.addEventListener('keydown', function (e) {
+    if (searchResultsData.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectedSearchIndex = Math.min(selectedSearchIndex + 1, searchResultsData.length - 1);
+      updateSearchSelection();
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectedSearchIndex = Math.max(selectedSearchIndex - 1, 0);
+      updateSearchSelection();
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedSearchIndex >= 0 && searchResultsData[selectedSearchIndex]) {
+        openSearchResult(searchResultsData[selectedSearchIndex]);
+      }
+    }
+    if (e.key === 'Escape') {
+      closeSearch();
+    }
+  });
+}
+const searchSort = document.getElementById('searchSort');
+if (searchSort) {
+  searchSort.addEventListener('change', function () {
+    searchSortOrder = this.value;
+    renderGlobalSearch(document.getElementById('searchInput')?.value || '');
+  });
+}
 
 /*  PRODUCT SECTION SEARCH  */
 
 /*  HAMBURGER  */
 let mOpen=false;
-document.getElementById('menuBtn').addEventListener('click',function(){
+const menuBtn = document.getElementById('menuBtn');
+if(menuBtn) menuBtn.addEventListener('click',function(){
   mOpen=!mOpen;
-  document.getElementById('mobileMenu').classList.toggle('open',mOpen);
+  const mobileMenu = document.getElementById('mobileMenu');
+  if(mobileMenu) mobileMenu.classList.toggle('open',mOpen);
   const s=this.querySelectorAll('span');
   if(mOpen){s[0].style.transform='translateY(6.5px) rotate(45deg)';s[1].style.opacity='0';s[2].style.transform='translateY(-6.5px) rotate(-45deg)';}
   else s.forEach(x=>{x.style.transform='';x.style.opacity='';});
 });
 function closeMobile(){
   mOpen=false;
-  document.getElementById('mobileMenu').classList.remove('open');
-  document.getElementById('menuBtn').querySelectorAll('span').forEach(s=>{s.style.transform='';s.style.opacity='';});
+  const mobileMenu = document.getElementById('mobileMenu');
+  if(mobileMenu) mobileMenu.classList.remove('open');
+  const btn = document.getElementById('menuBtn');
+  if(btn) btn.querySelectorAll('span').forEach(s=>{s.style.transform='';s.style.opacity='';});
 }
 
 /*  SCROLL REVEAL  */
@@ -480,15 +1537,15 @@ function displayUserAnalytics(data){
      <div id="recentTransactionsContainer" style="border-top:1px solid #ddd;padding-top:15px;">${transactionsHtml}</div>
      <h3 style="margin:30px 0 15px 0;font-family:'Cormorant Garamond',serif;font-size:18px;">Top Products</h3>
      <div id="topProductsContainer" style="border-top:1px solid #ddd;padding-top:15px;">${productsHtml}</div>
-     <button class="glass-btn-secondary" onclick="closeModal('dashboardModal');logout();" style="width:100%;margin-top:20px;">Logout</button>`;
+     <button class="glass-btn-secondary" onclick="toggleSidebar('dashboardSidebar', false);logout();" style="width:100%;margin-top:20px;">Logout</button>`;
 }
 
 /*  CART ENGINE  */
-const GUEST_CART_KEY = 'agrocrown_cart';
+const GUEST_CART_KEY = '365extra_cart';
 
 function getCurrentUser() {
   try {
-    return JSON.parse(localStorage.getItem('agrocrown_user') || 'null');
+    return JSON.parse(localStorage.getItem('365extra_user') || 'null');
   } catch {
     return null;
   }
@@ -496,7 +1553,7 @@ function getCurrentUser() {
 
 function getCartStorageKeyForUser(user) {
   if (!user?.email) return GUEST_CART_KEY;
-  return `agrocrown_cart_${encodeURIComponent(user.email.toLowerCase())}`;
+  return `365extra_cart_${encodeURIComponent(user.email.toLowerCase())}`;
 }
 
 function getActiveCartKey() {
@@ -542,6 +1599,7 @@ function restoreCartForUser(user) {
 
 let cart = loadCartFromStorage();
 let allProducts = []; // Store all products for cart operations
+let currentCategoryFilter = null; // Track active category filter
 
 function addToCart(product, weight){
   // Use a unique key combining product ID and weight to handle same product with different weights
@@ -558,7 +1616,9 @@ function addToCart(product, weight){
   }
   saveCart();
   showNotification(`${product.name} added to cart!`, 'success');
-  openModal('cartModal');
+  updateCartDisplay();
+  toggleCartSidebar(true);
+  loadUserAddressForCheckout();
 }
 
 function removeFromCart(cartIndex){
@@ -576,17 +1636,93 @@ function updateCartItemQuantity(cartIndex, newQuantity){
   }
 }
 
+// Load user's saved address for checkout
+async function loadUserAddressForCheckout(){
+  try {
+    if(!apiService.isAuthenticated()) return;
+    
+    const response = await apiService.getMe();
+    if(response.success && response.data && response.data.address){
+      const addr = response.data.address;
+      document.getElementById('shippingStreet').value = addr.street || '';
+      document.getElementById('shippingCity').value = addr.city || '';
+      document.getElementById('shippingState').value = addr.state || '';
+      document.getElementById('shippingPostalCode').value = addr.postalCode || '';
+      document.getElementById('shippingCountry').value = addr.country || 'Nigeria';
+    }
+  } catch (error) {
+    console.log('Could not load saved address');
+  }
+}
+
+function updateCheckoutAddressSummary(){
+  const summaryEl = document.getElementById('checkoutAddressSummaryText');
+  if(!summaryEl) return;
+
+  const street = document.getElementById('shippingStreet')?.value?.trim();
+  const city = document.getElementById('shippingCity')?.value?.trim();
+  const state = document.getElementById('shippingState')?.value?.trim();
+  const postalCode = document.getElementById('shippingPostalCode')?.value?.trim();
+  const country = document.getElementById('shippingCountry')?.value?.trim();
+
+  if (street || city || state || postalCode || country) {
+    summaryEl.innerHTML = `
+      <strong>${street || 'Street address not set'}</strong><br>
+      ${city ? city + ', ' : ''}${state ? state + ', ' : ''}${postalCode ? postalCode + ', ' : ''}${country || ''}
+    `;
+  } else {
+    summaryEl.textContent = 'No delivery address added yet. Please enter your address before proceeding to checkout.';
+  }
+}
+
+async function openAddressModal(){
+  if(apiService.isAuthenticated()){
+    await loadUserAddressForCheckout();
+  }
+  updateCheckoutAddressSummary();
+  openModal('addressModal');
+}
+
+function saveAddressAndClose(){
+  const shippingAddress = {
+    street: document.getElementById('shippingStreet')?.value?.trim() || '',
+    city: document.getElementById('shippingCity')?.value?.trim() || '',
+    state: document.getElementById('shippingState')?.value?.trim() || '',
+    postalCode: document.getElementById('shippingPostalCode')?.value?.trim() || '',
+    country: document.getElementById('shippingCountry')?.value?.trim() || 'Nigeria'
+  };
+
+  const requiredFields = { street: 'Street Address', city: 'City', state: 'State/Province', postalCode: 'Postal Code', country: 'Country' };
+  const missingFields = [];
+  for (const [field, label] of Object.entries(requiredFields)) {
+    if (!shippingAddress[field]) missingFields.push(label);
+  }
+
+  if (missingFields.length > 0) {
+    showNotification(`Please complete your address: ${missingFields.join(', ')}`, 'error');
+    return;
+  }
+
+  updateCheckoutAddressSummary();
+  closeModal('addressModal');
+  showNotification('Address saved. You can now proceed to checkout.', 'success');
+}
+
 function clearCart(){
   cart = [];
-  saveCart();
+  const key = getActiveCartKey();
+  localStorage.removeItem(key);
+  updateCartDisplay();
 }
 
 function updateCartDisplay(){
   const itemCount = cart.length;
   
-  // Separate items by type
-  const productItems = cart.filter(item => item.type !== 'land');
+  // Separate items by type - apartments and land handled together
+  const productItems = cart.filter(item => item.type !== 'land' && item.type !== 'apartment');
+  const realEstateItems = cart.filter(item => item.type === 'land' || item.type === 'apartment');
   const landItems = cart.filter(item => item.type === 'land');
+  const apartmentItems = cart.filter(item => item.type === 'apartment');
   
   // Calculate totals
   const totalWeight = productItems.reduce((sum, item) => sum + (item.weight * item.quantity), 0);
@@ -594,19 +1730,23 @@ function updateCartDisplay(){
   const totalArea = landItems.reduce((sum, item) => sum + (item.areaSqMeters * (item.plotsRequested || item.quantity)), 0);
 
   const navBadge = document.getElementById('cartNavBadge');
+  const toggleBadge = document.getElementById('cartCountBadge');
   if(navBadge){
     navBadge.textContent = itemCount;
     navBadge.classList.toggle('show', itemCount > 0);
   }
+  if(toggleBadge){
+    toggleBadge.textContent = itemCount;
+    toggleBadge.classList.toggle('show', itemCount > 0);
+  }
   const pill = document.getElementById('cartCountPill');
   if(pill) pill.textContent = itemCount;
 
-  const cartBody = document.getElementById('cartBody');
   const empty = document.getElementById('cartEmpty');
   const list = document.getElementById('cartItemsList');
   const footer = document.getElementById('cartFooter');
 
-  if(!cartBody || !empty || !list || !footer) return;
+  if(!empty || !list || !footer) return;
 
   if(cart.length === 0){
     empty.style.display = 'block';
@@ -619,21 +1759,26 @@ function updateCartDisplay(){
   footer.style.display = 'block';
 
   list.innerHTML = cart.map((item, index) => {
-    // Check if it's a land item or product item
+    // Check item type and render appropriately
     if (item.type === 'land') {
       return renderCartLandItem(item, index);
+    } else if (item.type === 'apartment') {
+      return renderCartApartmentItem(item, index);
     } else {
       return renderCartProductItem(item, index);
     }
   }).join('');
 
-  // Calculate subtotal for both products and land
+  // Calculate subtotal for products, land, and apartments
   const subtotal = cart.reduce((sum, item) => {
     if (item.type === 'land') {
       const unitPrice = item.landPricingType === 'fixed' 
         ? item.pricePerPlot 
         : (item.pricePerSqMeter * item.areaSqMeters);
       return sum + (unitPrice * (item.plotsRequested || item.quantity));
+    } else if (item.type === 'apartment') {
+      const unitPrice = item.listingType === 'rent' ? item.pricePerMonth : item.price;
+      return sum + (unitPrice * (item.quantity || 1));
     } else {
       return sum + (item.pricePerKg * item.weight * item.quantity);
     }
@@ -649,14 +1794,27 @@ function updateCartDisplay(){
   const shippingCost = hasProductItems ? appSettings.shippingFee : 0; // Use settings from API
   const taxRate = appSettings.taxRate / 100; // Convert percentage to decimal
   const tax = subtotal * taxRate; // Use settings from API
-  const total = subtotal + shippingCost + tax;
+  const total = Math.round((subtotal + shippingCost + tax) * 100) / 100; // Round like backend for consistency
   
-  if(subEl) subEl.textContent = `NGN${subtotal.toFixed(2)}`;
+  if(subEl) subEl.textContent = `NGN${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   
-  // Update weight/land label and value based on cart composition
+  // Update weight/land/apartment label and value based on cart composition
   if(weightEl) {
-    if (landItems.length > 0 && productItems.length > 0) {
-      // Mixed cart: show both
+    const apartmentCount = apartmentItems.length;
+    let displayText = '';
+    
+    if (apartmentItems.length > 0 && (landItems.length > 0 || productItems.length > 0)) {
+      // Mixed cart with apartments
+      const parts = [];
+      if (productItems.length > 0) parts.push(`<span style="color: var(--primary-lt);">Products: ${totalWeight} kg</span>`);
+      if (landItems.length > 0) parts.push(`<span style="color: var(--gold-lt);">Land: ${totalPlots} Plot${totalPlots !== 1 ? 's' : ''}</span>`);
+      if (apartmentItems.length > 0) parts.push(`<span style="color: #1e90ff;">Apartments: ${apartmentCount}</span>`);
+      weightEl.innerHTML = parts.join(' | ');
+    } else if (apartmentItems.length > 0) {
+      // Apartments only
+      weightEl.textContent = `${apartmentCount} Apartment${apartmentCount > 1 ? 's' : ''}`;
+    } else if (landItems.length > 0 && productItems.length > 0) {
+      // Products + Land (no apartments)
       weightEl.innerHTML = `<span style="color: var(--primary-lt);">Products: ${totalWeight} kg</span> | <span style="color: var(--gold-lt);">Land: ${totalPlots} Plot${totalPlots !== 1 ? 's' : ''} (${totalArea.toLocaleString()} sq m)</span>`;
     } else if (landItems.length > 0) {
       // Land only
@@ -671,21 +1829,49 @@ function updateCartDisplay(){
   if(totalEl) {
     let shippingRow = '';
     if (hasProductItems) {
-      shippingRow = `<div style="display: flex; justify-content: space-between;"><span>Shipping:</span> <span>NGN${shippingCost.toFixed(2)}</span></div>`;
+      shippingRow = `<div style="display: flex; justify-content: space-between;"><span>Shipping:</span> <span>NGN${shippingCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>`;
     } else {
-      shippingRow = `<div style="display: flex; justify-content: space-between; color: rgba(13, 13, 11, 0.5);"><span>Shipping:</span> <span>Not applicable (Land only)</span></div>`;
+      const realEstateType = apartmentItems.length > 0 && landItems.length === 0 ? 'Apartments' : 'Land';
+      shippingRow = `<div style="display: flex; justify-content: space-between; color: rgba(13, 13, 11, 0.5);"><span>Shipping:</span> <span>Not applicable (${realEstateType} only)</span></div>`;
     }
     
     totalEl.innerHTML = `
       <div style="display: grid; gap: 8px; font-size: 0.9rem; color: rgba(13, 13, 11, 0.7);">
-        <div style="display: flex; justify-content: space-between;"><span>Subtotal:</span> <span>NGN${subtotal.toFixed(2)}</span></div>
-        <div style="display: flex; justify-content: space-between;"><span>Tax (10%):</span> <span>NGN${tax.toFixed(2)}</span></div>
+        <div style="display: flex; justify-content: space-between;"><span>Subtotal:</span> <span>NGN${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div style="display: flex; justify-content: space-between;"><span>Tax (${appSettings.taxRate}%):</span> <span>NGN${tax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
         ${shippingRow}
         <div style="border-top: 2px solid var(--gold); padding-top: 8px; display: flex; justify-content: space-between; font-weight: 600; color: var(--ink); font-size: 1rem;">
-          <span>Total:</span> <span>NGN${total.toFixed(2)}</span>
+          <span>Total:</span> <span>NGN${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
       </div>
     `;
+  }
+
+  // Toggle checkout sections based on cart composition
+  const landCheckoutSection = document.getElementById('landCheckoutSection');
+  const productsCheckoutSection = document.getElementById('productsCheckoutSection');
+  
+  if (productItems.length === 0 && realEstateItems.length > 0) {
+    // Land/Apartment only - show real estate checkout
+    if (landCheckoutSection) landCheckoutSection.style.display = 'block';
+    if (productsCheckoutSection) productsCheckoutSection.style.display = 'none';
+  } else {
+    // Products only or mixed - show standard checkout
+    if (landCheckoutSection) landCheckoutSection.style.display = 'none';
+    if (productsCheckoutSection) productsCheckoutSection.style.display = 'block';
+  }
+
+  // Update cart toggle button badge
+  const toggleBtn = document.getElementById('cartToggleBtn');
+  const badge = toggleBtn?.querySelector('.cart-badge');
+  if (badge) {
+    badge.textContent = itemCount;
+  }
+  
+  updateCheckoutAddressSummary();
+  // Show/hide cart toggle button based on cart items
+  if (toggleBtn) {
+    toggleBtn.style.display = itemCount > 0 ? 'flex' : 'none';
   }
 }
 
@@ -696,7 +1882,7 @@ function renderCartProductItem(item, index) {
       <img src="${item.image || 'https://via.placeholder.com/80?text=Product'}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/80?text=Product'">
       <div class="cart-item-info">
         <div class="ci-name">${item.name}</div>
-        <div class="ci-meta">${item.pricePerKg} / kg  ${item.weight}kg</div>
+        <div class="ci-meta">${parseFloat(item.pricePerKg).toLocaleString()}.00 / kg  ${item.weight}kg</div>
         <div class="qty-control">
           <button class="qty-btn" onclick="updateCartItemQuantity(${index}, ${item.quantity - 1})">-</button>
           <span class="qty-num">${item.quantity}</span>
@@ -704,7 +1890,7 @@ function renderCartProductItem(item, index) {
         </div>
       </div>
       <div class="ci-right">
-        <div class="ci-subtotal">${subtotal.toFixed(2)}</div>
+        <div class="ci-subtotal">${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
         <button class="ci-remove" onclick="removeFromCart(${index})">
           <i class="fa-solid fa-trash"></i> Remove
         </button>
@@ -725,7 +1911,7 @@ function renderCartLandItem(item, index) {
       <img src="${item.image || 'https://via.placeholder.com/80?text=Land'}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/80?text=Land'">
       <div class="cart-item-info">
         <div class="ci-name">${item.name}</div>
-        <div class="ci-location"><i class="fa-solid fa-map-pin"></i> ${item.location}</div>
+        <div class="ci-location"><i class="fa-solid fa-map-marker-alt"></i> ${item.location}</div>
         <div class="ci-meta">
           ${item.areaSqMeters.toLocaleString()} m  
           ${item.landPricingType === 'fixed' ? 'Fixed Price' : `${item.pricePerSqMeter.toLocaleString()} / m`}
@@ -746,8 +1932,51 @@ function renderCartLandItem(item, index) {
   `;
 }
 
+function renderCartApartmentItem(item, index) {
+  const unitPrice = item.listingType === 'rent' ? item.pricePerMonth : item.price;
+  const subtotal = unitPrice * (item.quantity || 1);
+  const qty = item.quantity || 1;
+
+  const typeLabel = getApartmentTypeLabel(item.apartmentType);
+
+  const listingLabel = item.listingType === 'rent' ? 'For Rent' : 'For Sale';
+
+  return `
+    <div class="cart-item apartment-cart-item">
+      <img src="${item.image || 'https://via.placeholder.com/80?text=Apartment'}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/80?text=Apartment'">
+      <div class="cart-item-info">
+        <div class="ci-name">${item.name}</div>
+        <div class="ci-meta" style="font-size: 0.8rem; color: #666;">
+          ${typeLabel} • ${item.bedrooms}BR/${item.bathrooms}BA • ${item.apartmentAreaSqMeters}m²
+        </div>
+        <div class="ci-location" style="font-size: 0.75rem; color: #999;">
+          <i class="fa-solid fa-map-marker-alt"></i> ${item.apartmentAddress || 'Address not specified'}
+        </div>
+        <div style="font-size: 0.75rem; color: #666; margin-top: 4px; display:flex; flex-wrap:wrap; align-items:center; gap:0.25rem;">
+          ${getFurnishedLabel(item.furnished)} • ${listingLabel}
+        </div>
+        <div class="qty-control">
+          <button class="qty-btn" onclick="updateCartItemQuantity(${index}, ${qty - 1})">-</button>
+          <span class="qty-num">${qty}</span>
+          <button class="qty-btn" onclick="updateCartItemQuantity(${index}, ${qty + 1})">+</button>
+        </div>
+      </div>
+      <div class="ci-right">
+        <div class="ci-subtotal">NGN${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+        <div style="font-size: 0.7rem; color: #999; margin-bottom: 8px;">
+          ${item.listingType === 'rent' ? '/year' : 'total'}
+        </div>
+        <button class="ci-remove" onclick="removeFromCart(${index})">
+          <i class="fa-solid fa-trash"></i> Remove
+        </button>
+      </div>
+    </div>
+  `;
+}
+
 /*  PRODUCT FETCHING  */
 let lastProductCount = 0;
+let lastProductsSignature = '';
 let productCheckInterval = null;
 
 async function fetchProducts(){
@@ -778,6 +2007,12 @@ async function fetchProducts(){
     }
     if(data.success){
       allProducts = data.data; // Store all products
+      // Compute signature based on id + updatedAt to detect edits
+      try{
+        lastProductsSignature = data.data.map(p => `${p._id}:${p.updatedAt||''}`).join('|');
+      }catch(e){
+        lastProductsSignature = '';
+      }
       lastProductCount = data.data.length;
       console.log('[DEBUG] Rendering', data.data.length, 'products');
       renderProducts(data.data);
@@ -793,6 +2028,10 @@ async function fetchProducts(){
   }
 }
 
+// Categories are now extracted dynamically from products in renderCategories()
+// This ensures categories always match the products in the database
+// No dedicated /api/categories endpoint needed
+
 // Auto-check for new products every 30 seconds
 function startProductPolling(){
   if(productCheckInterval) return; // Prevent duplicate intervals
@@ -807,16 +2046,23 @@ function startProductPolling(){
       clearTimeout(timeoutId);
       const data = await response.json();
       
-      if(data.success && data.data.length !== lastProductCount){
-        console.log(`Products updated: ${lastProductCount}  ${data.data.length}`);
-        allProducts = data.data;
-        lastProductCount = data.data.length;
-        renderProducts(data.data);
-        
-        // Show notification (optional)
-        showNotification(`${data.data.length} products available!`);
+      if(data.success){
+        // compute signature from id + updatedAt to detect edits as well as count changes
+        let sig = '';
+        try { sig = data.data.map(p => `${p._id}:${p.updatedAt || ''}`).join('|'); } catch (e) { sig = ''; }
+
+        if (data.data.length !== lastProductCount || sig !== lastProductsSignature) {
+          console.log(`Products updated: ${lastProductCount} -> ${data.data.length}`);
+          allProducts = data.data;
+          lastProductCount = data.data.length;
+          lastProductsSignature = sig;
+          renderProducts(data.data);
+
+          // Show notification on refresh
+          showNotification('Product list has been updated.', 'success');
+        }
       }
-    }catch(error){
+    } catch (error) {
       console.log('Product polling check failed (connection may be offline)');
     }
   }, 10000); // Check every 10 seconds for faster updates
@@ -838,30 +2084,6 @@ function stopProductPolling(){
   }
 }
 
-function showNotification(message){
-  const notification = document.createElement('div');
-  notification.className = 'product-notification';
-  notification.textContent = message;
-  notification.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: #2ecc71;
-    color: white;
-    padding: 15px 25px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    z-index: 10000;
-    animation: slideIn 0.3s ease-out;
-  `;
-  
-  document.body.appendChild(notification);
-  setTimeout(() => {
-    notification.style.animation = 'slideOut 0.3s ease-out';
-    setTimeout(() => notification.remove(), 300);
-  }, 3000);
-}
-
 function renderProducts(products){
   const grid = document.getElementById('productGrid');
   const noMsg = document.getElementById('noProductsMsg');
@@ -873,9 +2095,11 @@ function renderProducts(products){
   }
 
   grid.innerHTML = products.map(product => {
-    // Check if it's land or regular product
+    // Check product type
     if (product.type === 'land') {
       return renderLandCard(product, products.length);
+    } else if (product.type === 'apartment') {
+      return renderApartmentCard(product, products.length);
     } else {
       return renderProductCard(product, products.length);
     }
@@ -884,6 +2108,137 @@ function renderProducts(products){
   // Initialize progressive image loading for ultra-high quality effect
   initProgressiveImageLoading();
   updateProductSearch(products.length);
+  
+  // Render categories based on full product list so tags stay visible while filtering
+  renderCategories(allProducts.length ? allProducts : products);
+  
+  // Add click handlers to cards
+  addProductCardClickHandlers();
+  addLandCardClickHandlers();
+  addApartmentCardClickHandlers();
+  addCardShareButtonHandlers();
+}
+
+// Dynamically render product categories
+function renderCategories(products) {
+  const categoryContainer = document.querySelector('.product-category');
+  if (!categoryContainer) {
+    console.warn('[WARN] Category container not found');
+    return;
+  }
+  
+  if (!products || products.length === 0) {
+    console.warn('[WARN] renderCategories - No products received');
+    categoryContainer.innerHTML = '<span class="category show-all-btn" onclick="showAllProducts()">All Products</span>';
+    return;
+  }
+  
+  console.log('[DEBUG] renderCategories - products received:', products.length);
+  
+  // Extract unique categories from products
+  const productCategories = [...new Set(products.filter(p => p.type === 'product').map(p => {
+    const cat = p.category || null;
+    if (!cat) {
+      console.warn('[WARN] Product missing category:', p.name || p._id);
+    }
+    return cat;
+  }).filter(Boolean))];
+  
+  // Extract unique apartment types (for display as categories) - now supports custom types
+  const apartmentTypes = [...new Set(products.filter(p => p.type === 'apartment').map(p => {
+    if (!p.apartmentType) return null;
+    const typeLabels = {
+      'room': 'Room',
+      'self-contained': 'Self-Contained',
+      'house': 'House',
+      'flat': 'Flat'
+    };
+    return typeLabels[p.apartmentType.toLowerCase()] || (p.apartmentType.charAt(0).toUpperCase() + p.apartmentType.slice(1));
+  }).filter(Boolean))];
+  
+  // Check if there are any land items
+  const hasLand = products.some(p => p.type === 'land');
+  
+  // Combine all categories: product categories + apartment types + land
+  const allCategories = [
+    ...productCategories,
+    ...apartmentTypes,
+    ...(hasLand ? ['Land'] : [])
+  ];
+  
+  // Sort categories alphabetically
+  allCategories.sort();
+  
+  console.log('[DEBUG] Extracted categories:', allCategories);
+  
+  if (allCategories.length === 0) {
+    console.warn('[WARN] No categories found in products');
+    categoryContainer.innerHTML = '<span class="category show-all-btn" onclick="showAllProducts()">All</span>';
+    return;
+  }
+  
+  // Create category tags + "Show All" button
+  const allCategoriesHtml = `
+    <span class="category show-all-btn" onclick="showAllProducts()">All</span>
+    ${allCategories.map(cat => `
+      <span class="category" onclick="filterByCategory('${cat}')">${cat}</span>
+    `).join('')}
+  `;
+  
+  categoryContainer.innerHTML = allCategoriesHtml;
+
+  if (currentCategoryFilter) {
+    document.querySelectorAll('.product-category .category').forEach(tag => {
+      if (tag.textContent.trim().toLowerCase() === currentCategoryFilter.toLowerCase()) {
+        tag.classList.add('active');
+      }
+    });
+  } else {
+    document.querySelector('.show-all-btn')?.classList.add('active');
+  }
+  
+  console.log('[OK] Categories rendered:', allCategories);
+}
+
+// Show all products and reset category filters
+function showAllProducts() {
+  currentCategoryFilter = null;
+  renderProducts(allProducts);
+  
+  // Remove active state from all categories
+  document.querySelectorAll('.product-category .category').forEach(tag => {
+    tag.classList.remove('active');
+  });
+  
+  // Mark "All Products" as active
+  document.querySelector('.show-all-btn')?.classList.add('active');
+}
+
+// Filter products by category
+function filterByCategory(category) {
+  currentCategoryFilter = category;
+  const normalizedCategory = category.toString().trim().toLowerCase();
+  const filtered = allProducts.filter(p => {
+    if (normalizedCategory === 'land') {
+      return p.type === 'land';
+    }
+    if (p.type === 'apartment') {
+      const apartmentType = (p.apartmentType || p.apartment_type || '').toString().trim().toLowerCase();
+      return apartmentType === normalizedCategory;
+    }
+    // Regular product category filter (case-insensitive)
+    return p.category?.toString().trim().toLowerCase() === normalizedCategory;
+  });
+  
+  renderProducts(filtered);
+  
+  // Optional: highlight the selected category
+  document.querySelectorAll('.product-category .category').forEach(tag => {
+    tag.classList.remove('active');
+    if (tag.textContent === category) {
+      tag.classList.add('active');
+    }
+  });
 }
 
 function renderProductCard(product, totalCount) {
@@ -901,23 +2256,82 @@ function renderProductCard(product, totalCount) {
     <div class="product-card" data-product-id="${product._id}" data-name="${product.name.toLowerCase()} ${product.description ? product.description.toLowerCase() : ''}" data-price="${price}">
       <img src="${product.image}" alt="${product.name}" loading="lazy">
       <div class="product-card-overlay"></div>
+      <button type="button" class="card-share-btn" data-share-type="product" data-share-id="${product._id}" data-share-title="${encodeURIComponent(product.name)}" aria-label="Share ${product.name}"><i class="fa-solid fa-share-nodes"></i></button>
       <div class="product-info">
         <div class="product-num">${category}</div>
         <h3>${product.name}</h3>
-        <div class="product-price" id="price-${product._id}">${(price * 10).toFixed(2)} / 10</div>
+        <div class="product-price" id="price-${product._id}">${price.toLocaleString()}.00 / kg</div>
         ${certification ? `<div style="font-size: 0.65rem; color: var(--gold-lt); margin-bottom: 4px;">${certification}</div>` : ''}
         <div style="font-size: 0.65rem; color: rgba(255,255,255,0.6); margin-bottom: 8px;">
           Stock: ${quantity} ${unit}${product.minLimit ? ` | Min: ${product.minLimit}` : ''}
         </div>
         <div class="weight-slider-wrap">
           <div class="weight-slider-label">
-            <span>Weight (0${unit})</span>
-            <span class="wval" id="wv-${product._id}" style="min-width: 35px; text-align: right;">10 ${unit}</span>
+            <span>Weight (${unit})</span>
+            <span class="wval" id="wv-${product._id}" style="min-width: 35px; text-align: right;">1 ${unit}</span>
           </div>
-          <input type="range" class="wrange" min="0" max="100" value="10" step="1"
+          <input type="range" class="wrange" min="1" max="100" value="1" step="1"
             oninput="updateProductPrice('${product._id}', ${price}, this.value)">
         </div>
         <button class="product-btn" onclick="addToCartFromCard('${product._id}')"><i class="fa-solid fa-basket-shopping"></i> Add to Selection</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderApartmentCard(apartment, totalCount) {
+  const inferredApartmentType = (() => {
+    const desc = (apartment.description || '').toLowerCase();
+    if (desc.includes('self-contained') || desc.includes('self contained')) return 'self-contained';
+    if (desc.includes('flat')) return 'flat';
+    if (desc.includes('room')) return 'room';
+    if (desc.includes('house')) return 'house';
+    return apartment.type || 'apartment';
+  })();
+  const apartmentType = apartment.apartmentType || apartment.apartment_type || inferredApartmentType;
+  const listingType = apartment.listingType || apartment.listing_type || (apartment.pricePerMonth || apartment.price_per_month ? 'rent' : (apartment.price || apartment.salePrice || apartment.sale_price ? 'sale' : 'rent'));
+  const rawRentPrice = apartment.pricePerMonth || apartment.price_per_month || apartment.rentPrice || apartment.rent_price || apartment.price || 0;
+  const rawSalePrice = apartment.price || apartment.salePrice || apartment.sale_price || apartment.pricePerMonth || 0;
+  const pricePerUnit = listingType === 'rent'
+    ? parseFloat(rawRentPrice) || parseFloat(rawSalePrice) || 0
+    : parseFloat(rawSalePrice) || parseFloat(rawRentPrice) || 0;
+  const listingLabel = listingType === 'rent' ? '/year' : 'total';
+  const displayPrice = pricePerUnit > 0 ? parseInt(pricePerUnit).toLocaleString() : 'Price on request';
+  
+  const typeLabel = {
+    'room': 'Room',
+    'self-contained': 'Self-Con',
+    'house': 'House',
+    'flat': 'Flat'
+  }[apartmentType] || `${apartmentType.charAt(0).toUpperCase() + apartmentType.slice(1)}`;
+  
+  const bedrooms = Number(apartment.bedrooms || apartment.beds || apartment.bedroom || 0);
+  const bathrooms = Number(apartment.bathrooms || apartment.baths || apartment.bathroom || 0);
+  const area = Number(apartment.apartmentAreaSqMeters || apartment.areaSqMeters || apartment.apartment_area_sq_meters || apartment.area || 0);
+  const addressText = apartment.apartmentAddress || apartment.apartment_address || apartment.location || apartment.address || apartment.description || 'Location not specified';
+  const apartmentName = apartment.name || 'Apartment Listing';
+  const apartmentCategory = apartment.category || 'Apartment';
+
+  const priceLine = displayPrice === 'Price on request'
+    ? displayPrice
+    : `NGN${displayPrice} ${listingLabel}`;
+
+  return `
+    <div class="apartment-card" data-product-id="${apartment._id}" data-name="${apartmentName.toLowerCase()} ${addressText}" data-price="${pricePerUnit}">
+      <img src="${apartment.image || 'https://via.placeholder.com/400x300?text=Apartment'}" alt="${apartmentName}" loading="lazy">
+      <button type="button" class="card-share-btn" data-share-type="apartment" data-share-id="${apartment._id}" data-share-title="${encodeURIComponent(apartmentName)}" aria-label="Share ${apartmentName}"><i class="fa-solid fa-share-nodes"></i></button>
+      <div class="product-info">
+        <div class="product-num">${apartmentCategory}</div>
+        <div class="product-num">${typeLabel}</div>
+        <h3>${apartmentName}</h3>
+        <div class="product-price" id="price-${apartment._id}">${priceLine}</div>
+        <div style="font-size: 0.65rem; color: rgba(255,255,255,0.6); margin-bottom: 8px;">
+          ${bedrooms > 0 ? bedrooms : 'N/A'}BR / ${bathrooms > 0 ? bathrooms : 'N/A'}BA • ${area > 0 ? area + 'm²' : 'N/A'} • ${apartment.furnished ? 'Furnished' : 'Unfurnished'}
+        </div>
+        <div style="font-size: 0.65rem; color: rgba(255,255,255,0.6); margin-bottom: 8px;">
+          <i class="fa-solid fa-map-marker-alt"></i> ${addressText}
+        </div>
+        <button class="product-btn apartment-btn" onclick="event.stopPropagation(); addApartmentToCart('${apartment._id}')"><i class="fa-solid fa-basket-shopping"></i> Add to Selection</button>
       </div>
     </div>
   `;
@@ -955,13 +2369,14 @@ function renderLandCard(land, totalCount) {
       <div class="land-card-header">
         <img src="${landImage}" alt="${landName}" loading="lazy">
         <div class="land-card-overlay"></div>
+        <button type="button" class="card-share-btn" data-share-type="land" data-share-id="${land._id}" data-share-title="${encodeURIComponent(landName)}" aria-label="Share ${landName}"><i class="fa-solid fa-share-nodes"></i></button>
         <div class="land-badge">${land.numberOfPlots || 1} Plot${(land.numberOfPlots || 1) > 1 ? 's' : ''}</div>
       </div>
       
       <div class="land-card-content">
         <h3>${landName}</h3>
         
-        <p class="land-location"><i class="fa-solid fa-map-pin"></i> ${landLocation}</p>
+        <p class="land-location"><i class="fa-solid fa-map-marker-alt"></i> ${landLocation}</p>
         
         ${landDescription ? `<p class="land-description">${landDescription}</p>` : ''}
         
@@ -1032,7 +2447,7 @@ function updateProductPrice(productId, pricePerKg, weight) {
   const weightDisplay = document.getElementById(`wv-${productId}`);
   const priceDisplay = document.getElementById(`price-${productId}`);
   const card = document.querySelector(`[data-product-id="${productId}"]`);
-  const unit = card?.querySelector('.weight-slider-label span:first-child')?.textContent?.match(/\(0([^)]+)\)/)?.[1] || 'kg';
+  const unit = card?.querySelector('.weight-slider-label span:first-child')?.textContent?.match(/\(([^)]+)\)/)?.[1] || 'kg';
   
   if (weightDisplay) {
     weightDisplay.textContent = weight + ' ' + unit;
@@ -1040,8 +2455,42 @@ function updateProductPrice(productId, pricePerKg, weight) {
   
   if (priceDisplay) {
     const totalPrice = pricePerKg * parseInt(weight);
-    priceDisplay.textContent = `${totalPrice.toFixed(2)} / ${weight}`;
+    priceDisplay.textContent = `${(totalPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / ${weight}`;
   }
+}
+
+function shareListing(type, id, title) {
+  const shareUrl = `${window.location.origin}${window.location.pathname}?shareType=${encodeURIComponent(type)}&shareId=${encodeURIComponent(id)}`;
+  const shareData = {
+    title: `365extra ${type.charAt(0).toUpperCase() + type.slice(1)}: ${title}`,
+    text: `Discover this ${type} on 365extra: ${title}`,
+    url: shareUrl
+  };
+
+  if (navigator.share) {
+    navigator.share(shareData)
+      .then(() => showNotification('Share dialog opened successfully.', 'success'))
+      .catch((err) => {
+        console.warn('Share failed:', err);
+        navigator.clipboard?.writeText(shareUrl)
+          .then(() => showNotification('Link copied to clipboard for sharing.', 'success'))
+          .catch(() => {
+            prompt('Copy this link to share:', shareUrl);
+          });
+      });
+    return;
+  }
+
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(shareUrl)
+      .then(() => showNotification('Link copied to clipboard for sharing.', 'success'))
+      .catch(() => {
+        prompt('Copy this link to share:', shareUrl);
+      });
+    return;
+  }
+
+  prompt('Copy this link to share:', shareUrl);
 }
 
 function updateLandQuantity(landId, pricePerUnit, quantity, pricingType) {
@@ -1080,9 +2529,11 @@ function updateLandRange(landId, pricePerUnit, areaSqMeters, pricingType) {
 function renderStaticProducts(){
   // Fallback static products
   const products = [
-    {_id:'1', name:'Artesian Smoked Catfish', description:'fish', pricePerKg:45000, image:'https://images.unsplash.com/photo-1599056377759-3388006e62e0?auto=format&fit=crop&w=700&q=80'},
-    {_id:'2', name:'Traditional Pure Garri', description:'cassava grain', pricePerKg:18000, image:'https://images.unsplash.com/photo-1590540179852-2110a54f813a?auto=format&fit=crop&w=700&q=80'},
-    {_id:'3', name:'Whole Exquisite Kola Nuts', description:'cola nut', pricePerKg:32000, image:'https://images.unsplash.com/photo-1614701838030-f7034d61053f?auto=format&fit=crop&w=700&q=80'}
+    {_id:'1', type:'product', name:'Artesian Smoked Catfish', description:'fish', pricePerKg:45000, image:'https://images.unsplash.com/photo-1599056377759-3388006e62e0?auto=format&fit=crop&w=700&q=80', unit:'kg', quantity:35, category:'Seafood', certification:{organic:true}, minLimit:2},
+    {_id:'2', type:'product', name:'Traditional Pure Garri', description:'cassava grain', pricePerKg:18000, image:'https://images.unsplash.com/photo-1590540179852-2110a54f813a?auto=format&fit=crop&w=700&q=80', unit:'kg', quantity:120, category:'Grains', certification:{organic:true}},
+    {_id:'3', type:'product', name:'Whole Exquisite Kola Nuts', description:'cola nut', pricePerKg:32000, image:'https://images.unsplash.com/photo-1614701838030-f7034d61053f?auto=format&fit=crop&w=700&q=80', unit:'kg', quantity:48, category:'Nuts', certification:{organic:false}},
+    {_id:'4', type:'apartment', name:'Riverside Executive Apartment', apartmentType:'flat', listingType:'rent', pricePerMonth:120000, bedrooms:3, bathrooms:2, apartmentAreaSqMeters:115, apartmentAddress:'Awka, Anambra', category:'Real Estate', image:'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=700&q=80', furnished:true, description:'Skyline apartment with executive finishes.'},
+    {_id:'5', type:'land', name:'Legacy Farmland Plot', landPricingType:'per-plot', pricePerPlot:2500000, numberOfPlots:3, areaSqMeters:500, location:'Nnewi', legalStatus:'freehold', accessibility:'road-access', description:'Fertile agricultural plot ready to farm.', image:'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=700&q=80'}
   ];
   allProducts = products; // Store products
   renderProducts(products);
@@ -1170,6 +2621,22 @@ function addToCartFromCard(productId){
   addToCart(product, weight);
 }
 
+function addApartmentToCart(apartmentId){
+  if(!apiService.isAuthenticated()){
+    showNotification('Please sign in to add items to your cart', 'error');
+    openModal('authModal');
+    return;
+  }
+
+  const apartment = allProducts.find(p => p._id === apartmentId);
+  if(!apartment){
+    showNotification('Apartment not found', 'error');
+    return;
+  }
+
+  addToCart(apartment, 1);
+}
+
 // Add land to cart
 function addLandToCart(landId, pricingType, maxPlots){
   // Check if user is authenticated
@@ -1210,7 +2677,9 @@ function addLandToCart(landId, pricingType, maxPlots){
   
   saveCart();
   showNotification(`${land.name} added to inquiry list!`, 'success');
-  openModal('cartModal');
+  updateCartDisplay();
+  toggleCartSidebar(true);
+  loadUserAddressForCheckout();
 }
 
 function updateProductSearch(total){
@@ -1221,10 +2690,13 @@ function updateProductSearch(total){
 
   document.getElementById('productSearch').addEventListener('input', function(){
     const q = this.value.trim().toLowerCase();
+    const qFirst = q.charAt(0);
     psClear.style.display = q ? 'block' : 'none';
     let vis = 0;
     cards.forEach(c => {
-      const match = !q || c.dataset.name.includes(q);
+      const name = (c.dataset.name || '').trim().toLowerCase();
+      const nameFirst = name.charAt(0);
+      const match = !q || (qFirst && nameFirst === qFirst);
       c.classList.toggle('hidden', !match);
       if(match) vis++;
     });
@@ -1245,32 +2717,73 @@ function updateProductSearch(total){
 
 /*  NOTIFICATIONS  */
 function showNotification(message, type = 'info') {
-  // Create notification element
+  const containerId = 'globalNotificationContainer';
+  let container = document.getElementById(containerId);
+
+  if (!container) {
+    container = document.createElement('div');
+    container.id = containerId;
+    container.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 10000;
+      pointer-events: none;
+    `;
+    document.body.appendChild(container);
+  }
+
   const notification = document.createElement('div');
   notification.className = `notification notification-${type}`;
+  notification.style.cssText = `
+    min-width: 260px;
+    max-width: 340px;
+    background: ${type === 'success' ? '#2ecc71' : type === 'error' ? '#e74c3c' : '#34495e'};
+    color: white;
+    padding: 14px 16px;
+    border-radius: 12px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.16);
+    opacity: 0;
+    transform: translateY(-12px);
+    transition: transform 0.25s ease, opacity 0.25s ease;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  `;
   notification.innerHTML = `
-    <div class="notification-content">
-      <i class="fa-solid ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
-      <span>${message}</span>
+    <div style="display:flex;align-items:center;gap:10px;flex:1;">
+      <i class="fa-solid ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}" style="font-size:1rem;"></i>
+      <span style="flex:1;line-height:1.3;">${message}</span>
     </div>
-    <button class="notification-close" onclick="this.parentElement.remove()">
+    <button type="button" aria-label="Close notification" style="background:transparent;border:none;color:white;cursor:pointer;font-size:1rem;line-height:1;">
       <i class="fa-solid fa-times"></i>
     </button>
   `;
 
-  // Add to page
-  document.body.appendChild(notification);
-  
-  // Trigger animation
-  setTimeout(() => notification.classList.add('open'), 10);
+  const closeButton = notification.querySelector('button');
+  closeButton.addEventListener('click', () => {
+    notification.style.opacity = '0';
+    notification.style.transform = 'translateY(-12px)';
+    setTimeout(() => notification.remove(), 250);
+  });
 
-  // Auto remove after 5 seconds
+  container.appendChild(notification);
+  requestAnimationFrame(() => {
+    notification.style.opacity = '1';
+    notification.style.transform = 'translateY(0)';
+  });
+
   setTimeout(() => {
-    if(notification.parentElement) {
-      notification.classList.remove('open');
-      setTimeout(() => notification.remove(), 300);
-    }
-  }, 5000);
+    if (!notification.parentElement) return;
+    notification.style.opacity = '0';
+    notification.style.transform = 'translateY(-12px)';
+    setTimeout(() => notification.remove(), 250);
+  }, 4500);
 }
 
 /*  AUTHENTICATION  */
@@ -1293,7 +2806,7 @@ async function handleLogin(){
     if(response.success){
       // Save user info for UI personalization
       if(response.user){
-        localStorage.setItem('agrocrown_user', JSON.stringify(response.user));
+        localStorage.setItem('365extra_user', JSON.stringify(response.user));
         restoreCartForUser(response.user);
       }
 
@@ -1343,7 +2856,7 @@ async function handleRegister(){
     if(response.success){
       // Save user info for UI personalization
       if(response.user){
-        localStorage.setItem('agrocrown_user', JSON.stringify(response.user));
+        localStorage.setItem('365extra_user', JSON.stringify(response.user));
         clearCart();
       }
 
@@ -1369,9 +2882,9 @@ async function handleRegister(){
 function updateAuthButton(){
   const authBtn = document.getElementById('authBtn');
   const mobileAuthLink = document.getElementById('mobileAuthLink');
-  const user = JSON.parse(localStorage.getItem('agrocrown_user') || 'null');
+  const user = JSON.parse(localStorage.getItem('365extra_user') || 'null');
   const isAuth = apiService.isAuthenticated() && user;
-  const label = isAuth ? `Hi, ${user.firstName}` : 'Register / Login';
+  const label = isAuth ? `Hi, ${user.firstName}` : 'Register';
 
   if(authBtn){
     authBtn.textContent = label;
@@ -1385,7 +2898,7 @@ function handleAuthButtonClick(){
   if(apiService.isAuthenticated()){
     // Show dashboard instead of logging out directly
     loadUserAnalytics();
-    openModal('dashboardModal');
+    toggleSidebar('dashboardSidebar', true);
   } else {
     openModal('authModal');
   }
@@ -1396,7 +2909,7 @@ function logout(){
   if (user) saveCartForUser(user);
 
   apiService.clearToken();
-  localStorage.removeItem('agrocrown_user');
+  localStorage.removeItem('365extra_user');
   clearCart();
 
   showNotification('Logged out successfully', 'success');
@@ -1491,15 +3004,31 @@ async function loadPaystackScript(){
   // Try to re-use existing script tag if present
   const existing = document.querySelector('script[src="https://js.paystack.co/v1/paystack.js"]');
   if (existing) {
+    if (typeof window.PaystackPop !== 'undefined') {
+      return window.PaystackPop;
+    }
+
     return new Promise((resolve, reject) => {
-      existing.addEventListener('load', () => {
+      const resolveIfReady = () => {
         if (typeof window.PaystackPop !== 'undefined') {
           resolve(window.PaystackPop);
         } else {
-          reject(new Error('Paystack script loaded but PaystackPop is missing'));
+          setTimeout(() => {
+            if (typeof window.PaystackPop !== 'undefined') {
+              resolve(window.PaystackPop);
+            } else {
+              reject(new Error('Paystack script loaded but PaystackPop is missing'));
+            }
+          }, 100);
         }
-      });
+      };
+
+      existing.addEventListener('load', resolveIfReady);
       existing.addEventListener('error', () => reject(new Error('Failed to load Paystack script')));
+
+      if (existing.readyState && (existing.readyState === 'loaded' || existing.readyState === 'complete')) {
+        resolveIfReady();
+      }
     });
   }
 
@@ -1511,7 +3040,13 @@ async function loadPaystackScript(){
       if (typeof window.PaystackPop !== 'undefined') {
         resolve(window.PaystackPop);
       } else {
-        reject(new Error('Paystack script loaded but PaystackPop is missing'));
+        setTimeout(() => {
+          if (typeof window.PaystackPop !== 'undefined') {
+            resolve(window.PaystackPop);
+          } else {
+            reject(new Error('Paystack script loaded but PaystackPop is missing'));
+          }
+        }, 100);
       }
     };
     script.onerror = () => reject(new Error('Failed to load Paystack script'));
@@ -1533,6 +3068,30 @@ async function handleCheckout(){
     return;
   }
 
+  // Collect and validate address
+  const shippingAddress = {
+    street: document.getElementById('shippingStreet')?.value?.trim() || '',
+    city: document.getElementById('shippingCity')?.value?.trim() || '',
+    state: document.getElementById('shippingState')?.value?.trim() || '',
+    postalCode: document.getElementById('shippingPostalCode')?.value?.trim() || '',
+    country: document.getElementById('shippingCountry')?.value?.trim() || 'Nigeria'
+  };
+
+  // Validate required address fields
+  const requiredFields = { street: 'Street Address', city: 'City', state: 'State/Province', postalCode: 'Postal Code', country: 'Country' };
+  const missingFields = [];
+  
+  for (const [field, label] of Object.entries(requiredFields)) {
+    if (!shippingAddress[field]) {
+      missingFields.push(label);
+    }
+  }
+
+  if (missingFields.length > 0) {
+    showNotification(`Please complete your address: ${missingFields.join(', ')}`, 'error');
+    return;
+  }
+
   try {
     // Show loading state
     const checkoutBtn = document.getElementById('cartCheckout');
@@ -1542,25 +3101,36 @@ async function handleCheckout(){
 
     console.log('Cart contents:', cart);
 
+    // Collect delivery notes
+    const notes = document.getElementById('shippingNotes')?.value?.trim() || '';
+
     // Initialize payment (this will create the order on successful payment)
-    console.log('Sending payment data:', {
+    console.log('Sending payment data with address:', {
       items: cart.map(item => ({
         product: item._id,
         quantity: item.quantity,
-        weight: item.weight || undefined,
+        weight: item.weight || 1,
         pricePerKg: item.pricePerKg || undefined,
-        type: item.type // Include type for backend context
-      }))
+        price: item.price || undefined,
+        pricePerMonth: item.pricePerMonth || undefined,
+        type: item.type
+      })),
+      shippingAddress: shippingAddress,
+      notes: notes
     });
 
     const paymentResponse = await apiService.initializePayment({
       items: cart.map(item => ({
         product: item._id,
         quantity: item.quantity,
-        weight: item.weight || undefined,
+        weight: item.weight || 1,
         pricePerKg: item.pricePerKg || undefined,
-        type: item.type // Include type for backend context
-      }))
+        price: item.price || undefined,
+        pricePerMonth: item.pricePerMonth || undefined,
+        type: item.type
+      })),
+      shippingAddress: shippingAddress,
+      notes: notes
     });
 
     console.log('Payment response:', paymentResponse);
@@ -1579,11 +3149,20 @@ async function handleCheckout(){
     
     // Try to open Paystack modal first
     let paymentHandled = false;
-    
+    let PaystackPop;
+
     try {
-      if (paymentResponse.data.publicKey && typeof PaystackPop !== 'undefined') {
-        console.log('PaystackPop available, opening modal...');
-        console.log('Amount in Kobo:', paymentResponse.data.amountInKobo, 'Amount in Naira:', paymentResponse.data.amountInNaira);
+      PaystackPop = await loadPaystackScript();
+    } catch (err) {
+      console.warn('Paystack failed to load, falling back to redirect:', err);
+    }
+
+    try {
+      if (paymentResponse.data.publicKey && PaystackPop) {
+        console.log('\n========== PAYSTACK SETUP ==========');
+        console.log('Amount in Kobo:', paymentResponse.data.amountInKobo);
+        console.log('Amount in Naira:', paymentResponse.data.amountInNaira);
+        console.log('====================================\n');
         const handler = PaystackPop.setup({
           key: paymentResponse.data.publicKey,
           email: paymentResponse.data.customerEmail,
@@ -1634,7 +3213,7 @@ async function verifyPayment(reference){
       // Extract order ID from response metadata if available
       const orderId = response.data.metadata?.orderId || response.data.id;
       
-      showNotification('🎉 Payment successful! Your order has been placed.', 'success');
+      showNotification('Payment successful! Your order has been placed.', 'success');
       clearCart();
       closeModal('cartModal');
       
@@ -1643,11 +3222,27 @@ async function verifyPayment(reference){
         showPaymentSuccessModal(orderId, response.data);
       }, 1000);
     } else {
-      showNotification('Payment verification failed. Please contact support.', 'error');
+      // Handle failed payment
+      const failureReason = response.failureReason || 'Payment was declined';
+      showPaymentFailureModal(failureReason, reference);
+      
+      // Keep cart and modal open so user can retry
+      const checkoutBtn = document.getElementById('cartCheckout');
+      if (checkoutBtn) {
+        checkoutBtn.innerHTML = '<i class="fa-solid fa-lock"></i> Proceed to Checkout';
+        checkoutBtn.disabled = false;
+      }
     }
   } catch (error) {
     console.error('Payment verification error:', error);
-    showNotification('Payment verification failed. Please contact support.', 'error');
+    showNotification('Payment verification failed. Please try again or contact support.', 'error');
+    
+    // Reset button
+    const checkoutBtn = document.getElementById('cartCheckout');
+    if (checkoutBtn) {
+      checkoutBtn.innerHTML = '<i class="fa-solid fa-lock"></i> Proceed to Checkout';
+      checkoutBtn.disabled = false;
+    }
   }
 }
 
@@ -1680,7 +3275,7 @@ function showPaymentSuccessModal(orderId, orderData) {
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
       animation: slideUp 0.4s ease-out;
     ">
-      <div style="font-size: 60px; margin-bottom: 20px;">✅</div>
+      <div style="font-size: 60px; margin-bottom: 20px;">${getInlineSvgIcon('check')}</div>
       
       <h2 style="color: #0d0d0b; font-size: 28px; margin-bottom: 10px; font-family: 'Cormorant Garamond', serif;">Payment Successful!</h2>
       
@@ -1713,27 +3308,17 @@ function showPaymentSuccessModal(orderId, orderData) {
           cursor: pointer;
           transition: transform 0.2s;
         " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-          📥 Download Invoice
-        </button>
-        
-        <button onclick="closePaymentSuccessModal()" style="
-          background: #f0f0f0;
-          color: #0d0d0b;
-          border: 1px solid #ddd;
-          padding: 12px 20px;
-          border-radius: 6px;
-          font-weight: 600;
-          cursor: pointer;
+          ${getInlineSvgIcon('download')} Download Invoice
           transition: background 0.2s;
         " onmouseover="this.style.background='#e0e0e0'" onmouseout="this.style.background='#f0f0f0'">
           Close
         </button>
       </div>
 
-      <p style="color: #999; font-size: 12px; line-height: 1.6;">
-        💡 Invoice has been sent to your email<br>
-        📦 Tracking info will arrive within 24 hours<br>
-        💬 Need help? Contact us on Telegram
+      <p style="color: #999; font-size: 12px; line-height: 1.6; text-align:left;">
+        ${getDetailBullet('info', 'Invoice has been sent to your email')}<br>
+        ${getDetailBullet('package', 'Tracking info will arrive within 24 hours')}<br>
+        ${getDetailBullet('message', 'Need help? Contact us on Telegram')}
       </p>
     </div>
 
@@ -1768,12 +3353,400 @@ function closePaymentSuccessModal() {
     modal.style.animation = 'fadeOut 0.3s ease-out forwards';
     setTimeout(() => {
       modal.remove();
-      if (!document.querySelector('.modal-backdrop.open') && !document.getElementById('searchOverlay').classList.contains('open')) {
+      if (!document.querySelector('.modal-backdrop.open') && !document.getElementById('searchOverlay')?.classList.contains('open')) {
         document.body.style.overflow = '';
       }
     }, 300);
   }
 }
+
+function showPaymentFailureModal(failureReason, reference) {
+  // Create failure modal
+  const modal = document.createElement('div');
+  modal.id = 'paymentFailureModal';
+  modal.className = 'modal-backdrop open';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  `;
+
+  modal.innerHTML = `
+    <div style="
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      animation: slideUp 0.4s ease-out;
+    ">
+      <div style="font-size: 60px; margin-bottom: 20px;">${getInlineSvgIcon('cross')}</div>
+      
+      <h2 style="color: #d32f2f; font-size: 28px; margin-bottom: 10px; font-family: 'Cormorant Garamond', serif;">Payment Failed</h2>
+      
+      <p style="color: #666; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+        Unfortunately, your payment could not be processed. Your order details have been saved.
+      </p>
+
+      <div style="
+        background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+        border-left: 4px solid #d32f2f;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 5px;
+        text-align: left;
+      ">
+        <p style="margin: 0 0 8px 0; color: #0d0d0b; font-weight: bold; font-size: 13px;">Failure Reason</p>
+        <p style="margin: 0; color: #666; font-size: 12px; font-family: monospace; word-break: break-all;">
+          ${failureReason || 'Your payment was declined by the processor'}
+        </p>
+      </div>
+
+      <div style="
+        background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+        border-left: 4px solid #27ae60;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 5px;
+        text-align: left;
+      ">
+        <p style="margin: 0 0 8px 0; color: #0d0d0b; font-weight: bold; font-size: 13px;">${getInlineSvgIcon('check')} What You Can Do</p>
+        <ul style="margin: 0; padding-left: 15px; color: #555; font-size: 12px; line-height: 1.6;">
+          <li>Check your card details and try again</li>
+          <li>Use a different payment method</li>
+          <li>Contact your bank for any restrictions</li>
+          <li>Reach out to our support team via Telegram</li>
+        </ul>
+      </div>
+
+      <div style="display: grid; gap: 10px; margin-bottom: 20px;">
+        <button onclick="retryPayment()" style="
+          background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+          color: #0d0d0b;
+          border: none;
+          padding: 12px 20px;
+          border-radius: 6px;
+          font-weight: bold;
+          cursor: pointer;
+          transition: transform 0.2s;
+        " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+          ${getInlineSvgIcon('retry')} Try Again
+          transition: background 0.2s;
+        " onmouseover="this.style.background='#e0e0e0'" onmouseout="this.style.background='#f0f0f0'">
+          Keep Shopping
+        </button>
+      </div>
+
+      <p style="color: #999; font-size: 12px; line-height: 1.6; text-align:left;">
+        ${getDetailBullet('info', 'Your cart is still saved')}<br>
+        ${getDetailBullet('message', 'Check your email for details')}<br>
+        ${getDetailBullet('message', 'Support available 24/7 on Telegram')}
+      </p>
+    </div>
+
+    <style>
+      @keyframes slideUp {
+        from {
+          transform: translateY(20px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+    </style>
+  `;
+
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+
+  // Close on backdrop click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closePaymentFailureModal();
+    }
+  });
+}
+
+function closePaymentFailureModal() {
+  const modal = document.getElementById('paymentFailureModal');
+  if (modal) {
+    modal.style.animation = 'fadeOut 0.3s ease-out forwards';
+    setTimeout(() => {
+      modal.remove();
+      if (!document.querySelector('.modal-backdrop.open') && !document.getElementById('searchOverlay')?.classList.contains('open')) {
+        document.body.style.overflow = '';
+      }
+    }, 300);
+  }
+}
+
+function retryPayment() {
+  closePaymentFailureModal();
+  showNotification('Please proceed to checkout again to retry your payment.', 'info');
+}
+
+async function handleLandCheckout() {
+  try {
+    // Land/Apartment checkout - initialize payment without address requirement
+    const checkoutBtn = document.getElementById('landPayNowBtn');
+    checkoutBtn.disabled = true;
+    checkoutBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+
+    // Get current user info
+    const userResponse = await apiService.getMe();
+    if (!userResponse.success) {
+      showNotification('Unable to retrieve your information. Please login again.', 'error');
+      checkoutBtn.disabled = false;
+      checkoutBtn.innerHTML = '<i class="fa-solid fa-lock"></i> Pay Now';
+      return;
+    }
+
+    const user = userResponse.data;
+    const orderItems = cart.map(item => ({
+      product: item.id || item._id,
+      quantity: item.quantity || item.plotsRequested || 1,
+      price: item.type === 'land' 
+        ? (item.landPricingType === 'fixed' ? item.pricePerPlot : item.pricePerSqMeter)
+        : (item.type === 'apartment' 
+          ? (item.listingType === 'rent' ? item.pricePerMonth : item.price)
+          : item.pricePerKg),
+      type: item.type,
+      weight: item.weight || item.areaSqMeters || item.apartmentAreaSqMeters,
+      title: item.name
+    }));
+
+    // For land/apartments, we don't require shipping address - use user's location info
+    const orderData = {
+      items: orderItems,
+      userEmail: user.email,
+      userId: user._id,
+      // For real estate, use generic address or skip
+      shippingAddress: {
+        street: 'Real Estate Transaction',
+        city: user.address?.city || 'TBD',
+        state: user.address?.state || 'TBD',
+        postalCode: user.address?.postalCode || 'TBD',
+        country: user.address?.country || 'Nigeria'
+      }
+    };
+
+    // Initialize payment
+    const paymentResponse = await apiService.initializePayment(orderData);
+    
+    if (!paymentResponse.success || !paymentResponse.data) {
+      throw new Error(paymentResponse.data?.message || 'Payment initialization failed');
+    }
+
+    // Load Paystack if available
+    let PaystackPop;
+    try {
+      PaystackPop = await loadPaystackScript();
+    } catch (err) {
+      console.warn('Paystack failed to load for real estate payment, falling back to redirect:', err);
+    }
+    
+    // Try to open Paystack modal first
+    let paymentHandled = false;
+    
+    try {
+      if (paymentResponse.data.publicKey && PaystackPop) {
+        console.log('PaystackPop available for real estate payment, opening modal...');
+        const handler = PaystackPop.setup({
+          key: paymentResponse.data.publicKey,
+          email: paymentResponse.data.customerEmail,
+          amount: paymentResponse.data.amountInKobo,
+          currency: 'NGN',
+          ref: paymentResponse.data.reference,
+          callback: function(response){
+            verifyPayment(response.reference);
+          },
+          onClose: function(){
+            showNotification('Payment cancelled', 'error');
+            checkoutBtn.disabled = false;
+            checkoutBtn.innerHTML = '<i class="fa-solid fa-lock"></i> Pay Now';
+          }
+        });
+        handler.openIframe();
+        paymentHandled = true;
+      }
+    } catch (err) {
+      console.error('Paystack modal error:', err);
+    }
+
+    // If modal didn't work, use redirect
+    if (!paymentHandled) {
+      console.log('Using redirect fallback for real estate payment');
+      showNotification('Redirecting to payment...', 'info');
+      setTimeout(() => {
+        window.location.href = paymentResponse.data.authorization_url;
+      }, 500);
+    }
+
+  } catch (error) {
+    console.error('Land/Apartment checkout error:', error);
+    showNotification(error.message || 'Checkout failed. Please try again.', 'error');
+    
+    // Reset button
+    const checkoutBtn = document.getElementById('landPayNowBtn');
+    checkoutBtn.disabled = false;
+    checkoutBtn.innerHTML = '<i class="fa-solid fa-lock"></i> Pay Now';
+  }
+}
+
+async function callRealEstateDealer() {
+  try {
+    // Fetch dealer contact info from database settings
+    const settingsResponse = await apiService.getSettings();
+    const settings = settingsResponse?.data?.dealerContact || {};
+    
+    const dealerPhone = settings.phone || '+2348123456789';
+    const dealerWhatsApp = settings.whatsapp || '2348123456789';
+    const dealerName = settings.name || 'Real Estate Specialist';
+    const dealerEmail = settings.email || 'dealer@365extra.com';
+
+    // Create contact modal
+    const modal = document.createElement('div');
+    modal.id = 'dealerContactModal';
+    modal.className = 'modal-backdrop open';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+    `;
+
+    modal.innerHTML = `
+      <div style="
+        background: white;
+        border-radius: 12px;
+        padding: 30px;
+        max-width: 400px;
+        width: 90%;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        animation: slideUp 0.3s ease-out;
+      ">
+        <h3 style="margin: 0 0 10px 0; color: #0d0d0b;"> <i class="fa-solid fa-phone"></i> Contact ${dealerName}</h3>
+        <p style="color: #666; margin: 0 0 25px 0; font-size: 0.9rem;">Choose how you'd like to get in touch</p>
+
+        <div style="display: grid; gap: 10px;">
+          <button onclick="openWhatsAppDealer('${dealerWhatsApp}')" style="
+            background: linear-gradient(135deg, #25D366 0%, #20BA5A 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            font-size: 0.95rem;
+          " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+            <i class="fa-brands fa-whatsapp"></i> WhatsApp Chat
+          </button>
+
+          <button onclick="callDealerPhone('${dealerPhone}')" style="
+            background: linear-gradient(135deg, #0d0d0b 0%, #333 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            font-size: 0.95rem;
+          " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+            <i class="fa-solid fa-phone"></i> Call Now
+          </button>
+
+          <button onclick="closeDealerModal()" style="
+            background: #f0f0f0;
+            color: #0d0d0b;
+            border: 1px solid #ddd;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            font-size: 0.95rem;
+          " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+            Cancel
+          </button>
+        </div>
+
+        <p style="margin: 20px 0 0 0; padding: 15px; background: rgba(255,215,0,0.1); border-radius: 6px; border-left: 3px solid #ffd700; font-size: 0.85rem; color: #666;">
+          ${getDetailBullet('info', 'Your cart will be saved while you contact the dealer')}
+        </p>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    document.body.style.overflow = 'hidden';
+
+    // Close on backdrop click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeDealerModal();
+      }
+    });
+
+  } catch (error) {
+    console.error('Error opening dealer contact:', error);
+    showNotification('Unable to open dealer contact. Please try again.', 'error');
+  }
+}
+
+function openWhatsAppDealer(whatsappNumber) {
+  const cartSummary = cart.map(item => {
+    if (item.type === 'land') {
+      return `${item.name} (${item.plotsRequested || item.quantity} plot(s))`;
+    } else if (item.type === 'apartment') {
+      return `${item.name} - ${item.apartmentType} (${item.bedrooms}BR/${item.bathrooms}BA)`;
+    } else {
+      return `${item.name} (${item.quantity} kg)`;
+    }
+  }).join('\n');
+  
+  const message = encodeURIComponent(`Hi, I'm interested in the following properties:\n\n${cartSummary}\n\nCould you provide more details and availability?`);
+  const whatsappLink = `https://wa.me/${whatsappNumber}?text=${message}`;
+  
+  closeDealerModal();
+  window.open(whatsappLink, '_blank');
+}
+
+function callDealerPhone(phoneNumber) {
+  closeDealerModal();
+  window.location.href = `tel:${phoneNumber}`;
+}
+
+function closeDealerModal() {
+  const modal = document.getElementById('dealerContactModal');
+  if (modal) {
+    modal.style.animation = 'fadeOut 0.3s ease-out forwards';
+    setTimeout(() => {
+      modal.remove();
+      if (!document.querySelector('.modal-backdrop.open')) {
+        document.body.style.overflow = '';
+      }
+    }, 300);
+  }
+}
+
 
 function downloadInvoice(orderId) {
   if (!orderId) {
@@ -1831,6 +3804,29 @@ async function initializeApp() {
   console.log('[DEBUG] App initialization - Starting');
   
   try {
+    // Check if payment was successful and clear cart
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    const orderId = params.get('orderId');
+    const shouldClearCart = params.get('clearCart');
+
+    if (paymentStatus === 'success' && shouldClearCart === 'true') {
+      console.log('[SUCCESS] Payment successful, clearing cart');
+      clearCart(); // Clear the cart
+      
+      // Show success message
+      showNotification('Payment successful! Your order has been placed.', 'success');
+      
+      // Optional: Remove the query parameters from URL to clean it up
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // If we have orderId, you could fetch and display order details
+      if (orderId) {
+        console.log('[DEBUG] Order ID:', orderId);
+        // You can add code here to fetch and display order details
+      }
+    }
+    
     updateCartDisplay();
     
     // Add checkout button event listener
@@ -1852,9 +3848,26 @@ async function initializeApp() {
     console.log('[DEBUG] Loading global products for search...');
     await loadGlobalProducts().catch(e => console.warn('[DEBUG] loadGlobalProducts timed out or failed:', e));
     
+    // Attach sidebar close handlers after DOM is ready
+    document.querySelectorAll('.sidebar-close').forEach(btn => {
+      btn.addEventListener('click', event => {
+        event.preventDefault();
+        const sidebarOverlay = btn.closest('.sidebar-overlay');
+        if (sidebarOverlay) {
+          toggleSidebar(sidebarOverlay.id, false);
+        } else {
+          const cartSidebar = btn.closest('.cart-sidebar');
+          if (cartSidebar) {
+            toggleCartSidebar(false);
+          }
+        }
+      });
+    });
+
     // FETCH PRODUCTS FIRST - WAIT FOR THIS TO COMPLETE
     console.log('[DEBUG] Fetching products...');
     await fetchProducts();
+    await openSharedItemFromUrl();
     
     // NOW start polling for updates
     console.log('[DEBUG] Starting product polling');

@@ -1,4 +1,4 @@
-# Quick Start: Analytics & Dashboard Updates
+﻿# Quick Start: Analytics & Dashboard Updates
 
 ## ✅ What's Fixed
 
@@ -30,7 +30,7 @@
 
 **Files**:
 - Updated: `dist/js/script.js` - Added user analytics functions
-- Updated: `agrocrown.html` - Added dashboard modal
+- Updated: `365extra.html` - Added dashboard modal
 
 ### 3. **Multiple Admin Telegram Bots**
 - ❌ **Before**: Only ONE admin ID could manage the bot
@@ -146,3 +146,4 @@ Returns: User's personal spending, transactions, preferences
 
 ## 📚 Full Documentation
 See `ANALYTICS_GUIDE.md` for complete API documentation and advanced features.
+

@@ -1,5 +1,18 @@
 const Product = require('../models/Product');
 
+const normalizeProductImages = (product) => {
+  if (!product) return product;
+  const item = product.toObject ? product.toObject() : { ...product };
+  if (!Array.isArray(item.images) || item.images.length === 0) {
+    if (item.image) {
+      item.images = [item.image];
+    } else {
+      item.images = [];
+    }
+  }
+  return item;
+};
+
 exports.getAllProducts = async (req, res, next) => {
   try {
     const { category, status } = req.query;
@@ -16,13 +29,17 @@ exports.getAllProducts = async (req, res, next) => {
         console.log(`getAllProducts - product ${p._id} pricePerKg: ${p.pricePerKg}`);
       } else if (p.type === 'land') {
         console.log(`getAllProducts - land ${p._id} landPricingType: ${p.landPricingType}, pricePerPlot: ${p.pricePerPlot}, pricePerSqMeter: ${p.pricePerSqMeter}`);
+      } else if (p.type === 'apartment') {
+        console.log(`getAllProducts - apartment ${p._id} apartmentType: ${p.apartmentType} listingType: ${p.listingType} price: ${p.price} pricePerMonth: ${p.pricePerMonth} bedrooms: ${p.bedrooms} bathrooms: ${p.bathrooms} apartmentAddress: ${p.apartmentAddress}`);
       }
     });
 
+    const normalizedProducts = products.map(normalizeProductImages);
+
     res.status(200).json({
       success: true,
-      count: products.length,
-      data: products
+      count: normalizedProducts.length,
+      data: normalizedProducts
     });
   } catch (error) {
     next(error);
@@ -39,7 +56,7 @@ exports.getProductById = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: product
+      data: normalizeProductImages(product)
     });
   } catch (error) {
     next(error);
@@ -51,8 +68,25 @@ exports.createProduct = async (req, res, next) => {
     const { 
       name, description, pricePerKg, category, image, imageData, imageMimeType, imageUrl, quantity, certification, unit, minLimit, maxLimit, tags, type,
       // Land-specific fields
-      location, areaSqMeters, numberOfPlots, legalStatus, accessibility, landPricingType, pricePerPlot, pricePerSqMeter
+      location, areaSqMeters, numberOfPlots, legalStatus, accessibility, landPricingType, pricePerPlot, pricePerSqMeter,
+      // Apartment-specific fields
+      apartmentType, apartment_type,
+      listingType, listing_type,
+      price, pricePerMonth, price_per_month,
+      bedrooms, beds, bathrooms, baths, furnished,
+      apartmentAreaSqMeters, apartment_area_sq_meters,
+      apartmentAddress, apartment_address,
+      apartmentFeatures, apartment_features
     } = req.body;
+
+    const resolvedApartmentType = apartmentType || apartment_type;
+    const resolvedListingType = listingType || listing_type;
+    const resolvedPricePerMonth = pricePerMonth || price_per_month;
+    const resolvedBedrooms = bedrooms !== undefined && bedrooms !== null ? bedrooms : beds;
+    const resolvedBathrooms = bathrooms !== undefined && bathrooms !== null ? bathrooms : baths;
+    const resolvedApartmentAreaSqMeters = apartmentAreaSqMeters || apartment_area_sq_meters;
+    const resolvedApartmentAddress = apartmentAddress || apartment_address;
+    const resolvedApartmentFeatures = apartmentFeatures || apartment_features;
 
     // Debug: log incoming request body to help trace missing price issues
     console.log('createProduct - incoming req.body:', JSON.stringify(req.body));
@@ -101,6 +135,36 @@ exports.createProduct = async (req, res, next) => {
       }
     }
 
+    if (resolvedType === 'apartment') {
+      if (category !== 'Apartment') {
+        return res.status(400).json({ success: false, message: 'Category must be "Apartment" for apartment type' });
+      }
+      if (!apartmentType) {
+        return res.status(400).json({ success: false, message: 'Apartment type is required for apartments' });
+      }
+      if (!listingType) {
+        return res.status(400).json({ success: false, message: 'Listing type (rent or sale) is required for apartments' });
+      }
+      if (listingType === 'rent' && (!pricePerMonth || pricePerMonth <= 0)) {
+        return res.status(400).json({ success: false, message: 'Monthly price is required for apartment rentals' });
+      }
+      if (listingType === 'sale' && (!price || price <= 0)) {
+        return res.status(400).json({ success: false, message: 'Sale price is required for apartment sales' });
+      }
+      if (bedrooms === undefined || bedrooms === null) {
+        return res.status(400).json({ success: false, message: 'Number of bedrooms is required for apartments' });
+      }
+      if (bathrooms === undefined || bathrooms === null) {
+        return res.status(400).json({ success: false, message: 'Number of bathrooms is required for apartments' });
+      }
+      if (!apartmentAreaSqMeters || apartmentAreaSqMeters <= 0) {
+        return res.status(400).json({ success: false, message: 'Area in square meters is required and must be positive for apartments' });
+      }
+      if (!apartmentAddress) {
+        return res.status(400).json({ success: false, message: 'Apartment address is required' });
+      }
+    }
+
     if (!unit) {
       return res.status(400).json({ success: false, message: 'Unit of measurement is required' });
     }
@@ -129,6 +193,12 @@ exports.createProduct = async (req, res, next) => {
       finalImageUrl = imageUrl;
     }
 
+    const resolvedImages = Array.isArray(req.body.images)
+      ? req.body.images.slice(0, 4)
+      : finalImage
+        ? [finalImage]
+        : undefined;
+
     // Build product data
     const productData = {
       name,
@@ -138,6 +208,7 @@ exports.createProduct = async (req, res, next) => {
       imageData: finalImageData,
       imageUrl: finalImageUrl,
       imageMimeType: finalImageMimeType,
+      images: resolvedImages,
       quantity: quantity !== undefined && quantity !== null ? parseFloat(quantity) : 0,
       unit,
       minLimit: minLimit !== undefined && minLimit !== null ? parseFloat(minLimit) : undefined,
@@ -167,6 +238,20 @@ exports.createProduct = async (req, res, next) => {
       } else if (landPricingType === 'per-meter') {
         productData.pricePerSqMeter = pricePerSqMeter ? parseFloat(pricePerSqMeter) : undefined;
       }
+    }
+
+    // Add apartment-specific fields
+    if (resolvedType === 'apartment') {
+      productData.apartmentType = resolvedApartmentType;
+      productData.listingType = resolvedListingType;
+      productData.price = resolvedListingType === 'sale' ? parseFloat(price) : undefined;
+      productData.pricePerMonth = resolvedListingType === 'rent' ? parseFloat(resolvedPricePerMonth) : undefined;
+      productData.bedrooms = resolvedBedrooms !== undefined && resolvedBedrooms !== null ? parseInt(resolvedBedrooms) : undefined;
+      productData.bathrooms = resolvedBathrooms !== undefined && resolvedBathrooms !== null ? parseInt(resolvedBathrooms) : undefined;
+      productData.furnished = furnished === true || furnished === 'true' || furnished === '1';
+      productData.apartmentAreaSqMeters = parseFloat(resolvedApartmentAreaSqMeters);
+      productData.apartmentAddress = resolvedApartmentAddress;
+      if (resolvedApartmentFeatures) productData.apartmentFeatures = resolvedApartmentFeatures;
     }
 
     const product = await Product.create(productData);
@@ -199,6 +284,20 @@ exports.updateProduct = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Not authorized to update this product' });
     }
 
+    // Normalize legacy apartment field aliases before update
+    if (req.body.apartment_type !== undefined && req.body.apartmentType === undefined) req.body.apartmentType = req.body.apartment_type;
+    if (req.body.listing_type !== undefined && req.body.listingType === undefined) req.body.listingType = req.body.listing_type;
+    if (req.body.price_per_month !== undefined && req.body.pricePerMonth === undefined) req.body.pricePerMonth = req.body.price_per_month;
+    if (req.body.apartment_area_sq_meters !== undefined && req.body.apartmentAreaSqMeters === undefined) req.body.apartmentAreaSqMeters = req.body.apartment_area_sq_meters;
+    if (req.body.apartment_address !== undefined && req.body.apartmentAddress === undefined) req.body.apartmentAddress = req.body.apartment_address;
+    if (req.body.apartment_features !== undefined && req.body.apartmentFeatures === undefined) req.body.apartmentFeatures = req.body.apartment_features;
+    if (req.body.beds !== undefined && req.body.bedrooms === undefined) req.body.bedrooms = req.body.beds;
+    if (req.body.baths !== undefined && req.body.bathrooms === undefined) req.body.bathrooms = req.body.baths;
+
+    if (req.body.images && !Array.isArray(req.body.images)) {
+      req.body.images = [req.body.images];
+    }
+
     // Handle image updates (Option 2: Base64 or Option 3: External URL)
     if (req.body.imageData && !req.body.image) {
       const imageMimeType = req.body.imageMimeType || 'image/jpeg';
@@ -206,6 +305,10 @@ exports.updateProduct = async (req, res, next) => {
       req.body.imageMimeType = imageMimeType;
     } else if (req.body.imageUrl && !req.body.image) {
       req.body.image = req.body.imageUrl;
+    }
+
+    if ((!req.body.images || req.body.images.length === 0) && req.body.image) {
+      req.body.images = [req.body.image];
     }
 
     product = await Product.findByIdAndUpdate(req.params.id, req.body, {
@@ -255,6 +358,26 @@ exports.getSupplierProducts = async (req, res, next) => {
       success: true,
       count: products.length,
       data: products
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getCategories = async (req, res, next) => {
+  try {
+    // Get all unique categories from products
+    const categories = await Product.distinct('category');
+    
+    // Sort alphabetically and filter out null/empty values
+    const filteredCategories = categories.filter(cat => cat && cat.trim() !== '').sort();
+    
+    console.log('[OK] Categories endpoint - found', filteredCategories.length, 'categories');
+
+    res.status(200).json({
+      success: true,
+      count: filteredCategories.length,
+      data: filteredCategories
     });
   } catch (error) {
     next(error);

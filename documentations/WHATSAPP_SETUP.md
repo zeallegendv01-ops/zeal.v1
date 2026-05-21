@@ -1,7 +1,7 @@
 ﻿# WhatsApp Business API Integration Guide
 
 ## Overview
-AgroCrown now has a WhatsApp chat bubble for automated customer support. Messages are automatically categorized and responded to based on keyword matching.
+365extra now has a WhatsApp chat bubble for automated customer support. Messages are automatically categorized and responded to based on keyword matching.
 
 ## Features
  **Floating WhatsApp Bubble** - Always accessible on the website
@@ -89,7 +89,7 @@ Messages are sent to your Telegram bot:
 
 ## Frontend Integration
 
-The WhatsApp bubble is automatically included in `agrocrown.html` with:
+The WhatsApp bubble is automatically included in `365extra.html` with:
 - **CSS**: `dist/css/whatsapp.css`
 - **JS**: `dist/js/whatsapp.js`
 
@@ -167,3 +167,4 @@ For issues or questions:
 2. Review MongoDB for message storage
 3. Test endpoints with Postman
 4. Check Meta Business App debugging tools
+

@@ -39,11 +39,11 @@ const orderSchema = new mongoose.Schema({
     }
   ],
   shippingAddress: {
-    country: String,
-    state: String,
+    street: String,
     city: String,
+    state: String,
     postalCode: String,
-    addressLine: String
+    country: String
   },
   status: {
     type: String,
@@ -70,6 +70,12 @@ const orderSchema = new mongoose.Schema({
     type: String,
     enum: ['pending', 'completed', 'failed', 'refunded'],
     default: 'pending'
+  },
+  metadata: {
+    paystackReference: String,
+    paystackData: mongoose.Schema.Types.Mixed,
+    failureReason: String,
+    failureCode: String
   },
   notes: String,
   createdAt: {

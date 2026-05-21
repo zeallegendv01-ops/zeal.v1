@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 
 const settingsSchema = new mongoose.Schema(
   {
@@ -14,6 +14,29 @@ const settingsSchema = new mongoose.Schema(
       default: 50, // ₦50 shipping
       min: 0,
       description: 'Flat shipping fee in Naira'
+    },
+    // ════════════════════════ DEALER CONTACT INFO ════════════════════════
+    dealerContact: {
+      phone: {
+        type: String,
+        default: '+2348123456789',
+        description: 'Dealer phone number for real estate inquiries (land/apartments)'
+      },
+      whatsapp: {
+        type: String,
+        default: '2348123456789', // WhatsApp number without + prefix
+        description: 'Dealer WhatsApp number'
+      },
+      email: {
+        type: String,
+        default: 'dealer@365extra.com',
+        description: 'Dealer email address'
+      },
+      name: {
+        type: String,
+        default: 'Real Estate Specialist',
+        description: 'Dealer name'
+      }
     },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -32,3 +55,4 @@ const settingsSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model('Settings', settingsSchema);
+

@@ -1,4 +1,4 @@
-# AgroCrown Image Storage - Implementation Guide
+﻿# 365extra Image Storage - Implementation Guide
 
 ## What Was Fixed
 
@@ -228,3 +228,4 @@ To change quality/size, edit `backend/server.js` line ~147:
 ✅ **Production ready**  
 
 Your uploads directory stays, files are compressed automatically, and everything persists perfectly on Render! 🎉
+

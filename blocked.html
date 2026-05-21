@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Access Denied - 365extra</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .blocked-container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+      width: 100%;
+      padding: 60px 40px;
+      text-align: center;
+    }
+
+    .blocked-icon {
+      font-size: 80px;
+      margin-bottom: 20px;
+      animation: shake 0.5s ease-in-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-10px); }
+      75% { transform: translateX(10px); }
+    }
+
+    .blocked-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 12px;
+    }
+
+    .blocked-subtitle {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 30px;
+      line-height: 1.6;
+    }
+
+    .blocked-reason {
+      background: #f5f5f5;
+      border-left: 4px solid #667eea;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      text-align: left;
+    }
+
+    .blocked-reason-label {
+      font-size: 12px;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .blocked-reason-text {
+      font-size: 16px;
+      color: #333;
+      font-weight: 500;
+    }
+
+    .blocked-score {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+    }
+
+    .score-item {
+      flex: 1;
+    }
+
+    .score-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #667eea;
+    }
+
+    .score-label {
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+    }
+
+    .blocked-actions {
+      display: flex;
+      gap: 12px;
+      flex-direction: column;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #667eea;
+      border: 2px solid #667eea;
+    }
+
+    .btn-secondary:hover {
+      background: #f0f0f0;
+    }
+
+    .blocked-footer {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #f0f0f0;
+      font-size: 12px;
+      color: #999;
+    }
+
+    .blocked-logo {
+      margin-bottom: 30px;
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    @media (max-width: 480px) {
+      .blocked-container {
+        padding: 40px 20px;
+      }
+
+      .blocked-title {
+        font-size: 22px;
+      }
+
+      .blocked-icon {
+        font-size: 60px;
+      }
+
+      .score-value {
+        font-size: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="blocked-container">
+    <div class="blocked-logo">365extra</div>
+    <div class="blocked-icon">🚫</div>
+    
+    <h1 class="blocked-title">Access Denied</h1>
+    <p class="blocked-subtitle">
+      We detected suspicious activity on your session. For security reasons, your access has been temporarily restricted.
+    </p>
+
+    <div class="blocked-reason" id="reasonBox" style="display: none;">
+      <div class="blocked-reason-label">Reason</div>
+      <div class="blocked-reason-text" id="reasonText"></div>
+    </div>
+
+    <div class="blocked-score" id="scoreBox" style="display: none;">
+      <div class="score-item">
+        <div class="score-value" id="scoreValue">--</div>
+        <div class="score-label">Threat Score</div>
+      </div>
+    </div>
+
+    <div class="blocked-actions">
+      <button class="btn btn-primary" onclick="goHome()">Return Home</button>
+      <button class="btn btn-secondary" onclick="contactSupport()">Contact Support</button>
+    </div>
+
+    <div class="blocked-footer">
+      <p>This is an automated security measure. If you believe this is a mistake, please contact our support team.</p>
+      <p style="margin-top: 10px; color: #ccc;">Session ID: <code style="font-family: monospace; color: #999;" id="sessionId"></code></p>
+    </div>
+  </div>
+
+  <script>
+    function getQueryParam(name) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name);
+    }
+
+    function goHome() {
+      window.location.href = '/';
+    }
+
+    function contactSupport() {
+      window.location.href = 'mailto:support@365extra.com?subject=Security%20Incident&body=I%20was%20blocked%20from%20accessing%20365extra';
+    }
+
+    // Display reason if available
+    const reason = getQueryParam('reason');
+    const score = getQueryParam('score');
+    
+    if (reason) {
+      document.getElementById('reasonBox').style.display = 'block';
+      document.getElementById('reasonText').textContent = decodeURIComponent(reason);
+    }
+
+    if (score) {
+      document.getElementById('scoreBox').style.display = 'block';
+      document.getElementById('scoreValue').textContent = score;
+    }
+
+    // Generate session ID
+    document.getElementById('sessionId').textContent = 'SEG-' + Math.random().toString(36).substring(2, 11).toUpperCase();
+  </script>
+</body>
+</html>

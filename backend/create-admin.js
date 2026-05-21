@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
@@ -10,7 +10,7 @@ const mongooseOptions = {
   socketTimeoutMS: 10000
 };
 
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/agrocrown', mongooseOptions);
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/365extra', mongooseOptions);
 
 // Set up connection event handlers
 mongoose.connection.on('connected', () => {
@@ -31,7 +31,7 @@ const User = require('./models/User');
 async function createAdminUser() {
   try {
     // Check if admin already exists
-    const existingAdmin = await User.findOne({ email: 'admin@agrocrown.com' });
+    const existingAdmin = await User.findOne({ email: 'admin@365extra.com' });
     if (existingAdmin) {
       console.log('✅ Admin user already exists!');
       // Generate JWT token for existing admin
@@ -49,7 +49,7 @@ async function createAdminUser() {
     const admin = await User.create({
       firstName: 'Admin',
       lastName: 'User',
-      email: 'admin@agrocrown.com',
+      email: 'admin@365extra.com',
       password: 'admin123',
       accountType: 'Distributor',
       phone: '1234567890'
@@ -65,7 +65,7 @@ async function createAdminUser() {
     console.log('✅ Admin user created successfully!');
     console.log('🔑 JWT Token:', token);
     console.log('👤 User ID:', admin._id);
-    console.log('📧 Email: admin@agrocrown.com');
+    console.log('📧 Email: admin@365extra.com');
     console.log('🔒 Password: admin123');
 
   } catch (error) {
