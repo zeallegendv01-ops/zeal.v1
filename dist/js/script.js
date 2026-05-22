@@ -562,9 +562,10 @@ function showApartmentDetails(apartment) {
   const pricePerUnit = listingType === 'rent'
     ? parseFloat(rawRentPrice) || parseFloat(rawSalePrice) || 0
     : parseFloat(rawSalePrice) || parseFloat(rawRentPrice) || 0;
+  const priceUnit = apartment.priceUnit || apartment.price_unit || 'month';
   const listingLabel = listingType === 'rent' ? 'For Rent' : 'For Sale';
   const priceDisplay = pricePerUnit > 0
-    ? `NGN${pricePerUnit.toLocaleString()}${listingType === 'rent' ? '/year' : ''}`
+    ? `NGN${pricePerUnit.toLocaleString()}${listingType === 'rent' ? `/${priceUnit}` : ''}`
     : 'Price on request';
 
   const typeLabel = getApartmentTypeLabel(apartmentType);
@@ -1944,6 +1945,7 @@ function renderCartApartmentItem(item, index) {
   const unitPrice = item.listingType === 'rent' ? item.pricePerMonth : item.price;
   const subtotal = unitPrice * (item.quantity || 1);
   const qty = item.quantity || 1;
+  const priceUnit = item.priceUnit || item.price_unit || 'month';
 
   const typeLabel = getApartmentTypeLabel(item.apartmentType);
 
@@ -1972,7 +1974,7 @@ function renderCartApartmentItem(item, index) {
       <div class="ci-right">
         <div class="ci-subtotal">NGN${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
         <div style="font-size: 0.7rem; color: #999; margin-bottom: 8px;">
-          ${item.listingType === 'rent' ? '/year' : 'total'}
+          ${item.listingType === 'rent' ? `/${priceUnit}` : 'total'}
         </div>
         <button class="ci-remove" onclick="removeFromCart(${index})">
           <i class="fa-solid fa-trash"></i> Remove
@@ -2303,7 +2305,8 @@ function renderApartmentCard(apartment, totalCount) {
   const pricePerUnit = listingType === 'rent'
     ? parseFloat(rawRentPrice) || parseFloat(rawSalePrice) || 0
     : parseFloat(rawSalePrice) || parseFloat(rawRentPrice) || 0;
-  const listingLabel = listingType === 'rent' ? '/year' : 'total';
+  const priceUnit = apartment.priceUnit || apartment.price_unit || 'month';
+  const listingLabel = listingType === 'rent' ? `/${priceUnit}` : 'total';
   const displayPrice = pricePerUnit > 0 ? parseInt(pricePerUnit).toLocaleString() : 'Price on request';
   
   const typeLabel = {
