@@ -1060,15 +1060,23 @@ function renderSearchCategoryFilters() {
 
   const productCategories = searchCategories.length
     ? [...new Set(searchCategories.map(cat => String(cat).trim()).filter(Boolean))]
-    : [...new Set(source.map(item => item.category || '').filter(Boolean))];
+    : [...new Set(source.map(item => item.category || '').filter(Boolean).map(cat => String(cat).trim()))];
 
   const typeCategories = [...new Set(source.map(item => {
-    if (item.type === 'land') return 'land';
-    if (item.type === 'apartment') return item.apartmentType || item.apartment_type || 'apartment';
+    if (item.type === 'land') return 'Land';
+    if (item.type === 'apartment') return item.apartmentType || item.apartment_type || 'Apartment';
     return null;
-  }).filter(Boolean))];
+  }).filter(Boolean).map(cat => String(cat).trim()))];
 
-  const categories = [...new Set([...productCategories, ...typeCategories])];
+  const categoryMap = new Map();
+  [...productCategories, ...typeCategories].forEach(cat => {
+    const key = cat.toString().trim().toLowerCase();
+    if (!categoryMap.has(key)) {
+      categoryMap.set(key, cat.toString().trim());
+    }
+  });
+
+  const categories = [...categoryMap.values()];
   const pills = ['all', ...categories].map(cat => `
     <span class="search-pill ${searchCategoryFilter === cat.toString().toLowerCase() ? 'active' : ''}" onclick="applySearchCategoryFilter('${cat.replace(/'/g, "\\'")}')">${cat === 'all' ? 'All' : cat}</span>
   `).join('');
