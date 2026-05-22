@@ -4072,9 +4072,11 @@ function hidePageLoader() {
     console.log('[DEBUG] Page loader hidden successfully');
     
     initializeAudio();
+    // Wait longer to ensure audio context is ready and page is interactive
     setTimeout(() => {
+      console.log('[DEBUG] Playing completion sound');
       createCompletionSound();
-    }, 150);
+    }, 300);
   } else {
     console.warn('[DEBUG] Page loader element not found');
   }
