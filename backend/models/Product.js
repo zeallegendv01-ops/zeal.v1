@@ -59,6 +59,18 @@ const productSchema = new mongoose.Schema({
     }
   },
 
+  // Pricing unit for rent (e.g., "month", "day", "week", "night", "year")
+  priceUnit: {
+    type: String,
+    default: 'month',
+    validate: {
+      validator: function(v) {
+        return this.type !== 'apartment' || this.listingType !== 'rent' || (v && v.length > 0);
+      },
+      message: 'Price unit is required for apartment rentals'
+    }
+  },
+
   price: {
     type: Number,
     min: 0,

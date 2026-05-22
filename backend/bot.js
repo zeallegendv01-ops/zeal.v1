@@ -832,7 +832,7 @@ bot.command('products', errorWrapper(async (ctx) => {
       
       const listingLabel = apt.listingType === 'rent' ? 'For Rent' : 'For Sale';
       const priceDisplay = apt.listingType === 'rent' 
-        ? `${apt.pricePerMonth.toLocaleString()}/month`
+        ? `${apt.pricePerMonth.toLocaleString()}/${apt.priceUnit || 'month'}`
         : `${apt.price.toLocaleString()} (total)`;
       
       const caption = ` <b>${apt.name}</b>\n\n` +
@@ -1560,7 +1560,7 @@ bot.action('apartment_list', async (ctx) => {
       
       const listingLabel = apt.listingType === 'rent' ? 'For Rent' : 'For Sale';
       const priceDisplay = apt.listingType === 'rent' 
-        ? `${apt.pricePerMonth.toLocaleString()}/month`
+        ? `${apt.pricePerMonth.toLocaleString()}/${apt.priceUnit || 'month'}`
         : `${apt.price.toLocaleString()} (total)`;
       
       const caption = ` <b>${apt.name}</b>\n\n` +
@@ -2151,6 +2151,27 @@ bot.on('text', errorWrapper(async (ctx) => {
       if (isNaN(context[priceField]) || context[priceField] <= 0) {
         return ctx.reply(' ⚠️ <b>Invalid price</b>\n\nPlease enter a valid number greater than 0:', { parse_mode: 'HTML' });
       }
+      
+      // For rentals, ask for pricing unit (month, day, week, night, year, etc.)
+      if (context.listingType === 'rent') {
+        context.step = 'create_apartment_price_unit';
+        return ctx.reply(' <b>Pricing Unit</b>\n\nWhat is the pricing period?\n\nExamples: month, week, day, night, year\n\nOr enter a custom unit:', { parse_mode: 'HTML' });
+      }
+      
+      context.step = 'create_apartment_image';
+      return ctx.reply(' <b>Upload Image</b>\n\nYou can:\n1. Upload a photo\n2. Provide an image URL\n3. Skip for now', {
+        reply_markup: Markup.inlineKeyboard([
+          [Markup.button.callback('Upload Photo', 'apartment_image_upload')],
+          [Markup.button.callback('Image URL', 'apartment_image_url')],
+          [Markup.button.callback('Skip', 'apartment_image_skip')]
+        ]).reply_markup
+      });
+
+    case 'create_apartment_price_unit':
+      context.priceUnit = ctx.message.text.trim().toLowerCase();
+      if (!context.priceUnit || context.priceUnit.length === 0) {
+        return ctx.reply(' ⚠️ Please enter a valid pricing unit (e.g., month, week, day, night, year):', { parse_mode: 'HTML' });
+      }
       context.step = 'create_apartment_image';
       return ctx.reply(' <b>Upload Image</b>\n\nYou can:\n1. Upload a photo\n2. Provide an image URL\n3. Skip for now', {
         reply_markup: Markup.inlineKeyboard([
@@ -2236,7 +2257,7 @@ bot.on('text', errorWrapper(async (ctx) => {
           
           const listingLabel = apt.listingType === 'rent' ? 'For Rent' : 'For Sale';
           const priceDisplay = apt.listingType === 'rent' 
-            ? `${apt.pricePerMonth.toLocaleString()}/month`
+            ? `${apt.pricePerMonth.toLocaleString()}/${apt.priceUnit || 'month'}`
             : `${apt.price.toLocaleString()} (total)`;
           
           const caption = ` <b>${apt.name}</b>\n\n` +
@@ -2863,6 +2884,7 @@ async function saveApartmentListing(ctx, context) {
       if (isNaN(apartmentData.pricePerMonth) || apartmentData.pricePerMonth <= 0) {
         return ctx.reply(' Invalid rent price. Please enter a positive number.');
       }
+      apartmentData.priceUnit = context.priceUnit || 'month';
     } else {
       apartmentData.price = parseFloat(context.price);
       if (isNaN(apartmentData.price) || apartmentData.price <= 0) {
@@ -2895,7 +2917,7 @@ async function saveApartmentListing(ctx, context) {
     }[context.apartmentType] || context.apartmentType;
 
     const priceDisplay = context.listingType === 'rent' 
-      ? `NGN${context.pricePerMonth.toLocaleString()}/month`
+      ? `NGN${context.pricePerMonth.toLocaleString()}/${context.priceUnit || 'month'}`
       : `NGN${context.price.toLocaleString()}`;
 
     const furnishedStatus = context.furnished ? '✓ Furnished' : '○ Unfurnished';
