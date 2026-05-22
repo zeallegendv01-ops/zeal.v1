@@ -122,7 +122,11 @@ const upload = multer({
 });
 
 // Middleware
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:4000').split(',').map(origin => origin.trim());
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:4000').split(',').map(origin => origin.trim()).filter(Boolean);
+if (process.env.FRONTEND_URL) {
+  corsOrigins.push(...process.env.FRONTEND_URL.split(',').map(origin => origin.trim()).filter(Boolean));
+}
+const allowedOrigins = Array.from(new Set(corsOrigins));
 
 // Security middleware
 app.use(helmet({
@@ -160,15 +164,21 @@ app.use(globalLimiter);
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin || origin === 'null') return callback(null, true);
-    
-    // Check if origin is in allowed list
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('CORS not allowed for: ' + origin));
+    // Allow requests with no origin (like mobile apps, curl, or same-origin server-side requests)
+    if (!origin || origin === 'null') {
+      return callback(null, true);
     }
+
+    // Allow all origins when configured explicitly with wildcard
+    if (allowedOrigins.includes('*')) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    callback(new Error('CORS not allowed for: ' + origin));
   },
   credentials: true
 }));

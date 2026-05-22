@@ -2278,7 +2278,7 @@ function renderProductCard(product, totalCount) {
             <span>Weight (${unit})</span>
             <span class="wval" id="wv-${product._id}" style="min-width: 35px; text-align: right;">1 ${unit}</span>
           </div>
-          <input type="range" class="wrange" min="1" max="100" value="1" step="1"
+          <input type="range" class="wrange" min="1" max="${quantity}" value="1" step="1"
             oninput="updateProductPrice('${product._id}', ${price}, this.value)">
         </div>
         <button class="product-btn" onclick="addToCartFromCard('${product._id}')"><i class="fa-solid fa-basket-shopping"></i> Add to Selection</button>

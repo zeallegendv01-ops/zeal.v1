@@ -7,7 +7,7 @@ const User = require('../models/User');
 exports.getDashboardAnalytics = async (req, res) => {
   try {
     const products = await Product.find().select('name pricePerKg category');
-    const orders = await Order.find().select('total status createdAt userId quantity items');
+    const orders = await Order.find().select('total status createdAt buyer quantity items');
     const users = await User.find().select('email createdAt');
 
     // Calculate metrics
@@ -26,20 +26,20 @@ exports.getDashboardAnalytics = async (req, res) => {
     // Product-specific analytics (dynamic - not hardcoded)
     const productAnalytics = products.map(p => {
       const productOrders = orders.filter(o => 
-        o.items && o.items.some(item => item.productId && item.productId.toString() === p._id.toString())
+        o.items && o.items.some(item => item.product && item.product.toString() === p._id.toString())
       );
       const totalSold = productOrders
         .filter(o => o.status === 'completed')
         .reduce((sum, o) => {
-          const productItem = o.items.find(item => item.productId && item.productId.toString() === p._id.toString());
-          return sum + (productItem ? productItem.quantity * productItem.weight : 0);
+          const productItems = o.items.filter(item => item.product && item.product.toString() === p._id.toString());
+          return sum + productItems.reduce((itemSum, item) => itemSum + (item.quantity * item.weight), 0);
         }, 0);
       
       const revenue = productOrders
         .filter(o => o.status === 'completed')
         .reduce((sum, o) => {
-          const productItem = o.items.find(item => item.productId && item.productId.toString() === p._id.toString());
-          return sum + (productItem ? productItem.quantity * productItem.weight * p.pricePerKg : 0);
+          const productItems = o.items.filter(item => item.product && item.product.toString() === p._id.toString());
+          return sum + productItems.reduce((itemSum, item) => itemSum + (item.subtotal || 0), 0);
         }, 0);
 
       return {
@@ -104,8 +104,8 @@ exports.getUserAnalytics = async (req, res) => {
     const userId = req.user.id;
     
     // Get user orders
-    const userOrders = await Order.find({ userId })
-      .populate('items.productId', 'name pricePerKg category')
+    const userOrders = await Order.find({ buyer: userId })
+      .populate('items.product', 'name pricePerKg category')
       .sort({ createdAt: -1 });
 
     // Calculate metrics
@@ -139,10 +139,10 @@ exports.getUserAnalytics = async (req, res) => {
       total: order.total,
       status: order.status,
       items: order.items.map(item => ({
-        name: item.productId?.name || 'Unknown',
+        name: item.product?.name || 'Unknown',
         quantity: item.quantity,
         weight: item.weight,
-        subtotal: item.quantity * item.weight * (item.productId?.pricePerKg || 0)
+        subtotal: item.subtotal || item.quantity * item.weight * (item.product?.pricePerKg || 0)
       }))
     }));
 
@@ -151,7 +151,7 @@ exports.getUserAnalytics = async (req, res) => {
     userOrders.forEach(order => {
       if (order.items) {
         order.items.forEach(item => {
-          const productName = item.productId?.name || 'Unknown';
+          const productName = item.product?.name || 'Unknown';
           if (!productPreferences[productName]) {
             productPreferences[productName] = { count: 0, total: 0 };
           }
