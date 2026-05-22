@@ -1105,6 +1105,7 @@ nav:hover {
   display: none;
   flex-direction: column;
   gap: 14px;
+  width: 100%;
 }
 
 .auth-panel.active {
@@ -1150,35 +1151,6 @@ nav:hover {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-}
-
-.auth-form-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  width: 100%;
-}
-
-.auth-step {
-  display: none;
-  flex-direction: column;
-  gap: 14px;
-  animation: slideIn 0.3s ease-out;
-}
-
-.auth-step.active {
-  display: flex;
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .auth-submit {
