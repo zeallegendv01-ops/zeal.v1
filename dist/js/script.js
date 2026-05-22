@@ -4068,14 +4068,13 @@ function hidePageLoader() {
   const loader = document.getElementById('pageLoader');
   if (loader) {
     console.log('[DEBUG] Hiding page loader');
-    // Play completion sound
-    createCompletionSound();
+    loader.classList.add('hidden');
+    console.log('[DEBUG] Page loader hidden successfully');
     
-    // Hide loader with animation
+    initializeAudio();
     setTimeout(() => {
-      loader.classList.add('hidden');
-      console.log('[DEBUG] Page loader hidden successfully');
-    }, 100);
+      createCompletionSound();
+    }, 150);
   } else {
     console.warn('[DEBUG] Page loader element not found');
   }

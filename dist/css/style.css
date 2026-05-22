@@ -3559,6 +3559,57 @@ blockquote p {
   color: rgba(244, 242, 237, 0.4);
 }
 
+/* New testimonial card grid and form styles */
+.testimonial-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+}
+.testimonial-card {
+  background: rgba(255,255,255,0.04);
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(3,3,3,0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.testimonial-card .card-quote,
+.testimonial-card .testimonial-text {
+  font-family: var(--serif);
+  font-size: 1rem;
+  color: rgba(244,242,237,0.9);
+  line-height: 1.45;
+  font-style: italic;
+}
+.testimonial-card .card-meta,
+.testimonial-card .testimonial-author {
+  display:flex;
+  gap:12px;
+  align-items:center;
+  margin-top:auto;
+}
+.testimonial-card .card-avatar,
+.testimonial-card .testimonial-avatar,
+.testimonial-card .testimonial-avatar.initials {
+  width:48px;height:48px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;color:var(--canvas);font-weight:700;overflow:hidden
+}
+.testimonial-card .testimonial-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.testimonial-card .testimonial-name{font-weight:700;color:var(--gold-lt);font-size:0.9rem}
+.testimonial-card .testimonial-meta{font-size:0.78rem;color:rgba(244,242,237,0.55);margin-left:6px}
+.testimonial-submit { padding-left: 24px; }
+.testimonial-form { display:flex;flex-direction:column;gap:10px;background:transparent }
+.testimonial-form .form-row { display:flex;gap:10px }
+.testimonial-form .input-full { width:100%; padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:var(--canvas) }
+.testimonial-form input, .testimonial-form textarea { padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:var(--canvas) }
+.form-message{font-size:0.9rem;color:var(--gold-lt);margin-top:6px}
+
+@media (max-width: 900px) {
+  .testimonial { grid-template-columns: 1fr; padding: 60px 6%; }
+  .testimonial-right { margin-top: 20px }
+  .testimonial-submit { padding-left: 0 }
+}
+
 /* ─── CONTACT ─── */
 .contact {
   padding: 120px 8%;

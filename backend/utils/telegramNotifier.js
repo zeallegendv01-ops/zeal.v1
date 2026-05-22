@@ -109,6 +109,19 @@ class TelegramNotifier {
     return await this.sendMessage(this.adminId, message);
   }
 
+  async notifyNewTestimonial(testimonial) {
+    if (!this.adminId || !this.botToken) return;
+
+    const message = ` <b>NEW TESTIMONIAL SUBMISSION</b>\n\n` +
+      ` <b>Name:</b> ${testimonial.name}\n` +
+      ` <b>Email:</b> ${testimonial.email}\n` +
+      ` <b>Quote:</b> ${testimonial.quote.substring(0, 250)}${testimonial.quote.length > 250 ? '...' : ''}\n\n` +
+      ` <b>Status:</b> Pending approval\n\n` +
+      `Use /pendingtestimonials in the bot to review pending testimonials.`;
+
+    return await this.sendMessage(this.adminId, message);
+  }
+
   async notifyPayment(order, paymentIntent) {
     if (!this.adminId || !this.botToken) {
       console.log('Telegram credentials not configured');
