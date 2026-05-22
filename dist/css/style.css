@@ -1115,6 +1115,7 @@ nav:hover {
   display: flex;
   flex-direction: column;
   gap: 7px;
+  width: 100%;
 }
 
 .auth-field label {
@@ -1126,6 +1127,7 @@ nav:hover {
 }
 
 .auth-field input {
+  width: 100%;
   padding: 14px 16px;
   background: var(--mist);
   border: 1px solid transparent;
@@ -1135,6 +1137,7 @@ nav:hover {
   color: var(--ink);
   outline: none;
   transition: all 0.3s var(--ease);
+  box-sizing: border-box;
 }
 
 .auth-field input:focus {
