@@ -1,4 +1,5 @@
 ﻿const path = require('path');
+const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const { Telegraf, Markup } = require('telegraf');
 const axios = require('axios');
@@ -8,6 +9,219 @@ const https = require('https');
 const jwt = require('jsonwebtoken');
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+
+const GROUP_CONFIG = {
+  name: 'My Awesome Community',
+  topic: 'crypto trading and investing',
+  rules: [
+    'No spam or self-promotion without permission',
+    'Be respectful to all members',
+    'No NSFW content',
+    'English only in the main chat',
+    'No sharing of illegal content',
+  ],
+  adminContact: {
+    username: '@YourAdminUsername',
+    topicsToRefer: [
+      'disputes between members',
+      'ban appeals',
+      'partnership or sponsorship requests',
+      'technical issues with the group',
+      'requests to change group rules',
+      'report about a specific member',
+      'payment or financial disputes',
+    ],
+  },
+  botPersonality: 'friendly, helpful, and professional. You use occasional emojis but don\'t overdo it.',
+  dailyReportHour: 23,
+};
+
+const GROUP_DATA_FILE = path.join(__dirname, 'group_bot_data.json');
+
+function loadGroupData() {
+  try {
+    return JSON.parse(fs.readFileSync(GROUP_DATA_FILE, 'utf8'));
+  } catch {
+    return {
+      strikes: {},
+      userProfiles: {},
+      dailyLog: [],
+      rulesMessageId: null,
+      lastReportDate: null,
+    };
+  }
+}
+
+function saveGroupData() {
+  try {
+    fs.writeFileSync(GROUP_DATA_FILE, JSON.stringify(groupStore, null, 2));
+  } catch (error) {
+    console.error('[Group Store] Failed to save group data:', error.message);
+  }
+}
+
+const groupStore = loadGroupData();
+
+function isGroupChat(ctx) {
+  return ctx.chat && (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup');
+}
+
+function buildGroupRulesText() {
+  return `📋 *${GROUP_CONFIG.name} — Group Rules*\n\n${GROUP_CONFIG.rules.map((r, i) => `${i + 1}. ${r}`).join('\n')}\n\n⚠️ Breaking rules results in warnings. 3 warnings = ban.\n📩 Questions? Contact ${GROUP_CONFIG.adminContact.username}`;
+}
+
+async function postAndPinRules(ctx) {
+  try {
+    if (!isGroupChat(ctx)) return null;
+
+    if (groupStore.rulesMessageId) {
+      await ctx.telegram.unpinChatMessage(process.env.GROUP_CHAT_ID, groupStore.rulesMessageId).catch(() => {});
+    }
+
+    const sent = await ctx.telegram.sendMessage(process.env.GROUP_CHAT_ID, buildGroupRulesText(), { parse_mode: 'Markdown' });
+    await ctx.telegram.pinChatMessage(process.env.GROUP_CHAT_ID, sent.message_id, { disable_notification: true });
+    groupStore.rulesMessageId = sent.message_id;
+    saveGroupData();
+    return sent.message_id;
+  } catch (err) {
+    console.error('[Group Rules] Pin error:', err.message);
+    return null;
+  }
+}
+
+function logGroupMessage(userId, username, message) {
+  groupStore.dailyLog.push({
+    userId,
+    username,
+    message: message.slice(0, 300),
+    timestamp: new Date().toISOString(),
+  });
+  if (groupStore.dailyLog.length > 2000) {
+    groupStore.dailyLog = groupStore.dailyLog.slice(-2000);
+  }
+  saveGroupData();
+}
+
+function trackGroupUser(userId, firstName) {
+  if (!groupStore.userProfiles[userId]) {
+    groupStore.userProfiles[userId] = {
+      firstName,
+      firstSeen: new Date().toISOString(),
+      messageCount: 0,
+    };
+  }
+  groupStore.userProfiles[userId].messageCount++;
+  groupStore.userProfiles[userId].firstName = firstName;
+  saveGroupData();
+}
+
+function containsSensitiveContent(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const sensitivePatterns = [
+    'password', 'passphrase', 'api key', 'secret key', 'private key', 'token', 'credit card',
+    'social security', 'ssn', 'dob', 'exploit', 'vulnerability', 'sql injection', 'xss',
+    'csrf', 'backdoor', 'payload', 'shellcode', 'ddos', 'honeypot', 'dump', 'leak', 'hack',
+    'CVE', 'CVE-', 'trojan', 'ransomware', 'cryptomining', 'wallet seed', 'seed phrase', 'mnemonic',
+    'ssh key', 'private key', 'login credentials', 'database password', 'admin password', 'root password',
+  ];
+  return sensitivePatterns.some(pattern => lower.includes(pattern));
+}
+
+function containsJailbreakRequest(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const jailbreakPatterns = [
+    'ignore instructions', 'ignore previous', 'jailbreak', 'override rules', 'emergency stop',
+    'bypass safety', 'do anything now', 'reprogram yourself', 'break out', "don't follow your rules",
+  ];
+  return jailbreakPatterns.some(pattern => lower.includes(pattern));
+}
+
+function shouldProvideGroupResponse(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const helpKeywords = ['suggest', 'recommend', 'product', 'catalog', 'available', 'where', 'help', 'list', 'best', 'find', 'what', 'which', 'how much', 'price', 'cost', 'looking for', 'need', 'want', 'show', 'get', 'have', 'sell', 'offer', 'export', 'import', 'do you', 'can you', 'do you have', 'sell', 'do we', 'do yall'];
+  return helpKeywords.some(keyword => lower.includes(keyword));
+}
+
+function formatGroupProducts(products) {
+  if (!products || products.length === 0) return '';
+  return products.map(p => {
+    const price = p.pricePerKg ? `₦${p.pricePerKg.toLocaleString()}/${p.unit || 'kg'}` : (p.pricePerPlot ? `₦${p.pricePerPlot.toLocaleString()}/plot` : 'Price on request');
+    const qty = p.quantity != null ? `${p.quantity}${p.unit || 'kg'}` : (p.numberOfPlots ? `${p.numberOfPlots} plots` : 'N/A');
+    const category = p.category || p.type || 'General';
+    const desc = p.description ? p.description.substring(0, 100) + (p.description.length > 100 ? '...' : '') : '';
+    return `• <b>${p.name}</b> - ${price}\n  Stock: ${qty}${p.minLimit ? ` · Min: ${p.minLimit}` : ''}${p.maxLimit ? ` · Max: ${p.maxLimit}` : ''}\n  Category: ${category}\n  ${desc}`;
+  }).join('\n\n');
+}
+
+async function fetchGroupProducts(query) {
+  try {
+    let products = getCache('products');
+    if (!products) {
+      const response = await queueRequest(() => api.get('/products'));
+      products = response.data.data || [];
+      setCache('products', products, CACHE_DURATIONS.products);
+    }
+
+    if (!query) {
+      return products.filter(p => p.status !== 'inactive').slice(0, 5);
+    }
+
+    const lowerQuery = query.toLowerCase();
+    const filtered = products.filter(p => {
+      return [p.name, p.description, p.category, p.type, p.location, p.apartmentAddress]
+        .filter(Boolean)
+        .some(field => field.toLowerCase().includes(lowerQuery));
+    });
+    return filtered.slice(0, 5);
+  } catch (error) {
+    console.error('[Group Products] Fetch error:', error.message);
+    return [];
+  }
+}
+
+async function sendGroupDailyReport() {
+  const today = new Date().toISOString().split('T')[0];
+  if (groupStore.lastReportDate === today) return;
+
+  if ((groupStore.dailyLog || []).length === 0) {
+    return;
+  }
+
+  const todayLogs = groupStore.dailyLog.filter(l => l.timestamp.startsWith(today));
+  const activeUsers = [...new Set(todayLogs.map(l => l.userId))];
+  const userMessageCounts = {};
+  todayLogs.forEach(l => { userMessageCounts[l.username] = (userMessageCounts[l.username] || 0) + 1; });
+  const topUsers = Object.entries(userMessageCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  const report = `📊 *Daily Report — ${today}*\n\n` +
+    `👥 *Activity Overview*\n` +
+    `• Messages: ${todayLogs.length}\n` +
+    `• Active members: ${activeUsers.length}\n` +
+    `• Top contributors: ${topUsers.map(([name, count])=>`${name}: ${count}`).join(', ')}\n\n` +
+    `⚠️ *Moderation Summary*\n` +
+    `• Warnings issued: ${Object.values(groupStore.strikes).reduce((sum, count) => sum + count, 0)}\n\n` +
+    `💡 *Recommendations*\n` +
+    `• Encourage members to keep questions in the main thread.\n`;
+
+  try {
+    await bot.telegram.sendMessage(process.env.GROUP_CHAT_ID, report, { parse_mode: 'Markdown' });
+    groupStore.lastReportDate = today;
+    groupStore.dailyLog = groupStore.dailyLog.filter(l => !l.timestamp.startsWith(today));
+    saveGroupData();
+  } catch (error) {
+    console.error('[Group Report] Send error:', error.message);
+  }
+}
+
+setInterval(async () => {
+  const now = new Date();
+  if (now.getHours() === GROUP_CONFIG.dailyReportHour && now.getMinutes() === 0) {
+    await sendGroupDailyReport();
+  }
+}, 60 * 1000);
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
 
 // Support multiple admin IDs - can be comma-separated in env
@@ -353,18 +567,33 @@ const errorWrapper = (handler, command = '') => async (ctx) => {
 
 // Middleware to check admin
 const isAdmin = (ctx) => {
-  return ADMIN_IDS.includes(ctx.from.id);
+  return ctx.chat?.type === 'private' && ADMIN_IDS.includes(ctx.from.id);
 };
 
 const checkAdmin = async (ctx) => {
-  if (!isAdmin(ctx)) {
-    return ctx.reply(' You are not authorized to use this bot.');
+  if (ctx.chat?.type !== 'private') {
+    await ctx.reply('Admin commands are only available in private chat. Please message me directly.');
+    return false;
   }
+  if (!ADMIN_IDS.includes(ctx.from.id)) {
+    await ctx.reply('You are not authorized to use this bot.');
+    return false;
+  }
+  return true;
 };
 
 // START COMMAND
 bot.start(errorWrapper(async (ctx) => {
-  // Admin users get the admin dashboard
+  if (isGroupChat(ctx)) {
+    return ctx.reply(
+      `👋 Welcome to *${GROUP_CONFIG.name}*!\n\n` +
+      `I am your group assistant here to help with ${GROUP_CONFIG.topic} questions and suggestions.\n` +
+      `Just ask me about products, recommendations, or use /rules to see group policy.`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  // Admin users get the admin dashboard in private chat only
   if (isAdmin(ctx)) {
     return ctx.reply(
       ' <b>365extra Admin Dashboard</b>\n\n' +
@@ -420,6 +649,89 @@ bot.start(errorWrapper(async (ctx) => {
       ]).reply_markup
     }
   );
+}));
+
+// MEMBER JOIN HANDLER - Welcome new users and post rules
+bot.on('chat_member', errorWrapper(async (ctx) => {
+  if (!isGroupChat(ctx)) return;
+
+  const status = ctx.update.chat_member.new_chat_member.status;
+  const userId = ctx.update.chat_member.new_chat_member.user.id;
+  const userName = ctx.update.chat_member.new_chat_member.user.first_name || ctx.update.chat_member.new_chat_member.user.username || 'Member';
+  const isBot = ctx.update.chat_member.new_chat_member.user.is_bot;
+
+  // Skip if it's the bot itself joining
+  if (isBot && userId === ctx.botInfo.id) return;
+
+  // Detect new member joining (status changed from non-member to member)
+  if (status === 'member' || status === 'restricted') {
+    try {
+      // Welcome message
+      await ctx.reply(
+        `🎉 Welcome to *${GROUP_CONFIG.name}*, ${userName}!\n\n` +
+        `Please review the group rules below and feel free to ask questions about ${GROUP_CONFIG.topic}.`,
+        { parse_mode: 'Markdown' }
+      );
+
+      // Post and pin rules
+      await postAndPinRules(ctx);
+      trackGroupUser(userId, userName);
+    } catch (error) {
+      console.error('[Member Join] Error welcoming user:', error.message);
+    }
+  }
+}));
+
+// BOT ADDED TO GROUP HANDLER
+bot.on('my_chat_member', errorWrapper(async (ctx) => {
+  if (!isGroupChat(ctx)) return;
+
+  const status = ctx.update.my_chat_member.new_chat_member.status;
+
+  if (status === 'member' || status === 'administrator') {
+    try {
+      // Introduce bot and post rules
+      await ctx.reply(
+        `👋 Hello! I'm your assistant for *${GROUP_CONFIG.topic}*.\n\n` +
+        `I'll help with product suggestions, answer questions, and ensure everyone follows our group policy.\n\n` +
+        `📋 Here are the group rules:`,
+        { parse_mode: 'Markdown' }
+      );
+
+      // Post and pin rules
+      await postAndPinRules(ctx);
+    } catch (error) {
+      console.error('[Bot Added] Error posting rules:', error.message);
+    }
+  }
+}));
+
+bot.command('rules', errorWrapper(async (ctx) => {
+  if (!isGroupChat(ctx)) return;
+  return ctx.reply(buildGroupRulesText(), { parse_mode: 'Markdown' });
+}));
+
+bot.command('suggest', errorWrapper(async (ctx) => {
+  if (!isGroupChat(ctx)) return;
+
+  const query = ctx.message.text.split(' ').slice(1).join(' ').trim();
+  if (!query) {
+    return ctx.reply('Tell me what you\'re looking for! For example: /suggest rice or /suggest export products');
+  }
+
+  const products = await fetchGroupProducts(query);
+
+  if (products.length === 0) {
+    return ctx.reply(`Sorry, I couldn't find anything matching "${query}". Try asking about other products or crops!`);
+  }
+
+  const formatted = formatGroupProducts(products);
+  if (formatted) {
+    return ctx.reply(
+      `✅ Suggestions for *${query}*:\n\n${formatted}`,
+      { parse_mode: 'HTML' }
+    );
+  }
 }));
 
 // COMMAND HANDLERS
@@ -3207,7 +3519,44 @@ bot.on('text', errorWrapper(async (ctx) => {
   const userId = ctx.from.id;
   const context = userContext[userId];
 
-  if (!context) return; // No active workflow
+  if (!context) {
+    if (!isGroupChat(ctx) || !ctx.message.text || ctx.message.text.startsWith('/')) {
+      return;
+    }
+
+    const text = ctx.message.text.trim();
+    trackGroupUser(ctx.from.id, ctx.from.first_name || ctx.from.username || 'Member');
+    logGroupMessage(ctx.from.id, ctx.from.username || ctx.from.first_name || 'Member', text);
+
+    if (containsJailbreakRequest(text)) {
+      groupStore.strikes[ctx.from.id] = (groupStore.strikes[ctx.from.id] || 0) + 1;
+      saveGroupData();
+      return ctx.reply('⚠️ I cannot follow that request. Please keep questions within the group rules and ask about products, availability, or safe community topics.');
+    }
+
+    if (containsSensitiveContent(text)) {
+      groupStore.strikes[ctx.from.id] = (groupStore.strikes[ctx.from.id] || 0) + 1;
+      saveGroupData();
+      return ctx.reply('🔒 I am unable to respond to that request. Please ask about products or other safe community topics.');
+    }
+
+    if (shouldProvideGroupResponse(text)) {
+      const products = await fetchGroupProducts(text);
+      if (products.length === 0) {
+        return ctx.reply('I don\'t see matching products right now, but feel free to ask me anytime! You can ask about specific crops, locations, or what we typically offer.');
+      }
+
+      const formatted = formatGroupProducts(products);
+      if (formatted) {
+        return ctx.reply(
+          `✅ Here are some suggestions:\n\n${formatted}`,
+          { parse_mode: 'HTML' }
+        );
+      }
+    }
+
+    return;
+  }
 
   // Handle newsletter workflow steps
   if (context.step === 'sendmail_subject') {
