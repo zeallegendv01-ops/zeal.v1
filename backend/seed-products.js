@@ -1,14 +1,14 @@
 ﻿const mongoose = require('mongoose');
 require('dotenv').config();
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/365extra', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
-
 const Product = require('./models/Product');
 const User = require('./models/User');
+
+if (mongoose.connection.readyState === 0) {
+  console.warn('⚠️  seed-products.js was loaded before the main MongoDB connection was established.');
+  console.warn('    This file should be imported after connectDB() runs in server.js.');
+}
+
 
 const sampleProducts = [
   {
