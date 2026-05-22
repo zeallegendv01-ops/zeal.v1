@@ -108,18 +108,32 @@
         </div>
       </div>
       <div class="auth-panel" id="registerPanel">
-        <div class="auth-field"><label>First Name</label><input type="text" placeholder="First"></div>
-        <div class="auth-field"><label>Last Name</label><input type="text" placeholder="Last"></div>
-        <div class="auth-field"><label>Email Address</label><input type="email" placeholder="you@example.com"></div>
-        <div class="auth-field"><label>Phone Number</label><input type="tel" placeholder="+234 xxx xxx xxxx"></div>
-        <div class="auth-field"><label>Password</label><input type="password" placeholder="Min. 8 characters"></div>
-        <div class="auth-field"><label>Account Type</label><input type="text" placeholder="Buyer / Distributor / Wholesaler"></div>
-        <button class="auth-submit">Create Account</button>
-        <!-- <div class="auth-divider">or continue with</div>
-        <div class="auth-social">
-          <button class="auth-social-btn"><i class="fa-brands fa-google"></i> Google</button>
-          <button class="auth-social-btn"><i class="fa-brands fa-linkedin"></i> LinkedIn</button> -->
-        <!-- </div> -->
+        <div class="auth-form-steps">
+          <!-- Step 1: Name -->
+          <div class="auth-step active" id="registerStep1">
+            <div class="auth-field"><label>First Name</label><input type="text" id="regFirstName" placeholder="First"></div>
+            <div class="auth-field"><label>Last Name</label><input type="text" id="regLastName" placeholder="Last"></div>
+            <button class="auth-submit" onclick="nextRegisterStep(1)">Next</button>
+          </div>
+          <!-- Step 2: Contact -->
+          <div class="auth-step" id="registerStep2">
+            <div class="auth-field"><label>Email Address</label><input type="email" id="regEmail" placeholder="you@example.com"></div>
+            <div class="auth-field"><label>Phone Number</label><input type="tel" id="regPhone" placeholder="+234 xxx xxx xxxx"></div>
+            <div style="display: flex; gap: 8px;">
+              <button class="auth-submit" style="flex:1;" onclick="prevRegisterStep(2)">Back</button>
+              <button class="auth-submit" style="flex:1;" onclick="nextRegisterStep(2)">Next</button>
+            </div>
+          </div>
+          <!-- Step 3: Credentials -->
+          <div class="auth-step" id="registerStep3">
+            <div class="auth-field"><label>Password</label><input type="password" id="regPassword" placeholder="Min. 8 characters"></div>
+            <div class="auth-field"><label>Account Type</label><input type="text" id="regAccountType" placeholder="Buyer / Distributor / Wholesaler"></div>
+            <div style="display: flex; gap: 8px;">
+              <button class="auth-submit" style="flex:1;" onclick="prevRegisterStep(3)">Back</button>
+              <button class="auth-submit" style="flex:1;">Create Account</button>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="auth-panel" id="forgotPanel">
         <h3 style="text-align:center; margin-bottom:20px;">Reset Password</h3>

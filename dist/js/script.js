@@ -764,6 +764,24 @@ function openForgotPasswordPanel(){
   switchAuthTab('forgot', null);
 }
 
+function nextRegisterStep(currentStep) {
+  const step = document.getElementById(`registerStep${currentStep}`);
+  const nextStep = document.getElementById(`registerStep${currentStep + 1}`);
+  if (step && nextStep) {
+    step.classList.remove('active');
+    nextStep.classList.add('active');
+  }
+}
+
+function prevRegisterStep(currentStep) {
+  const step = document.getElementById(`registerStep${currentStep}`);
+  const prevStep = document.getElementById(`registerStep${currentStep - 1}`);
+  if (step && prevStep) {
+    step.classList.remove('active');
+    prevStep.classList.add('active');
+  }
+}
+
 /*  GLOBAL SEARCH OVERLAY  */
 let globalProducts = [
   {_id:'1', type:'product', name:"Artesian Smoked Catfish",price:45000,img:"https://images.unsplash.com/photo-1599056377759-3388006e62e0?auto=format&fit=crop&w=400&q=70",category:'Seafood',description:'Smoked fish',tags:"artesian smoked catfish fish"},
