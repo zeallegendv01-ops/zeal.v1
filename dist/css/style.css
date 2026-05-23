@@ -2428,6 +2428,11 @@ h1.headline .solid {
   /* position: relative; */
   position: absolute;
   overflow: hidden;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 50%;
+  height: 100%;
 }
 
 .hero-right video {
@@ -2435,6 +2440,9 @@ h1.headline .solid {
   height: 100%;
   object-fit: cover;
   display: block;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .hero-right::after {
@@ -4049,7 +4057,6 @@ footer {
   color: var(--gold-lt);
 }
 
-
 /* ─── REVEAL ─── */
 .reveal {
   opacity: 0;
@@ -4079,7 +4086,7 @@ footer {
   .hero-left {
     padding: 80px 6% 60px;
     border: 1px solid rgba(255,255,255,0.85);
-    border-bottom: none;
+    border-bottom: none; 
     border-top-left-radius: 20px;
     border-top-right-radius: 20px;
     overflow: hidden;
@@ -4191,8 +4198,34 @@ footer {
     display: block !important;
   }
 
+  .hero {
+    grid-template-columns: 1fr;
+    padding-top: 72px;
+  }
+
+  .hero-right {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    border-radius: 0;
+  }
+
+  .hero-right video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
   .hero-left {
     padding: 48px 5% 40px;
+    position: relative;
+    z-index: 2;
   }
 
   h1.headline {
