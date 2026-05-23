@@ -8,6 +8,21 @@ const http = require('http');
 const https = require('https');
 const jwt = require('jsonwebtoken');
 
+let groq = null;
+const GROQ_ENABLED = !!process.env.GROQ_API_KEY;
+if (GROQ_ENABLED) {
+  try {
+    const Groq = require('groq-sdk');
+    groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    console.log('[GroupAI] Groq assistant initialized');
+  } catch (err) {
+    console.warn('[GroupAI] Failed to initialize Groq SDK:', err.message);
+    groq = null;
+  }
+} else {
+  console.warn('[GroupAI] GROQ_API_KEY not found, group AI disabled');
+}
+
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
 const GROUP_CONFIG = {
@@ -68,6 +83,95 @@ function isGroupChat(ctx) {
 
 function buildGroupRulesText() {
   return `📋 *${GROUP_CONFIG.name} — Group Rules*\n\n${GROUP_CONFIG.rules.map((r, i) => `${i + 1}. ${r}`).join('\n')}\n\n⚠️ Breaking rules results in warnings. 3 warnings = ban.\n📩 Questions? Contact ${GROUP_CONFIG.adminContact.username}`;
+}
+
+function isDisallowedRequest(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const disallowedPatterns = [
+    'api key', 'secret key', 'private key', 'token', 'password', 'jwt', 'mongo', 'database password',
+    'ssh key', 'credit card', 'social security', 'ssn', 'exploit', 'backdoor', 'payload', 'shellcode',
+    'internal endpoint', 'admin password', 'source code', 'implementation details', 'system prompt',
+    'debug info', 'stack trace', 'server config', 'database uri', 'aws secret', 'config file'
+  ];
+  return disallowedPatterns.some(pattern => lower.includes(pattern));
+}
+
+async function sendAdminAlert(subject, details) {
+  const adminIds = (process.env.ADMIN_TELEGRAM_ID || '')
+    .split(',')
+    .map(id => parseInt(id.trim()))
+    .filter(id => !isNaN(id));
+
+  if (adminIds.length === 0) return;
+
+  const alertText = `🚨 *Group Alert: ${subject}*\n\n${details}`;
+  for (const adminId of adminIds) {
+    try {
+      await bot.telegram.sendMessage(adminId, alertText, { parse_mode: 'Markdown' });
+    } catch (error) {
+      console.warn(`[GroupAI] Failed to send admin alert to ${adminId}:`, error.message);
+    }
+  }
+}
+
+function shouldBotRespond(text, isAdmin = false) {
+  if (!text || text.length < 10) return false;
+  const lower = text.toLowerCase();
+  
+  const engagementPatterns = [
+    /\bhow\b.*\?|\bwhat\b.*\?|\bwhich\b.*\?|\bwhere\b.*\?|\bwhy\b.*\?|\btell.*\?/i,
+    /\b(help|support|advice|suggest|recommend|best|good|tips|guide)\b/i,
+    /\b(product|available|price|cost|order|buy|sell|export|import)\b/i,
+    /\b(how to|can you|could you|would you|should i)\b/i
+  ];
+
+  if (isAdmin) {
+    const adminPatterns = [
+      /\b(group|member|activity|sales|strategy|trend|insight|alert|monitor|manage)\b/i,
+      /\b(should|how|best|improve|increase|reduce|handle)\b.*\b(order|customer|member|group|sale)\b/i
+    ];
+    return adminPatterns.some(p => p.test(lower));
+  }
+
+  return engagementPatterns.some(p => p.test(lower));
+}
+
+async function askGroqAssistant(userMessage, products = [], context = {}) {
+  if (!groq) return null;
+
+  const { isAdmin = false, isGroupChat = false } = context;
+  const productSummary = products.length > 0
+    ? products.slice(0, 5).map(p => {
+        const price = p.pricePerKg ? `₦${p.pricePerKg.toLocaleString()}/${p.unit || 'kg'}` : (p.pricePerPlot ? `₦${p.pricePerPlot.toLocaleString()}/plot` : 'Price on request');
+        const qty = p.quantity != null ? `${p.quantity}${p.unit || 'kg'}` : (p.numberOfPlots ? `${p.numberOfPlots} plots` : 'N/A');
+        return `• ${p.name} — ${price}, Stock: ${qty}`;
+      }).join('\n')
+    : 'No matching products were found for the current query.';
+
+  let systemPrompt = `You are a group assistant for AgroCrown. Answer clearly and respectfully. Use only the product data provided. Do not reveal any internal system information, API keys, credentials, source code, database details, or bot implementation details. If the user asks for sensitive or inappropriate information, politely refuse and direct them to ask about products or general group support. Keep the response short and useful.`;
+
+  if (isAdmin && !isGroupChat) {
+    systemPrompt = `You are a strategic assistant for the AgroCrown admin. Provide brief, actionable advice on group management, sales strategies, and community engagement. Be direct and practical. Do NOT discuss technical implementation or sensitive credentials.`;
+  }
+
+  try {
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.1-70b-versatile',
+      temperature: 0.2,
+      max_tokens: 220,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `User message: ${userMessage}\n\nProduct list:\n${productSummary}` }
+      ]
+    });
+
+    const reply = response.choices?.[0]?.message?.content?.trim();
+    return reply || null;
+  } catch (err) {
+    console.error('[GroupAI] Groq request failed:', err.message);
+    return null;
+  }
 }
 
 async function postAndPinRules(ctx) {
@@ -3539,9 +3643,35 @@ bot.command('sendall', errorWrapper(async (ctx) => {
 // Handle newsletter text inputs
 bot.on('text', errorWrapper(async (ctx) => {
   const userId = ctx.from.id;
+  const isAdminUser = isAdmin(ctx);
   const context = userContext[userId];
 
   if (!context) {
+    // Admin private chat: Autonomous AI assistance
+    if (isAdminUser && !isGroupChat(ctx)) {
+      const text = ctx.message.text.trim();
+      if (!text.startsWith('/')) {
+        const canRespond = shouldBotRespond(text, true);
+        if (canRespond && groq) {
+          const today = new Date().toISOString().split('T')[0];
+          const todayLogs = (groupStore.dailyLog || []).filter(l => l.timestamp.startsWith(today));
+          const activeUsers = [...new Set(todayLogs.map(l => l.userId))];
+          const warnings = Object.entries(groupStore.strikes)
+            .filter(([_, count]) => count > 0)
+            .map(([id, count]) => `User ${id}: ${count}`)
+            .slice(0, 5)
+            .join(', ') || 'None';
+
+          const summary = `Recent group stats: ${todayLogs.length} messages, ${activeUsers.length} active members, warnings: ${warnings}`;
+          const aiReply = await askGroqAssistant(`${text}\n\nContext: ${summary}`, [], { isAdmin: true, isGroupChat: false });
+          if (aiReply) {
+            return ctx.reply(aiReply, { parse_mode: 'Markdown' });
+          }
+        }
+        return;
+      }
+    }
+
     if (!isGroupChat(ctx) || !ctx.message.text || ctx.message.text.startsWith('/')) {
       return;
     }
@@ -3550,20 +3680,32 @@ bot.on('text', errorWrapper(async (ctx) => {
     trackGroupUser(ctx.from.id, ctx.from.first_name || ctx.from.username || 'Member');
     logGroupMessage(ctx.from.id, ctx.from.username || ctx.from.first_name || 'Member', text);
 
-    if (containsJailbreakRequest(text)) {
+    if (containsJailbreakRequest(text) || isDisallowedRequest(text)) {
       groupStore.strikes[ctx.from.id] = (groupStore.strikes[ctx.from.id] || 0) + 1;
       saveGroupData();
-      return ctx.reply('⚠️ I cannot follow that request. Please keep questions within the group rules and ask about products, availability, or safe community topics.');
+      await sendAdminAlert('Suspicious Group Request', `User: ${ctx.from.username || ctx.from.first_name || 'Member'} (${ctx.from.id})\nMessage: ${text}\nReason: ${containsJailbreakRequest(text) ? 'Jailbreak request' : 'Sensitive request'}`);
+      return ctx.reply('⚠️ I cannot follow that request. Please keep questions within the group rules and ask only about safe products, availability, or support topics.');
     }
 
     if (containsSensitiveContent(text)) {
       groupStore.strikes[ctx.from.id] = (groupStore.strikes[ctx.from.id] || 0) + 1;
       saveGroupData();
+      await sendAdminAlert('Sensitive Content Detected', `User: ${ctx.from.username || ctx.from.first_name || 'Member'} (${ctx.from.id})\nMessage: ${text}`);
       return ctx.reply('🔒 I am unable to respond to that request. Please ask about products or other safe community topics.');
     }
 
-    if (shouldProvideGroupResponse(text)) {
-      const products = await fetchGroupProducts(text);
+    const useAI = groq && shouldBotRespond(text, false);
+    const products = await fetchGroupProducts(text);
+
+    if (useAI) {
+      const aiReply = await askGroqAssistant(text, products, { isAdmin: false, isGroupChat: true });
+      if (aiReply) {
+        return ctx.reply(aiReply, { parse_mode: 'Markdown' });
+      }
+    }
+
+    // Only provide product suggestions if bot didn't respond with AI
+    if (!useAI && shouldProvideGroupResponse(text)) {
       if (products.length === 0) {
         return ctx.reply('I don\'t see matching products right now, but feel free to ask me anytime! You can ask about specific crops, locations, or what we typically offer.');
       }
@@ -3572,7 +3714,7 @@ bot.on('text', errorWrapper(async (ctx) => {
       if (formatted) {
         return ctx.reply(
           `✅ Here are some suggestions:\n\n${formatted}`,
-          { parse_mode: 'HTML' }
+          { parse_mode: 'Markdown' }
         );
       }
     }
