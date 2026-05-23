@@ -188,6 +188,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 100dvh;
   padding: 20px;
   opacity: 0;
   pointer-events: none;
