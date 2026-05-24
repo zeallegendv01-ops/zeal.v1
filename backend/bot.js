@@ -1193,21 +1193,20 @@ bot.command('addmarquee', errorWrapper(async (ctx) => {
     return ctx.reply(' Usage: /addmarquee <brand name or message> [optional url]\n\nExample: /addmarquee "New: MARQ — Now Available" https://example.com', { parse_mode: 'HTML' });
   }
 
-  // If last token looks like a URL, use it
   let url = '';
-  let text = args.join(' ');
-  try {
-    const possibleUrl = args[args.length - 1];
-    if (/^https?:\/\//i.test(possibleUrl)) {
-      url = possibleUrl;
-      text = args.slice(0, -1).join(' ');
-    }
-  } catch (e) {
-    // ignore
+  let text = args.join(' ').trim();
+  const possibleUrl = args[args.length - 1];
+  if (/^https?:\/\//i.test(possibleUrl)) {
+    url = possibleUrl;
+    text = args.slice(0, -1).join(' ').trim();
+  }
+
+  if (!text) {
+    return ctx.reply(' Please provide marquee text. Usage: /addmarquee <brand name or message> [optional url]', { parse_mode: 'HTML' });
   }
 
   try {
-    const item = await Marquee.create({ text: text.trim(), url: url, createdBy: ctx.from.username || ctx.from.first_name || 'admin' });
+    const item = await Marquee.create({ text, url, createdBy: ctx.from.username || ctx.from.first_name || 'admin' });
     return ctx.reply(`✅ Marquee item added: ${item.text}`);
   } catch (err) {
     console.error('[Bot] addmarquee error:', err.message);
@@ -1229,17 +1228,21 @@ bot.command('editmarquee', errorWrapper(async (ctx) => {
   }
 
   let url = '';
-  let newText = args.slice(1).join(' ');
+  let newText = args.slice(1).join(' ').trim();
   const possibleUrl = args[args.length - 1];
   if (/^https?:\/\//i.test(possibleUrl)) {
     url = possibleUrl;
-    newText = args.slice(1, -1).join(' ');
+    newText = args.slice(1, -1).join(' ').trim();
+  }
+
+  if (!newText) {
+    return ctx.reply(' Please provide new marquee text. Usage: /editmarquee <id> <new text> [optional url]', { parse_mode: 'HTML' });
   }
 
   try {
     const updated = await Marquee.findByIdAndUpdate(
       id,
-      { text: newText.trim(), url: url },
+      { text: newText, url },
       { new: true }
     );
 
@@ -1264,6 +1267,9 @@ bot.command('deletemarquee', errorWrapper(async (ctx) => {
   }
 
   const query = args.join(' ').trim();
+  if (!query) {
+    return ctx.reply(' Please provide an id or text to delete. Usage: /deletemarquee <id|exact text snippet>', { parse_mode: 'HTML' });
+  }
 
   try {
     // If looks like an ObjectId (24 hex chars), try delete by id
