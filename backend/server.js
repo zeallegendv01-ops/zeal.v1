@@ -122,7 +122,7 @@ const upload = multer({
 });
 
 // Middleware
-const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:4000').split(',').map(origin => origin.trim()).filter(Boolean);
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000, http://localhost:4000').split(',').map(origin => origin.trim()).filter(Boolean);
 if (process.env.FRONTEND_URL) {
   corsOrigins.push(...process.env.FRONTEND_URL.split(',').map(origin => origin.trim()).filter(Boolean));
 }

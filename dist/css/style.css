@@ -395,15 +395,15 @@ nav {
   display: flex;
 
   align-items: center;
-  justify-content: space-around;
-  padding: 0 5%;
+  justify-content: space-between;
+  padding: 0 4%;
   /* background: rgba(244, 242, 237, 0.92); */
   background: rgba(255, 255, 255, 0.203); 
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
   /* border-bottom: 1px solid rgba(201, 169, 97, 0.12); */
   /* box-shadow: var(--shadow-sm); */
-  gap: 60px;
+  gap: 24px;
   transition: box-shadow 0.3s var(--ease-out);
   transform: translateZ(0);
   will-change: transform;
@@ -430,9 +430,12 @@ nav:hover {
 
 .nav-links {
   display: flex;
-  gap: 22px;
+  gap: 18px;
   font-size: 0.7rem;
   list-style: none;
+  flex: 1 1 auto;
+  justify-content: center;
+  min-width: 0;
 }
 
 .nav-links a {
@@ -455,7 +458,8 @@ nav:hover {
 .nav-cta {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  flex: 0 0 auto;
 }
 
 .nav-icon-btn {
@@ -4836,4 +4840,12 @@ footer {
   50% {
     opacity: 0.8;
   }
+}
+
+/* Hide register on short-height mobile landscape to avoid clipping */
+@media (orientation: landscape) and (max-height:480px) {
+  .nav-links { display: none !important; }
+  .hamburger { display: flex !important; }
+  #authBtn, .nav-reg-btn { display: none !important; }
+  #mobileAuthLink { display: block !important; }
 }
