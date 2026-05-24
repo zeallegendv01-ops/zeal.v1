@@ -2172,7 +2172,8 @@ nav:hover {
   }
   
   .cart-toggle-btn {
-    bottom: 20px;
+    /* Move cart button higher on small screens to avoid overlapping scroll-to-top */
+    bottom: 96px;
     right: 20px;
     width: 56px;
     height: 56px;
