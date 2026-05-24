@@ -4320,22 +4320,32 @@ setInterval(() => {
     await initializeToken();
 
     // Register bot command menu so admins can see available commands in Telegram UI
+    const botCommands = [
+      { command: 'addmarquee', description: 'Add a marquee item (admin only)' },
+      { command: 'editmarquee', description: 'Edit a marquee item by id (admin only)' },
+      { command: 'deletemarquee', description: 'Delete marquee items by id or text (admin only)' },
+      { command: 'listmarquee', description: 'List recent marquee items with ids (admin only)' },
+      { command: 'addproduct', description: 'Add a new product (admin only)' },
+      { command: 'editproduct', description: 'Edit an existing product (admin only)' },
+      { command: 'deleteproduct', description: 'Delete a product (admin only)' }
+    ];
+
     try {
-      await bot.telegram.setMyCommands([
-        { command: 'addmarquee', description: 'Add a marquee item (admin only)' },
-        { command: 'editmarquee', description: 'Edit a marquee item by id (admin only)' },
-        { command: 'deletemarquee', description: 'Delete marquee items by id or text (admin only)' },
-        { command: 'listmarquee', description: 'List recent marquee items with ids (admin only)' },
-        { command: 'addproduct', description: 'Add a new product (admin only)' },
-        { command: 'editproduct', description: 'Edit an existing product (admin only)' },
-        { command: 'deleteproduct', description: 'Delete a product (admin only)' }
-      ]);
+      await bot.telegram.setMyCommands(botCommands, { scope: { type: 'default' } });
       console.log(' Bot commands registered');
     } catch (cmdErr) {
-      console.warn(' Failed to register bot commands:', cmdErr.message);
+      console.warn(' Failed to register bot commands before launch:', cmdErr.message);
     }
 
     await bot.launch();
+
+    try {
+      await bot.telegram.setMyCommands(botCommands, { scope: { type: 'default' } });
+      console.log(' Bot commands registered after launch');
+    } catch (cmdErr) {
+      console.warn(' Failed to register bot commands after launch:', cmdErr.message);
+    }
+
     console.log(' Telegram Admin Bot is running with optimization enabled...');
     console.log(` Authorized Admin IDs: ${ADMIN_IDS.join(', ') || 'None configured'}`);
     console.log(' Features: Caching, Rate Limiting, Request Queuing, Connection Pooling, Auto Token Refresh');

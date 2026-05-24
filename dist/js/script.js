@@ -3852,6 +3852,12 @@ async function initializeApp() {
       contactForm.addEventListener('submit', handleContactForm);
     }
 
+    // Add newsletter form listener
+    const newsletterForm = document.querySelector('.newsletter-form');
+    if(newsletterForm){
+      newsletterForm.addEventListener('submit', handleNewsletterSubscribe);
+    }
+
     // Stop polling when user leaves the page
     window.addEventListener('beforeunload', stopProductPolling);
     
@@ -3938,6 +3944,40 @@ async function handleContactForm(e){
   } catch(error){
     console.error('Contact form error:', error);
     showNotification('Error sending message. Please try again.', 'error');
+  } finally {
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+  }
+}
+
+async function handleNewsletterSubscribe(e) {
+  e.preventDefault();
+
+  const form = e.target;
+  const emailInput = form.querySelector('input[type="email"]');
+  const email = emailInput?.value.trim();
+
+  if (!email) {
+    showNotification('Please enter a valid email address', 'error');
+    return;
+  }
+
+  const btn = form.querySelector('button[type="submit"]');
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Subscribing...';
+  btn.disabled = true;
+
+  try {
+    const response = await apiService.subscribeNewsletter(email);
+    if (response.success) {
+      showNotification(response.message || 'Subscribed successfully!', 'success');
+      form.reset();
+    } else {
+      showNotification(response.message || 'Failed to subscribe. Please try again.', 'error');
+    }
+  } catch (error) {
+    console.error('Newsletter subscription error:', error);
+    showNotification('Failed to subscribe. Please try again later.', 'error');
   } finally {
     btn.innerHTML = originalText;
     btn.disabled = false;

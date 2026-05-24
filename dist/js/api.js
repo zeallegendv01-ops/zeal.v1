@@ -277,6 +277,20 @@ class ApiService {
     }
   }
 
+  async subscribeNewsletter(email) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/newsletter/subscribe`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ email })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Subscribe newsletter error:', error);
+      return { success: false, message: 'Network error. Please try again.' };
+    }
+  }
+
   // EMAIL VERIFICATION & PASSWORD RESET
   async verifyEmail(token) {
     try {
