@@ -901,6 +901,11 @@ bot.start(errorWrapper(async (ctx) => {
       ' /products - List all products & land\n' +
       ' /editproduct &lt;name&gt; - Edit product/land\n' +
       ' /deleteproduct &lt;name&gt; - Delete product/land\n\n' +
+      ' <b>Marquee:</b>\n' +
+      ' /addmarquee &lt;text&gt; [url] - Add a marquee item\n' +
+      ' /editmarquee &lt;id&gt; &lt;new text&gt; [url] - Edit a marquee item\n' +
+      ' /deletemarquee &lt;id|text&gt; - Delete a marquee item\n' +
+      ' /listmarquee - List active marquee items\n\n' +
       ' <b>Categories:</b>\n' +
       ' /categories - List all categories\n' +
       ' /editcategory - Rename a category\n' +

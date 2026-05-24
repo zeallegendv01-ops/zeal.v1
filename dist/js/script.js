@@ -4110,13 +4110,16 @@ function hidePageLoader() {
     console.log('[DEBUG] Hiding page loader');
     loader.classList.add('hidden');
     console.log('[DEBUG] Page loader hidden successfully');
-    
-    initializeAudio();
-    // Wait longer to ensure audio context is ready and page is interactive
-    setTimeout(() => {
-      console.log('[DEBUG] Playing completion sound');
-      createCompletionSound();
-    }, 300);
+
+    if (audioInitialized) {
+      setTimeout(() => {
+        console.log('[DEBUG] Playing completion sound');
+        createCompletionSound();
+      }, 300);
+    } else {
+      audioPlayPending = true;
+      console.log('[DEBUG] Audio playback deferred until user interaction');
+    }
   } else {
     console.warn('[DEBUG] Page loader element not found');
   }
@@ -4143,19 +4146,38 @@ showPageLoader();
 
 // Enable audio on first user interaction (browser autoplay policy)
 let audioInitialized = false;
+let audioPlayPending = false;
 
 function initializeAudio() {
-  if (audioInitialized) return;
-  
+  if (audioInitialized) {
+    if (audioPlayPending) {
+      audioPlayPending = false;
+      createCompletionSound();
+    }
+    return;
+  }
+
   try {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const audioContext = getAudioContext();
+    if (!audioContext) return;
+
     if (audioContext.state === 'suspended') {
       audioContext.resume().then(() => {
         audioInitialized = true;
         console.log(' Audio context initialized on user interaction');
-      }).catch(err => console.log('Audio initialization failed:', err));
+        if (audioPlayPending) {
+          audioPlayPending = false;
+          createCompletionSound();
+        }
+      }).catch(err => {
+        console.log('Audio initialization failed:', err);
+      });
     } else {
       audioInitialized = true;
+      if (audioPlayPending) {
+        audioPlayPending = false;
+        createCompletionSound();
+      }
     }
   } catch (error) {
     console.log('Audio initialization error:', error);
