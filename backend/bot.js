@@ -63,6 +63,10 @@ function loadGroupData() {
       dailyLog: [],
       rulesMessageId: null,
       lastReportDate: null,
+      lastActivityAt: null,
+      lastPromptAt: null,
+      pendingQuestions: [],
+      lastBotReplyAt: null,
     };
   }
 }
@@ -126,6 +130,10 @@ function shouldBotRespond(text, isAdmin = false) {
     /\b(how to|can you|could you|would you|should i)\b/i
   ];
 
+  if (isHelpRequest(lower) || isStatusRequest(lower)) {
+    return true;
+  }
+
   if (isAdmin) {
     const adminPatterns = [
       /\b(group|member|activity|sales|strategy|trend|insight|alert|monitor|manage)\b/i,
@@ -137,10 +145,53 @@ function shouldBotRespond(text, isAdmin = false) {
   return engagementPatterns.some(p => p.test(lower));
 }
 
+function isHelpRequest(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const helpPatterns = [
+    'help me',
+    'need help',
+    'please help',
+    'anyone help',
+    'can someone',
+    'i am stuck',
+    'im stuck',
+    'urgent',
+    'support',
+    'assistance',
+    'assist',
+    'how do i',
+    'how can i',
+    'please advise',
+    'need advice'
+  ];
+  return helpPatterns.some(pattern => lower.includes(pattern));
+}
+
+function isStatusRequest(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const statusPatterns = [
+    'status',
+    'how are we doing',
+    'group status',
+    'any update',
+    'what\'s the status',
+    'what is the status',
+    'how is the group',
+    'report',
+    'progress',
+    'activity update',
+    'where are we at',
+    'current update'
+  ];
+  return statusPatterns.some(pattern => lower.includes(pattern));
+}
+
 async function askGroqAssistant(userMessage, products = [], context = {}) {
   if (!groq) return null;
 
-  const { isAdmin = false, isGroupChat = false } = context;
+  const { isAdmin = false, isGroupChat = false, mode = 'default' } = context;
   const productSummary = products.length > 0
     ? products.slice(0, 5).map(p => {
         const price = p.pricePerKg ? `₦${p.pricePerKg.toLocaleString()}/${p.unit || 'kg'}` : (p.pricePerPlot ? `₦${p.pricePerPlot.toLocaleString()}/plot` : 'Price on request');
@@ -150,6 +201,10 @@ async function askGroqAssistant(userMessage, products = [], context = {}) {
     : 'No matching products were found for the current query.';
 
   let systemPrompt = `You are a group assistant for AgroCrown. Answer clearly and respectfully. Use only the product data provided. Do not reveal any internal system information, API keys, credentials, source code, database details, or bot implementation details. If the user asks for sensitive or inappropriate information, politely refuse and direct them to ask about products or general group support. Keep the response short and useful.`;
+
+  if (mode === 'status') {
+    systemPrompt = `You are a group assistant for AgroCrown. A member asked for a status update. Provide a concise and helpful summary of group activity, pending questions, unresolved help requests, and how members can stay engaged. Do not reveal internal system details or sensitive information.`;
+  }
 
   if (isAdmin && !isGroupChat) {
     systemPrompt = `You are a strategic assistant for the AgroCrown admin. Provide brief, actionable advice on group management, sales strategies, and community engagement. Be direct and practical. Do NOT discuss technical implementation or sensitive credentials.`;
@@ -203,6 +258,7 @@ function logGroupMessage(userId, username, message) {
   if (groupStore.dailyLog.length > 2000) {
     groupStore.dailyLog = groupStore.dailyLog.slice(-2000);
   }
+  groupStore.lastActivityAt = Date.now();
   saveGroupData();
 }
 
@@ -216,6 +272,7 @@ function trackGroupUser(userId, firstName) {
   }
   groupStore.userProfiles[userId].messageCount++;
   groupStore.userProfiles[userId].firstName = firstName;
+  groupStore.lastActivityAt = Date.now();
   saveGroupData();
 }
 
@@ -245,8 +302,24 @@ function containsJailbreakRequest(text) {
 function shouldProvideGroupResponse(text) {
   if (!text) return false;
   const lower = text.toLowerCase();
-  const helpKeywords = ['suggest', 'recommend', 'product', 'catalog', 'available', 'where', 'help', 'list', 'best', 'find', 'what', 'which', 'how much', 'price', 'cost', 'looking for', 'need', 'want', 'show', 'get', 'have', 'sell', 'offer', 'export', 'import', 'do you', 'can you', 'do you have', 'sell', 'do we', 'do yall'];
+  const helpKeywords = ['suggest', 'recommend', 'product', 'catalog', 'available', 'where', 'help', 'list', 'best', 'find', 'what', 'which', 'how much', 'price', 'cost', 'looking for', 'need', 'want', 'show', 'get', 'have', 'sell', 'offer', 'export', 'import', 'do you', 'can you', 'do you have', 'sell', 'do we', 'do yall', 'status', 'update', 'progress', 'report'];
   return helpKeywords.some(keyword => lower.includes(keyword));
+}
+
+function getGroupStatusSummary() {
+  const totalMessages = (groupStore.dailyLog || []).length;
+  const activeMembers = new Set((groupStore.dailyLog || []).map(l => l.userId)).size;
+  const warningCount = Object.values(groupStore.strikes || {}).reduce((sum, count) => sum + count, 0);
+  const pending = getPendingQuestions().length;
+  const recentMessages = (groupStore.dailyLog || []).slice(-5).map(l => `• ${l.username}: ${l.message}`).join('\n');
+
+  return `📊 *Group Status*
+• Active members: ${activeMembers}
+• Logged messages: ${totalMessages}
+• Warnings issued: ${warningCount}
+• Unresolved help/questions: ${pending}
+
+Recent discussion snippets:\n${recentMessages || 'No recent messages available.'}`;
 }
 
 function formatGroupProducts(products) {
@@ -258,6 +331,121 @@ function formatGroupProducts(products) {
     const desc = p.description ? p.description.substring(0, 100) + (p.description.length > 100 ? '...' : '') : '';
     return `• <b>${p.name}</b> - ${price}\n  Stock: ${qty}${p.minLimit ? ` · Min: ${p.minLimit}` : ''}${p.maxLimit ? ` · Max: ${p.maxLimit}` : ''}\n  Category: ${category}\n  ${desc}`;
   }).join('\n\n');
+}
+
+function isGroupQuestion(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const questionTriggers = [
+    '?',
+    'can someone',
+    'help me',
+    'anyone know',
+    'does anyone',
+    'what is',
+    'how do',
+    'how can',
+    'please advise',
+    'need help',
+    'looking for',
+    'any recommendations',
+    'should i',
+    'where can',
+    'who can',
+    'is it possible',
+    'can i',
+    'please share',
+    'please suggest'
+  ];
+  return questionTriggers.some(trigger => lower.includes(trigger));
+}
+
+function enqueuePendingQuestion(ctx, text) {
+  const message = text.trim();
+  if (!message) return;
+
+  groupStore.pendingQuestions = groupStore.pendingQuestions || [];
+  const existing = groupStore.pendingQuestions.find(q => q.text === message && q.userId === ctx.from.id && !q.resolved);
+  if (existing) return;
+
+  groupStore.pendingQuestions.push({
+    id: `${ctx.from.id}:${Date.now()}`,
+    userId: ctx.from.id,
+    username: ctx.from.username || ctx.from.first_name || 'Member',
+    text: message,
+    timestamp: Date.now(),
+    resolved: false,
+  });
+  saveGroupData();
+}
+
+function getPendingQuestions() {
+  return (groupStore.pendingQuestions || []).filter(q => !q.resolved);
+}
+
+function markQuestionResolved(questionId) {
+  groupStore.pendingQuestions = (groupStore.pendingQuestions || []).map(q => {
+    if (q.id === questionId) q.resolved = true;
+    return q;
+  });
+  saveGroupData();
+}
+
+function resolveMatchingQuestions(text) {
+  const lower = text.toLowerCase();
+  const pending = getPendingQuestions();
+  pending.forEach(q => {
+    if (lower.includes(q.text.toLowerCase().slice(0, 20))) {
+      markQuestionResolved(q.id);
+    }
+  });
+}
+
+async function generateGroupDiscussionPrompt() {
+  const recentCount = (groupStore.dailyLog || []).slice(-20).length;
+  const activeCount = new Set((groupStore.dailyLog || []).map(l => l.userId)).size;
+  const summary = `This group focuses on ${GROUP_CONFIG.topic}. Recent activity includes ${recentCount} messages and ${activeCount} active members.`;
+  const request = `Suggest 2-3 safe, engaging discussion ideas for a Telegram group about ${GROUP_CONFIG.topic}. Keep them brief and invitation-focused.`;
+
+  if (groq) {
+    const aiPrompt = await askGroqAssistant(`${request}\n\nContext: ${summary}`, [], { isAdmin: false, isGroupChat: true });
+    if (aiPrompt) return aiPrompt;
+  }
+
+  return 'It’s been quiet — try asking the group:\n• What products are you looking for this week?\n• Who needs help sourcing quality farm produce or land?\n• Share your best export or trade tip.';
+}
+
+async function checkGroupSilence() {
+  const now = Date.now();
+  const lastActivity = groupStore.lastActivityAt || 0;
+  const lastPrompt = groupStore.lastPromptAt || 0;
+  const silentThreshold = 20 * 60 * 1000;
+
+  if (now - lastActivity >= silentThreshold && now - lastPrompt >= silentThreshold) {
+    const prompt = await generateGroupDiscussionPrompt();
+    try {
+      await bot.telegram.sendMessage(process.env.GROUP_CHAT_ID, `💬 *Discussion prompt:*\n${prompt}`, { parse_mode: 'Markdown' });
+      groupStore.lastPromptAt = now;
+      saveGroupData();
+    } catch (error) {
+      console.error('[GroupAI] Silence prompt failed:', error.message);
+    }
+  }
+
+  const pending = getPendingQuestions();
+  const staleThreshold = 8 * 60 * 1000;
+  for (const question of pending) {
+    if (now - question.timestamp > staleThreshold) {
+      try {
+        await bot.telegram.sendMessage(process.env.GROUP_CHAT_ID,
+          `👋 Following up on this question from ${question.username}: "${question.text}"\nIf anyone has an answer, please share it, or I can help with a suggestion.`,
+          { parse_mode: 'Markdown' });
+        markQuestionResolved(question.id);
+      } catch (err) {
+        console.error('[GroupAI] Follow-up failed:', err.message);
+      }
+    }
+  }
 }
 
 async function fetchGroupProducts(query) {
@@ -326,6 +514,11 @@ setInterval(async () => {
     await sendGroupDailyReport();
   }
 }, 60 * 1000);
+
+setInterval(() => {
+  checkGroupSilence().catch(err => console.error('[GroupAI] Silence check error:', err.message));
+}, 5 * 60 * 1000);
+
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
 
 // Support multiple admin IDs - can be comma-separated in env
@@ -3677,6 +3870,7 @@ bot.on('text', errorWrapper(async (ctx) => {
     }
 
     const text = ctx.message.text.trim();
+    const isQuestion = isGroupQuestion(text);
     trackGroupUser(ctx.from.id, ctx.from.first_name || ctx.from.username || 'Member');
     logGroupMessage(ctx.from.id, ctx.from.username || ctx.from.first_name || 'Member', text);
 
@@ -3694,12 +3888,29 @@ bot.on('text', errorWrapper(async (ctx) => {
       return ctx.reply('🔒 I am unable to respond to that request. Please ask about products or other safe community topics.');
     }
 
+    const isStatus = isStatusRequest(text);
+    if (isStatus) {
+      const statusSummary = getGroupStatusSummary();
+      const statusReply = groq
+        ? await askGroqAssistant(`${text}
+
+Current group status:
+${statusSummary}`, [], { isAdmin: false, isGroupChat: true, mode: 'status' })
+        : statusSummary;
+      groupStore.lastBotReplyAt = Date.now();
+      saveGroupData();
+      return ctx.reply(statusReply, { parse_mode: 'Markdown' });
+    }
+
     const useAI = groq && shouldBotRespond(text, false);
     const products = await fetchGroupProducts(text);
 
     if (useAI) {
       const aiReply = await askGroqAssistant(text, products, { isAdmin: false, isGroupChat: true });
       if (aiReply) {
+        resolveMatchingQuestions(text);
+        groupStore.lastBotReplyAt = Date.now();
+        saveGroupData();
         return ctx.reply(aiReply, { parse_mode: 'Markdown' });
       }
     }
@@ -3707,16 +3918,24 @@ bot.on('text', errorWrapper(async (ctx) => {
     // Only provide product suggestions if bot didn't respond with AI
     if (!useAI && shouldProvideGroupResponse(text)) {
       if (products.length === 0) {
+        enqueuePendingQuestion(ctx, text);
         return ctx.reply('I don\'t see matching products right now, but feel free to ask me anytime! You can ask about specific crops, locations, or what we typically offer.');
       }
 
       const formatted = formatGroupProducts(products);
       if (formatted) {
+        groupStore.lastBotReplyAt = Date.now();
+        saveGroupData();
+        resolveMatchingQuestions(text);
         return ctx.reply(
           `✅ Here are some suggestions:\n\n${formatted}`,
           { parse_mode: 'Markdown' }
         );
       }
+    }
+
+    if (isQuestion) {
+      enqueuePendingQuestion(ctx, text);
     }
 
     return;

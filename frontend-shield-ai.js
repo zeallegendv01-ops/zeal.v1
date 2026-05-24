@@ -41,6 +41,7 @@ const DEFAULTS = {
   blockShortcuts: true,
   enableScreenshotBlur: true,
   disableContextMenu: true,
+  shareSelectors: ['[data-action="share"]', '.share-btn', '[title="Share"]', '.share-icon'],
   
   // ── Detection ─────────────────────────────────────────────────────────────
   detectDevTools: true,
@@ -169,6 +170,18 @@ function recordSuspicious(reason, score = 0) {
   if (typeof cfg.onSuspicious === "function") {
     cfg.onSuspicious(reason, localThreatScore());
   }
+}
+
+function isShareTarget(target) {
+  if (!target || !(target instanceof Element)) return false;
+  if (!cfg.shareSelectors || !Array.isArray(cfg.shareSelectors)) return false;
+  const selector = cfg.shareSelectors.join(',');
+  return Boolean(target.closest(selector));
+}
+
+function isShareActionEvent(event) {
+  if (!event) return false;
+  return isShareTarget(event.target) || isShareTarget(document.activeElement);
 }
 
 // ===========================================================================
@@ -301,131 +314,102 @@ function handleThreat(reason, localScore) {
 // ===========================================================================
 
 function initProtections() {
-  // Find and store share button reference to allow proper sharing
-  const shareButtons = document.querySelectorAll('[data-action="share"], .share-btn, [title="Share"]');
-  if (shareButtons.length > 0) {
-    state.shareButtonElement = shareButtons[0];
-  }
+  const shareSelector = cfg.shareSelectors.join(',');
 
-  if (cfg.blockRightClick) {
-    // Use capture phase to intercept BEFORE other handlers
-    document.addEventListener("contextmenu", e => {
-      // Allow right-click ONLY on share button
-      const isShareButton = state.shareButtonElement && 
-        (e.target === state.shareButtonElement || 
-         state.shareButtonElement.contains(e.target) ||
-         e.target.closest('[data-action="share"]') ||
-         e.target.closest('.share-btn') ||
-         e.target.closest('[title="Share"]'));
-      
-      if (!isShareButton) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        recordSuspicious("context-menu-attempt", 8);
-      }
-    }, true);
-  }
+  document.addEventListener('click', e => {
+    const shareElement = e.target.closest(shareSelector);
+    if (shareElement) {
+      state.shareButtonElement = shareElement;
+    }
+  }, true);
 
-  if (cfg.disableCopy) {
-    document.addEventListener("copy", e => {
-      // Check if this is from a share action by checking if share button is active
-      const isShareAction = state.shareButtonElement && 
-        (document.activeElement === state.shareButtonElement || 
-         state.shareButtonElement.contains(document.activeElement));
-      
-      if (!isShareAction) {
-        e.preventDefault();
-        e.clipboardData.setData("text/plain", "365extras:-- permission denied --");
-      }
-      state.copies++;
-      if (!isShareAction) {
-        recordSuspicious("copy-attempt", state.copies > 3 ? 10 : 2);
-      }
-    }, true);
-
-    document.addEventListener("cut", e => {
-      const isShareAction = state.shareButtonElement && 
-        (document.activeElement === state.shareButtonElement || 
-         state.shareButtonElement.contains(document.activeElement));
-      
-      if (!isShareAction) {
-        e.preventDefault();
-        e.clipboardData.setData("text/plain", "365extras:-- permission denied --");
-        recordSuspicious("cut-attempt", 2);
-      }
-    }, true);
-  }
-
-  if (cfg.disableDrag) {
-    document.addEventListener("dragstart", e => {
+  if (cfg.blockRightClick || cfg.disableContextMenu) {
+    const maybeBlockContextMenu = e => {
+      if (isShareActionEvent(e)) return;
       e.preventDefault();
       e.stopPropagation();
-      state.drags++;
-      recordSuspicious("drag-attempt", 3);
-    }, true);
-  }
-
-  if (cfg.disableTextSelection) {
-    const s = document.createElement("style");
-    s.textContent = `*{user-select:none!important;-webkit-user-select:none!important;}`;
-    document.head.appendChild(s);
-  }
-
-  if (cfg.blockShortcuts) {
-    document.addEventListener("keydown", e => {
-      const key = (e.key || "").toLowerCase();
-
-      const isDevToolsKey =
-        key === "f12" ||
-        (e.ctrlKey && e.shiftKey && ["i", "j", "c", "k"].includes(key)) ||
-        (e.metaKey && e.altKey && ["i", "j", "c"].includes(key));
-
-      if (isDevToolsKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        recordSuspicious("devtools-shortcut", 20);
-        return false;
-      }
-
-      const isSourceKey = e.ctrlKey && ["u", "s", "p"].includes(key);
-
-      if (isSourceKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        recordSuspicious("source-shortcut", 10);
-        return false;
-      }
-    }, true);
-  }
-
-  if (cfg.disableContextMenu) {
-    const blockContextMenu = e => {
-      const isShareButton = state.shareButtonElement && 
-        (e.target === state.shareButtonElement || 
-         state.shareButtonElement.contains(e.target) ||
-         e.target.closest('[data-action="share"]') ||
-         e.target.closest('.share-btn') ||
-         e.target.closest('[title="Share"]'));
-
-      if (!isShareButton) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        recordSuspicious("context-menu-attempt", 8);
-        return false;
-      }
+      e.stopImmediatePropagation();
+      recordSuspicious('context-menu-attempt', 8);
+      return false;
     };
 
-    document.addEventListener("contextmenu", blockContextMenu, { capture: true, passive: false });
-    window.addEventListener("contextmenu", blockContextMenu, { capture: true, passive: false });
-    document.documentElement.addEventListener("contextmenu", blockContextMenu, { capture: true, passive: false });
+    document.addEventListener('contextmenu', maybeBlockContextMenu, { capture: true, passive: false });
+    window.addEventListener('contextmenu', maybeBlockContextMenu, { capture: true, passive: false });
+    document.documentElement.addEventListener('contextmenu', maybeBlockContextMenu, { capture: true, passive: false });
     if (document.body) {
-      document.body.addEventListener("contextmenu", blockContextMenu, { capture: true, passive: false });
+      document.body.addEventListener('contextmenu', maybeBlockContextMenu, { capture: true, passive: false });
     }
     document.oncontextmenu = () => false;
     if (document.body) document.body.oncontextmenu = () => false;
     window.oncontextmenu = () => false;
+  }
+
+  if (cfg.disableCopy) {
+    const handleCopyCut = e => {
+      if (isShareActionEvent(e)) return;
+
+      e.preventDefault();
+      if (e.clipboardData) {
+        e.clipboardData.setData('text/plain', '365extras:-- permission denied --');
+      }
+      state.copies++;
+      state.copies = Math.min(state.copies, 99);
+      recordSuspicious(e.type === 'cut' ? 'cut-attempt' : 'copy-attempt', state.copies > 3 ? 10 : 2);
+    };
+
+    document.addEventListener('copy', handleCopyCut, true);
+    document.addEventListener('cut', handleCopyCut, true);
+    document.addEventListener('paste', e => {
+      if (isShareActionEvent(e)) return;
+      recordSuspicious('paste-attempt', 5);
+    }, true);
+  }
+
+  if (cfg.disableDrag) {
+    document.addEventListener('dragstart', e => {
+      if (isShareActionEvent(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      state.drags++;
+      recordSuspicious('drag-attempt', 3);
+    }, true);
+  }
+
+  if (cfg.disableTextSelection) {
+    const s = document.createElement('style');
+    s.textContent = `*{user-select:none!important;-webkit-user-select:none!important;-moz-user-select:none!important;-ms-user-select:none!important;}`;
+    document.head.appendChild(s);
+    document.addEventListener('selectstart', e => {
+      if (isShareActionEvent(e)) return;
+      e.preventDefault();
+    }, true);
+  }
+
+  if (cfg.blockShortcuts) {
+    document.addEventListener('keydown', e => {
+      const key = (e.key || '').toLowerCase();
+      const ctrl = e.ctrlKey || e.metaKey;
+      const shift = e.shiftKey;
+      const alt = e.altKey;
+
+      const devtoolsCombo = key === 'f12' ||
+        (ctrl && shift && ['i', 'j', 'c', 'k'].includes(key)) ||
+        (e.metaKey && alt && ['i', 'j', 'c'].includes(key));
+      const sourceCombo = ctrl && ['u', 's', 'p'].includes(key);
+      const navigationCombo = ctrl && ['a', 'c', 'x', 'v', 'p'].includes(key);
+
+      if (devtoolsCombo || sourceCombo || navigationCombo) {
+        e.preventDefault();
+        e.stopPropagation();
+        recordSuspicious(devtoolsCombo ? 'devtools-shortcut' : 'source-shortcut', devtoolsCombo ? 20 : 10);
+        return false;
+      }
+
+      const printScreen = key === 'printscreen';
+      if (printScreen) {
+        recordSuspicious('printscreen-attempt', 15);
+      }
+    }, true);
   }
 }
 

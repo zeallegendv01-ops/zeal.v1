@@ -518,11 +518,11 @@
 <section class="about reveal" id="about">
   <div class="about-img">
     <img src="/dist/img/download.jfif" alt="Farmlands" loading="lazy">
-    <div class="about-img-badge">1+<span>Month of Heritage</span></div>
+    <div class="about-img-badge" id="heritageBadge">1+<span>Year of Heritage</span></div>
   </div>
   <div class="about-content">
     <div class="section-label">Our Legacy</div>
-    <h2>Bridging Tradition<br>with <em>Modern Commerce</em></h2>
+    <h2>Bridging Tradition<br>with <em>Modern Commerce Style</em></h2>
     <p>At 365extra, we don't simply list products, we curate experiences. From specialty food and beverages to real estate, apartments and lifestyle collections, our platform brings trusted sellers and buyers together with premium quality and integrity.</p>
     <div class="stat-row">
       <div class="stat-cell"><h4>1+</h4><p>Month Active</p></div>
@@ -543,14 +543,14 @@
       <div class="section-label">The Boutique</div>
       <h2>Curated<br><em>Marketplace Collections</em></h2>
     </div>
-    <p>Every listing is chosen for quality, relevance and trustworthiness — from food and drink to apartments, land and lifestyle services across local and global markets.</p>
+    <p>Every listing is chosen for quality, relevance and trustworthiness, from food and drink to apartments, land and lifestyle services across all markets.</p>
   </div>
 
   <div class="product-search-bar">
     <i class="fa-solid fa-magnifying-glass"></i>
     <input type="text" id="productSearch" placeholder="Search products..." autocomplete="true" aria-label="Search products">
     <button id="psClear" aria-label="Clear search"><i class="fa-solid fa-xmark"></i></button>
-    <span class="prod-count" id="prodCount">3 products</span>
+    <span class="prod-count" id="prodCount"></span>
   </div>
   <div class="product-category">
     <!-- Categories will be dynamically rendered from backend products -->
@@ -569,11 +569,11 @@
   <div class="testimonial-right">
     <blockquote>
       <span class="quote-mark">"</span>
-      <p>365extra connects me with diverse premium offerings — from elegant apartments to specialty beverages — all in one confident marketplace.</p>
+      <p>365extra connects me to a world of experiences, from elegant apartments to specialty beverages, all brought together in one trusted marketplace.</p>
       <div class="reviewer-info">
-        <div class="reviewer-avatar">OA</div>
+        <div class="reviewer-avatar">FR</div>
         <div>
-          <div class="reviewer-name">Okadigbo Angela</div>
+          <div class="reviewer-name">Founder</div>
           <div class="reviewer-location">Anambra, Nigeria</div>
         </div>
       </div>
@@ -589,15 +589,15 @@
     <p>Whether you're looking for food, drinks, apartments, land or retail collections, our team is here to guide your purchase and connect you with trusted sellers.</p>
     <div class="contact-detail">
       <div class="contact-detail-icon"><i class="fa-solid fa-location-dot"></i></div>
-      <div><h5>Headquarters</h5><p>Anambra, Nigeria &nbsp;&nbsp; Achalla</p></div>
+      <div><h5>Headquarters</h5><p>Anambra, Nigeria &nbsp;&nbsp; Awka</p></div>
     </div>
     <div class="contact-detail">
       <div class="contact-detail-icon"><i class="fa-solid fa-envelope"></i></div>
-      <div><h5>Support Desk</h5><p>Okadigbochinenyeangela1@gmail.com</p></div>
+      <div><h5>Support Desk</h5><p>mainshop19@gmail.com</p></div>
     </div>
     <div class="contact-detail">
       <div class="contact-detail-icon"><i class="fa-solid fa-phone"></i></div>
-      <div><h5>Direct Line</h5><p>+234 8132120227</p></div>
+      <div><h5>Direct Line</h5><p>+234 904 097 0107</p></div>
     </div>
   </div>
   <form class="contact-form" onsubmit="return false;">
@@ -697,14 +697,14 @@
             <i class="fa-solid fa-phone"></i>
             <div>
               <span class="contact-label">Phone</span>
-              <a href="tel:+2348065595437">+234 (0) 806 559 5437</a>
+              <a href="tel:+2349040970107">+234 (0) 904 097 0107</a>
             </div>
           </div>
           <div class="contact-item">
             <i class="fa-solid fa-envelope"></i>
             <div>
               <span class="contact-label">Email</span>
-              <a href="mailto:hello@365extra.com">hello@365extra.com</a>
+              <a href="mailto:mainshop19@gmail.com">mainshop19@gmail.com</a>
             </div>
           </div>
           <div class="contact-item">
@@ -721,7 +721,7 @@
     <!-- Footer Bottom -->
     <div class="footer-bottom">
       <div class="footer-bottom-content">
-        <p class="footer-copyright">&copy; 2026 365extra Heritage. All rights reserved.</p>
+        <p class="footer-copyright" id="footerCopyright">&copy; 2026 365extra Heritage. All rights reserved.</p>
         <div class="footer-bottom-links">
           <a href="#privacy">Privacy</a>
           <a href="#terms">Terms</a>
@@ -734,6 +734,38 @@
 
 <script src="/dist/js/api.js"></script>
 <script src="/dist/js/script.js"></script>
+<script>
+  (function() {
+    const badge = document.getElementById('heritageBadge');
+    if (badge) {
+      const establishedYear = 2026;
+      const now = new Date();
+      const years = Math.max(1, now.getFullYear() - establishedYear + 1);
+      const label = years === 1 ? 'Year of Heritage' : 'Years of Heritage';
+
+      badge.textContent = `${years}+`;
+      const span = document.createElement('span');
+      span.textContent = label;
+      badge.appendChild(span);
+    }
+
+    const copyright = document.getElementById('footerCopyright');
+    if (copyright) {
+      copyright.innerHTML = `&copy; ${new Date().getFullYear()} 365extra Heritage. All rights reserved.`;
+    }
+  })();
+
+    const establishedYear = 2026;
+    const now = new Date();
+    const years = Math.max(1, now.getFullYear() - establishedYear + 1);
+    const label = years === 1 ? 'Year of Heritage' : 'Years of Heritage';
+
+    badge.textContent = `${years}+`;
+    const span = document.createElement('span');
+    span.textContent = label;
+    badge.appendChild(span);
+  })();
+</script>
 
 <!-- ShieldAI Bot Detection & Protection -->
 <script type="module">
