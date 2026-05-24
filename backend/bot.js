@@ -7,6 +7,7 @@ const FormData = require('form-data');
 const http = require('http');
 const https = require('https');
 const jwt = require('jsonwebtoken');
+const connectDB = require('./config/database');
 
 let groq = null;
 const GROQ_ENABLED = !!process.env.GROQ_API_KEY;
@@ -24,6 +25,10 @@ if (GROQ_ENABLED) {
 }
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+
+// Ensure the bot has a MongoDB connection before using Mongoose models
+connectDB();
+
 const Marquee = require('./models/Marquee');
 
 const GROUP_CONFIG = {
