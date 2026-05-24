@@ -498,19 +498,8 @@
 
 <!-- MARQUEE -->
 <div class="marquee-strip" aria-hidden="true">
-  <div class="marquee-track">
-    <div class="marquee-item">Curated Quality <span class="dot"></span></div>
-    <div class="marquee-item">Heritage Origins <span class="dot"></span></div>
-    <div class="marquee-item">12 Markets Served <span class="dot"></span></div>
-    <div class="marquee-item">1 Month of Craft <span class="dot"></span></div>
-    <div class="marquee-item">Premium Grade <span class="dot"></span></div>
-    <div class="marquee-item">Local to Global <span class="dot"></span></div>
-    <div class="marquee-item">Curated Quality <span class="dot"></span></div>
-    <div class="marquee-item">Heritage Origins <span class="dot"></span></div>
-    <div class="marquee-item">12 Markets Served <span class="dot"></span></div>
-    <div class="marquee-item">1 Month of Craft <span class="dot"></span></div>
-    <div class="marquee-item">Premium Grade <span class="dot"></span></div>
-    <div class="marquee-item">Local to Global <span class="dot"></span></div>
+  <div class="marquee-track" id="marqueeTrack">
+    <!-- items loaded dynamically -->
   </div>
 </div>
 
@@ -753,6 +742,45 @@
     if (copyright) {
       copyright.innerHTML = `&copy; ${new Date().getFullYear()} 365extra Heritage. All rights reserved.`;
     }
+  })();
+</script>
+
+<script>
+  (function() {
+    // Load marquee items dynamically from backend
+    async function loadMarquee() {
+      try {
+        const res = await fetch('/api/marquee?limit=12');
+        if (!res.ok) return;
+        const data = await res.json();
+        const track = document.getElementById('marqueeTrack');
+        if (!track) return;
+        track.innerHTML = '';
+        (data.items || []).reverse().forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'marquee-item';
+          if (item.url) {
+            const a = document.createElement('a');
+            a.href = item.url;
+            a.rel = 'noopener';
+            a.textContent = item.text;
+            div.appendChild(a);
+          } else {
+            div.textContent = item.text;
+          }
+          const dot = document.createElement('span');
+          dot.className = 'dot';
+          div.appendChild(dot);
+          track.appendChild(div);
+        });
+      } catch (err) {
+        console.warn('Failed to load marquee:', err && err.message ? err.message : err);
+      }
+    }
+
+    // Initial load and periodic refresh
+    loadMarquee();
+    setInterval(loadMarquee, 1000 * 60 * 5); // refresh every 5 minutes
   })();
 </script>
 

@@ -24,6 +24,7 @@ const paymentRoutes = require('./routes/payments');
 const contactRoutes = require('./routes/contact');
 const analyticsRoutes = require('./routes/analytics');
 const whatsappRoutes = require('./routes/whatsapp');
+const marqueeRoutes = require('./routes/marquee');
 
 const app = express();
 
@@ -194,6 +195,7 @@ app.use(express.static(path.join(__dirname, '..')));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/marquee', marqueeRoutes);
 
 // =============================================================================
 // SHIELDAI THREAT ANALYSIS ENDPOINT

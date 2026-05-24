@@ -24,6 +24,7 @@ if (GROQ_ENABLED) {
 }
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+const Marquee = require('./models/Marquee');
 
 const GROUP_CONFIG = {
   name: 'My Awesome Community',
@@ -1176,6 +1177,130 @@ bot.command('addproduct', errorWrapper(async (ctx) => {
       [Markup.button.callback(' Apartment', 'add_apartment_type')]
     ]).reply_markup
   });
+}));
+
+// Admin command: add a marquee item that appears on the frontend
+bot.command('addmarquee', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+
+  const args = ctx.message.text.split(' ').slice(1);
+  if (args.length === 0) {
+    return ctx.reply(' Usage: /addmarquee <brand name or message> [optional url]\n\nExample: /addmarquee "New: MARQ — Now Available" https://example.com', { parse_mode: 'HTML' });
+  }
+
+  // If last token looks like a URL, use it
+  let url = '';
+  let text = args.join(' ');
+  try {
+    const possibleUrl = args[args.length - 1];
+    if (/^https?:\/\//i.test(possibleUrl)) {
+      url = possibleUrl;
+      text = args.slice(0, -1).join(' ');
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  try {
+    const item = await Marquee.create({ text: text.trim(), url: url, createdBy: ctx.from.username || ctx.from.first_name || 'admin' });
+    return ctx.reply(`✅ Marquee item added: ${item.text}`);
+  } catch (err) {
+    console.error('[Bot] addmarquee error:', err.message);
+    return ctx.reply('❌ Failed to add marquee item.');
+  }
+}));
+
+bot.command('editmarquee', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+
+  const args = ctx.message.text.split(' ').slice(1);
+  if (args.length < 2) {
+    return ctx.reply(' Usage: /editmarquee <id> <new text> [optional url]\n\nExample: /editmarquee 64a1b2c3d4e5f67890123456 "New MARQ message" https://example.com', { parse_mode: 'HTML' });
+  }
+
+  const id = args[0].trim();
+  if (!/^[0-9a-fA-F]{24}$/.test(id)) {
+    return ctx.reply(' Please provide a valid marquee document id (24 hex characters).', { parse_mode: 'HTML' });
+  }
+
+  let url = '';
+  let newText = args.slice(1).join(' ');
+  const possibleUrl = args[args.length - 1];
+  if (/^https?:\/\//i.test(possibleUrl)) {
+    url = possibleUrl;
+    newText = args.slice(1, -1).join(' ');
+  }
+
+  try {
+    const updated = await Marquee.findByIdAndUpdate(
+      id,
+      { text: newText.trim(), url: url },
+      { new: true }
+    );
+
+    if (!updated) {
+      return ctx.reply(' Marquee item not found with that id.');
+    }
+
+    return ctx.reply(`✅ Updated marquee item: ${updated.text}`);
+  } catch (err) {
+    console.error('[Bot] editmarquee error:', err.message);
+    return ctx.reply('❌ Failed to edit marquee item.');
+  }
+}));
+
+// Admin command: delete a marquee item by id or by matching text
+bot.command('deletemarquee', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+
+  const args = ctx.message.text.split(' ').slice(1);
+  if (args.length === 0) {
+    return ctx.reply(' Usage: /deletemarquee <id|exact text snippet>\n\nExample: /deletemarquee 64a1b2c3d4e5f67890123456 or /deletemarquee "MARQ"', { parse_mode: 'HTML' });
+  }
+
+  const query = args.join(' ').trim();
+
+  try {
+    // If looks like an ObjectId (24 hex chars), try delete by id
+    const idMatch = query.match(/^[0-9a-fA-F]{24}$/);
+    if (idMatch) {
+      const removed = await Marquee.findByIdAndDelete(query);
+      if (!removed) return ctx.reply(' Item not found with that id.');
+      return ctx.reply(`✅ Deleted marquee item: ${removed.text}`);
+    }
+
+    // Otherwise delete items that contain the query (case-insensitive)
+    const removed = await Marquee.deleteMany({ text: { $regex: query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } });
+    if (removed.deletedCount === 0) {
+      return ctx.reply(' No marquee items matched the provided text.');
+    }
+
+    return ctx.reply(`✅ Deleted ${removed.deletedCount} marquee item(s) matching: "${query}"`);
+  } catch (err) {
+    console.error('[Bot] deletemarquee error:', err.message);
+    return ctx.reply('❌ Failed to delete marquee item.');
+  }
+}));
+
+bot.command('listmarquee', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+
+  try {
+    const items = await Marquee.find().sort({ createdAt: -1 }).limit(20).lean();
+    if (!items || items.length === 0) {
+      return ctx.reply('No marquee items found.');
+    }
+
+    const message = items.map((item, index) => {
+      const urlPart = item.url ? `\nURL: ${item.url}` : '';
+      return `${index + 1}. <b>${item._id}</b>\n${item.text}${urlPart}`;
+    }).join('\n\n');
+
+    return ctx.reply(message, { parse_mode: 'HTML' });
+  } catch (err) {
+    console.error('[Bot] listmarquee error:', err.message);
+    return ctx.reply('❌ Failed to list marquee items.');
+  }
 }));
 
 bot.command('editproduct', errorWrapper(async (ctx) => {
