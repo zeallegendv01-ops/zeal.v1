@@ -35,7 +35,7 @@
         const items = Array.isArray(data.items) ? data.items.reverse() : [];
 
         if (items.length === 0) {
-          renderMarqueeFallback('No marquee updates available right now.');
+          renderMarqueeFallback('No updates available right now.');
           return;
         }
 
