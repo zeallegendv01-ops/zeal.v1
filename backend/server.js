@@ -30,10 +30,14 @@ const app = express();
 
 // Initialize Groq (optional - AI threat analysis)
 let groq = null;
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-mini';
+const GROQ_FALLBACK_MODEL = process.env.GROQ_FALLBACK_MODEL || 'llama-3.1-mini';
 try {
   if (process.env.GROQ_API_KEY) {
     const Groq = require('groq-sdk');
     groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    console.log('[ShieldAI] Groq assistant initialized');
+    console.log(`[ShieldAI] Using model: ${GROQ_MODEL}`);
   }
 } catch (e) {
   console.warn('[ShieldAI] Groq SDK not configured, AI threat analysis disabled');
@@ -65,6 +69,30 @@ const initializeAdminUser = async () => {
   }
 };
 
+// Initialize marquee items if none exist
+const initializeMarqueeItems = async () => {
+  try {
+    const Marquee = require('./models/Marquee');
+    const marqueeCount = await Marquee.countDocuments();
+    
+    if (marqueeCount === 0) {
+      console.log('📝 Creating default marquee items...');
+      const defaultItems = [
+        { text: 'Premium Food & Beverages', tag: 'featured' },
+        { text: 'Curated Real Estate Listings', tag: 'featured' },
+        { text: 'Apartment Collections', tag: 'featured' },
+        { text: 'Land & Property Opportunities', tag: 'featured' },
+        { text: 'Lifestyle & Wellness Services', tag: 'featured' }
+      ];
+      
+      await Marquee.insertMany(defaultItems);
+      console.log(' Default marquee items created successfully');
+    }
+  } catch (error) {
+    console.error(' Marquee initialization error:', error.message);
+  }
+};
+
 // Connect to database
 connectDB();
 
@@ -72,6 +100,7 @@ connectDB();
 mongoose.connection.once('open', async () => {
   console.log(' Database connection ready, initializing admin user...');
   await initializeAdminUser();
+  await initializeMarqueeItems();
 
   // Seed sample products only when explicitly allowed.
   try {
@@ -370,21 +399,37 @@ Respond ONLY with a valid JSON object — no markdown, no preamble, no explanati
 }
 `;
 
-  const response = await groq.chat.completions.create({
-    model: 'llama-3.1-70b-versatile',
-    temperature: 0.1,
-    max_tokens: 300,
-    messages: [
-      {
-        role: 'system',
-        content: 'You are a security analyst. Respond only with a single JSON object.'
-      },
-      {
-        role: 'user',
-        content: prompt
-      }
-    ]
-  });
+  const sendGroqRequest = async (modelName) => {
+    return groq.chat.completions.create({
+      model: modelName,
+      temperature: 0.1,
+      max_tokens: 300,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a security analyst. Respond only with a single JSON object.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]
+    });
+  };
+
+  let response;
+  try {
+    response = await sendGroqRequest(GROQ_MODEL);
+  } catch (err) {
+    const message = err?.message || '';
+    const isDecommissioned = /model_decommissioned|decommissioned/i.test(message);
+    if (isDecommissioned && GROQ_MODEL !== GROQ_FALLBACK_MODEL) {
+      console.warn(`[ShieldAI] Model ${GROQ_MODEL} is decommissioned, retrying with fallback ${GROQ_FALLBACK_MODEL}`);
+      response = await sendGroqRequest(GROQ_FALLBACK_MODEL);
+    } else {
+      throw err;
+    }
+  }
 
   const raw = response.choices[0].message.content.trim();
   const clean = raw.replace(/^`[a-z]*\n?/i, '').replace(/`$/i, '').trim();

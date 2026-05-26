@@ -333,6 +333,15 @@ function initProtections() {
       return false;
     };
 
+  //   // Replace the old direct assignments with this cleaner event-listener approach:
+  // if (cfg.blockRightClick || cfg.disableContextMenu) {
+  //     document.addEventListener('contextmenu', e => {
+  //         if (isShareActionEvent(e)) return; // Allow share buttons to work
+  //         e.preventDefault();
+  //         recordSuspicious('context-menu-attempt', 8);
+  //     }, { capture: true, passive: false });
+  // }
+
     document.addEventListener('contextmenu', maybeBlockContextMenu, { capture: true, passive: false });
     window.addEventListener('contextmenu', maybeBlockContextMenu, { capture: true, passive: false });
     document.documentElement.addEventListener('contextmenu', maybeBlockContextMenu, { capture: true, passive: false });

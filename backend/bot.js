@@ -11,11 +11,14 @@ const connectDB = require('./config/database');
 
 let groq = null;
 const GROQ_ENABLED = !!process.env.GROQ_API_KEY;
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-mini';
+const GROQ_FALLBACK_MODEL = process.env.GROQ_FALLBACK_MODEL || 'llama-3.1-mini';
 if (GROQ_ENABLED) {
   try {
     const Groq = require('groq-sdk');
     groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     console.log('[GroupAI] Groq assistant initialized');
+    console.log(`[GroupAI] Using model: ${GROQ_MODEL}`);
   } catch (err) {
     console.warn('[GroupAI] Failed to initialize Groq SDK:', err.message);
     groq = null;
@@ -216,9 +219,9 @@ async function askGroqAssistant(userMessage, products = [], context = {}) {
     systemPrompt = `You are a strategic assistant for the AgroCrown admin. Provide brief, actionable advice on group management, sales strategies, and community engagement. Be direct and practical. Do NOT discuss technical implementation or sensitive credentials.`;
   }
 
-  try {
-    const response = await groq.chat.completions.create({
-      model: 'llama-3.1-70b-versatile',
+  const sendGroqRequest = async (modelName) => {
+    return groq.chat.completions.create({
+      model: modelName,
       temperature: 0.2,
       max_tokens: 220,
       messages: [
@@ -226,11 +229,31 @@ async function askGroqAssistant(userMessage, products = [], context = {}) {
         { role: 'user', content: `User message: ${userMessage}\n\nProduct list:\n${productSummary}` }
       ]
     });
+  };
 
+  const modelToUse = context.model || GROQ_MODEL;
+
+  try {
+    const response = await sendGroqRequest(modelToUse);
     const reply = response.choices?.[0]?.message?.content?.trim();
     return reply || null;
   } catch (err) {
-    console.error('[GroupAI] Groq request failed:', err.message);
+    const message = err?.message || '';
+    const isDecommissioned = /model_decommissioned|decommissioned/i.test(message);
+
+    if (isDecommissioned && modelToUse !== GROQ_FALLBACK_MODEL) {
+      console.warn(`[GroupAI] Model ${modelToUse} is decommissioned, retrying with fallback model ${GROQ_FALLBACK_MODEL}`);
+      try {
+        const retryResponse = await sendGroqRequest(GROQ_FALLBACK_MODEL);
+        const retryReply = retryResponse.choices?.[0]?.message?.content?.trim();
+        return retryReply || null;
+      } catch (retryErr) {
+        console.error('[GroupAI] Groq fallback request failed:', retryErr.message);
+        return null;
+      }
+    }
+
+    console.error('[GroupAI] Groq request failed:', message);
     return null;
   }
 }
@@ -852,13 +875,13 @@ const errorWrapper = (handler, command = '') => async (ctx) => {
     
     return await handler(ctx);
   } catch (error) {
-    console.error(`Handler error (${command}):`, error.message);
+    console.error(`Handler error (${command}):`, error);
     try {
       // Only call answerCbQuery if this is a callback query
       if (ctx.callbackQuery) {
         await ctx.answerCbQuery().catch(() => {});
       }
-      if (error.message.includes('message not modified')) {
+      if (error.message?.includes('message not modified')) {
         return;
       }
       await ctx.reply?.(' Error processing request. Please try again.').catch(() => {});
@@ -1193,9 +1216,15 @@ bot.command('addproduct', errorWrapper(async (ctx) => {
 bot.command('addmarquee', errorWrapper(async (ctx) => {
   if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
 
-  const args = ctx.message.text.split(' ').slice(1);
+  const messageText = ctx.message?.text || ctx.update?.message?.text || ctx.update?.edited_message?.text || '';
+  if (!messageText) {
+    console.error('[Bot] addmarquee error: missing message text', { ctxKeys: Object.keys(ctx) });
+    return ctx.reply('❌ Could not read your command. Please try again.');
+  }
+
+  const args = messageText.split(' ').slice(1);
   if (args.length === 0) {
-    return ctx.reply(' Usage: /addmarquee <brand name or message> [optional url]\n\nExample: /addmarquee "New: MARQ — Now Available" https://example.com', { parse_mode: 'HTML' });
+    return ctx.reply(' Usage: /addmarquee <brand name or message> [optional url]\n\nExample: /addmarquee "New: MARQ — Now Available" https://example.com');
   }
 
   let url = '';
@@ -1207,24 +1236,24 @@ bot.command('addmarquee', errorWrapper(async (ctx) => {
   }
 
   if (!text) {
-    return ctx.reply(' Please provide marquee text. Usage: /addmarquee <brand name or message> [optional url]', { parse_mode: 'HTML' });
+    return ctx.reply(' Please provide marquee text. Usage: /addmarquee <brand name or message> [optional url]');
   }
 
   try {
     const item = await Marquee.create({ text, url, createdBy: ctx.from.username || ctx.from.first_name || 'admin' });
     return ctx.reply(`✅ Marquee item added: ${item.text}`);
   } catch (err) {
-    console.error('[Bot] addmarquee error:', err.message);
-    return ctx.reply('❌ Failed to add marquee item.');
+    console.error('[Bot] addmarquee error:', err);
+    return ctx.reply('❌ Failed to add marquee item. Please try again later.');
   }
-}));
+}, 'addmarquee'));
 
 bot.command('editmarquee', errorWrapper(async (ctx) => {
   if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
 
   const args = ctx.message.text.split(' ').slice(1);
   if (args.length < 2) {
-    return ctx.reply(' Usage: /editmarquee <id> <new text> [optional url]\n\nExample: /editmarquee 64a1b2c3d4e5f67890123456 "New MARQ message" https://example.com', { parse_mode: 'HTML' });
+    return ctx.reply(' Usage: /editmarquee <id> <new text> [optional url]\n\nExample: /editmarquee 64a1b2c3d4e5f67890123456 "New MARQ message" https://example.com');
   }
 
   const id = args[0].trim();
@@ -1268,7 +1297,7 @@ bot.command('deletemarquee', errorWrapper(async (ctx) => {
 
   const args = ctx.message.text.split(' ').slice(1);
   if (args.length === 0) {
-    return ctx.reply(' Usage: /deletemarquee <id|exact text snippet>\n\nExample: /deletemarquee 64a1b2c3d4e5f67890123456 or /deletemarquee "MARQ"', { parse_mode: 'HTML' });
+    return ctx.reply(' Usage: /deletemarquee <id|exact text snippet>\n\nExample: /deletemarquee 64a1b2c3d4e5f67890123456 or /deletemarquee "MARQ"');
   }
 
   const query = args.join(' ').trim();
@@ -4330,12 +4359,10 @@ setInterval(() => {
 }, 300000); // Every 5 minutes
 
 // Launch bot with error handling
-(async () => {
+const startBot = async (attempt = 1, maxAttempts = 8) => {
   try {
-    // Initialize token first
     await initializeToken();
 
-    // Register bot command menu so admins can see available commands in Telegram UI
     const botCommands = [
       { command: 'addmarquee', description: 'Add a marquee item (admin only)' },
       { command: 'editmarquee', description: 'Edit a marquee item by id (admin only)' },
@@ -4366,35 +4393,25 @@ setInterval(() => {
     console.log(` Authorized Admin IDs: ${ADMIN_IDS.join(', ') || 'None configured'}`);
     console.log(' Features: Caching, Rate Limiting, Request Queuing, Connection Pooling, Auto Token Refresh');
   } catch (err) {
-    // Handle 409 Conflict (multiple instances during Render redeploy)
+    console.warn(` Bot launch attempt ${attempt} failed:`, err.message || err);
+
     if (err.message?.includes('409')) {
-      console.warn(' Bot conflict detected during redeploy - waiting 15s before retry...');
-      
-      // First retry after 15 seconds
-      setTimeout(() => {
-        bot.launch().then(() => {
-          console.log(' ✅ Bot recovered and is running');
-        }).catch(retryErr => {
-          console.warn(' Bot recovery attempt 1 failed:', retryErr.message);
-          
-          // Second retry after another 15 seconds if first fails
-          setTimeout(() => {
-            bot.launch().then(() => {
-              console.log(' ✅ Bot recovered on second attempt and is running');
-            }).catch(finalErr => {
-              console.warn(' Bot polling failed, but bot will still receive messages:', finalErr.message);
-              console.log(' Note: Bot message handlers are still active, just polling may be delayed');
-            });
-          }, 15000);
-        });
-      }, 15000);
+      console.warn(' Bot conflict detected during redeploy - retrying in 15s...');
+    } else if (attempt < maxAttempts) {
+      const retryDelay = Math.min(15000 * attempt, 60000);
+      console.log(` Bot launch failed, retrying in ${retryDelay / 1000}s (${attempt + 1}/${maxAttempts})...`);
+      setTimeout(() => startBot(attempt + 1, maxAttempts), retryDelay);
+      return;
     } else {
-      console.warn(' Bot launch error (bot will retry):', err.message);
-      console.log(' Ensure internet connection and TELEGRAM_BOT_TOKEN is valid');
+      console.error(` Bot failed to launch after ${maxAttempts} attempts. Please verify network connectivity and TELEGRAM_BOT_TOKEN.`);
+      return;
     }
-    // Don't crash - bot can still receive messages via polling
+
+    setTimeout(() => startBot(attempt + 1, maxAttempts), 15000);
   }
-})();
+};
+
+startBot();
 
 // Graceful shutdown
 process.once('SIGINT', () => {
