@@ -6,18 +6,18 @@ import ShieldAI from '/frontend-shield-ai.js';
     apiEndpoint: '/api/threat-analysis',
     redirectUrl: '/blocked',
     aiEnabled: true,
-    debug: false,
+    debug: true,
     dryRun: true,
-    clearPageOnBlock: false,
+    clearPageOnBlock: true,
     
     // Protections
-    blockRightClick: false,
-    disableCopy: false,
-    disableDrag: false,
-    disableTextSelection: false,
-    blockShortcuts: false,
-    enableScreenshotBlur: false,
-    disableContextMenu: false,
+    blockRightClick: true,
+    disableCopy: true,
+    disableDrag: true,
+    disableTextSelection: true,
+    blockShortcuts: true,
+    enableScreenshotBlur: true,
+    disableContextMenu: true,
     
     // Detection
     detectDevTools: true,
