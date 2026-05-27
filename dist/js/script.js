@@ -2029,13 +2029,16 @@ async function fetchProducts(){
       renderProducts(data.data);
     } else {
       console.error('[DEBUG] Response not successful:', data.message);
-      renderStaticProducts();
+      allProducts = [];
+      renderProducts([]);
+      showNotification('Product not found', 'error');
     }
   }catch(error){
     console.error('[DEBUG] Failed to fetch products:', error);
-    console.error('[DEBUG] Falling back to static products');
-    // Fallback to static products if backend not running
-    renderStaticProducts();
+    console.error('[DEBUG] Product list unavailable');
+    allProducts = [];
+    renderProducts([]);
+    showNotification('Product not found', 'error');
   }
 }
 
@@ -2100,8 +2103,8 @@ function renderProducts(products){
   const noMsg = document.getElementById('noProductsMsg');
   const countEl = document.getElementById('prodCount');
 
-  if(products.length === 0){
-    grid.innerHTML = '<div class="no-products-msg">No products available.</div>';
+  if(!Array.isArray(products) || products.length === 0){
+    grid.innerHTML = '<div class="no-products-msg">Product not found.</div>';
     return;
   }
 
@@ -2536,19 +2539,6 @@ function updateLandRange(landId, pricePerUnit, areaSqMeters, pricingType) {
   }
   
   priceDisplay.textContent = `${totalPrice.toLocaleString()}`;
-}
-
-function renderStaticProducts(){
-  // Fallback static products
-  const products = [
-    {_id:'1', type:'product', name:'Artesian Smoked Catfish', description:'fish', pricePerKg:45000, image:'https://images.unsplash.com/photo-1599056377759-3388006e62e0?auto=format&fit=crop&w=700&q=80', unit:'kg', quantity:35, category:'Seafood', certification:{organic:true}, minLimit:2},
-    {_id:'2', type:'product', name:'Traditional Pure Garri', description:'cassava grain', pricePerKg:18000, image:'https://images.unsplash.com/photo-1590540179852-2110a54f813a?auto=format&fit=crop&w=700&q=80', unit:'kg', quantity:120, category:'Grains', certification:{organic:true}},
-    {_id:'3', type:'product', name:'Whole Exquisite Kola Nuts', description:'cola nut', pricePerKg:32000, image:'https://images.unsplash.com/photo-1614701838030-f7034d61053f?auto=format&fit=crop&w=700&q=80', unit:'kg', quantity:48, category:'Nuts', certification:{organic:false}},
-    {_id:'4', type:'apartment', name:'Riverside Executive Apartment', apartmentType:'flat', listingType:'rent', pricePerMonth:120000, bedrooms:3, bathrooms:2, apartmentAreaSqMeters:115, apartmentAddress:'Awka, Anambra', category:'Real Estate', image:'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=700&q=80', furnished:true, description:'Skyline apartment with executive finishes.'},
-    {_id:'5', type:'land', name:'Legacy Farmland Plot', landPricingType:'per-plot', pricePerPlot:2500000, numberOfPlots:3, areaSqMeters:500, location:'Nnewi', legalStatus:'freehold', accessibility:'road-access', description:'Fertile agricultural plot ready to farm.', image:'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=700&q=80'}
-  ];
-  allProducts = products; // Store products
-  renderProducts(products);
 }
 
 // Progressive Image Loading: Ultra-High Quality Effect (Blur-Up Technique)
