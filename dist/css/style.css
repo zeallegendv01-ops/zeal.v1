@@ -2032,6 +2032,7 @@ nav:hover {
   box-shadow: 0 24px 64px rgba(13, 13, 11, 0.08);
   border: 1px solid rgba(13, 13, 11, 0.08);
   margin-bottom: 20px;
+  display: none;
 }
 
 .sidebar-panel .detail-grid {
@@ -2283,6 +2284,7 @@ nav:hover {
 
 .apartment-card .product-btn {
   opacity: 0;
+  margin: auto;
   transform: translateY(12px);
 }
 

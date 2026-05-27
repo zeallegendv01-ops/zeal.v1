@@ -7,17 +7,17 @@ import ShieldAI from '/frontend-shield-ai.js';
     redirectUrl: '/blocked',
     aiEnabled: true,
     debug: false,
-    dryRun: false,
-    clearPageOnBlock: true,
+    dryRun: true,
+    clearPageOnBlock: false,
     
     // Protections
-    blockRightClick: true,
-    disableCopy: true,
-    disableDrag: true,
-    disableTextSelection: true,
-    blockShortcuts: true,
-    enableScreenshotBlur: true,
-    disableContextMenu: true,
+    blockRightClick: false,
+    disableCopy: false,
+    disableDrag: false,
+    disableTextSelection: false,
+    blockShortcuts: false,
+    enableScreenshotBlur: false,
+    disableContextMenu: false,
     
     // Detection
     detectDevTools: true,
@@ -34,9 +34,11 @@ import ShieldAI from '/frontend-shield-ai.js';
     allowTouchDevices: true,
     
     // Thresholds
-    immediateAnalysisThreshold: 60,
-    autoBlockThreshold: 85,
-    aiAnalysisInterval: 15000,
+    immediateAnalysisThreshold: 95,
+    autoBlockThreshold: 100,
+    aiAnalysisInterval: 30000,
+    onSuspiciousAction: "log",
+    onBlockAction: "log",
     
     // Custom callbacks
     onBlock: (reason, score) => {

@@ -368,10 +368,10 @@ function showProductDetails(product) {
             <span>Weight (${unit})</span>
             <span class="wval" id="productDetailWeight">1 ${unit}</span>
           </div>
-          <input type="range" class="wrange" id="productDetailWeightSlider" min="1" max="100" value="1" step="1"
-            oninput="document.getElementById('productDetailWeight').textContent = this.value + ' ${unit}'; const totalValue = (${price.toLocaleString()} * this.value).toLocaleString() + '.00'; document.getElementById('productDetailTotal').innerHTML = totalValue; document.getElementById('productDetailTotalFooter').innerHTML = totalValue; document.getElementById('productDetailSelectedQty')?.textContent = this.value + ' ${unit}'; document.getElementById('productDetailActionTotal')?.textContent = 'NGN ' + totalValue;">
+          <input type="range" class="wrange" id="productDetailWeightSlider" min="1" max="${product.quantity || 100}" value="1" step="1"
+            oninput="document.getElementById('productDetailWeight').textContent = this.value + ' ${unit}'; const priceVal = ${price}; const totalValue = (priceVal * this.value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); document.getElementById('productDetailTotal').innerHTML = totalValue; document.getElementById('productDetailTotalFooter').innerHTML = totalValue; document.getElementById('productDetailSelectedQty')?.textContent = this.value + ' ${unit}'; document.getElementById('productDetailActionTotal')?.textContent = 'NGN ' + totalValue;">
           <div style="font-size: 13px; font-weight: 600; color: var(--gold-lt); min-width: 80px; text-align: right;">
-            <span id="productDetailTotal">${price.toLocaleString()}.00</span>
+            <span id="productDetailTotal">${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
         <div class="detail-total-row">
@@ -1611,18 +1611,18 @@ let allProducts = []; // Store all products for cart operations
 let currentCategoryFilter = null; // Track active category filter
 
 function addToCart(product, weight){
-  // Use a unique key combining product ID and weight to handle same product with different weights
-  const cartItemKey = `${product._id}_${weight}kg`;
-  const existing = cart.find(item => {
-    const itemKey = `${item._id}_${item.weight}kg`;
-    return itemKey === cartItemKey;
-  });
-  
+  // Combine same product entries by total kilograms instead of creating duplicate cart lines.
+  const existing = cart.find(item => item._id === product._id);
+
   if(existing){
-    existing.quantity += 1;
-  }else{
-    cart.push({...product, weight, quantity: 1});
+    const existingTotalKg = (existing.weight || 1) * existing.quantity;
+    existing.quantity = existingTotalKg + weight;
+    existing.weight = 1;
+    existing.pricePerKg = product.pricePerKg || existing.pricePerKg;
+  } else {
+    cart.push({...product, weight: 1, quantity: weight});
   }
+
   saveCart();
   showNotification(`${product.name} added to cart!`, 'success');
   updateCartDisplay();
@@ -1886,15 +1886,16 @@ function updateCartDisplay(){
 
 function renderCartProductItem(item, index) {
   const subtotal = item.pricePerKg * item.weight * item.quantity;
+  const totalKg = (item.weight || 1) * item.quantity;
   return `
     <div class="cart-item">
       <img src="${item.image || 'https://via.placeholder.com/80?text=Product'}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/80?text=Product'">
       <div class="cart-item-info">
         <div class="ci-name">${item.name}</div>
-        <div class="ci-meta">${parseFloat(item.pricePerKg).toLocaleString()}.00 / kg  ${item.weight}kg</div>
+        <div class="ci-meta">${parseFloat(item.pricePerKg).toLocaleString()}.00 / kg • ${totalKg}kg selected</div>
         <div class="qty-control">
           <button class="qty-btn" onclick="updateCartItemQuantity(${index}, ${item.quantity - 1})">-</button>
-          <span class="qty-num">${item.quantity}</span>
+          <span class="qty-num">${totalKg}</span>
           <button class="qty-btn" onclick="updateCartItemQuantity(${index}, ${item.quantity + 1})">+</button>
         </div>
       </div>
