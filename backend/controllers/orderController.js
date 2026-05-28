@@ -1,6 +1,8 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const telegramNotifier = require('../utils/telegramNotifier');
+const InventoryService = require('../utils/inventoryService');
+const LOW_STOCK_THRESHOLD = parseInt(process.env.LOW_STOCK_THRESHOLD || '5', 10);
 
 exports.createOrder = async (req, res, next) => {
   try {
@@ -12,91 +14,137 @@ exports.createOrder = async (req, res, next) => {
 
     let subtotal = 0;
     const orderItems = [];
+    const stockNotifications = [];
+    const session = await Order.startSession();
+    let createdOrder = null;
 
-    // Validate items and calculate subtotal based on product type
-    for (const item of items) {
-      const product = await Product.findOne({ $or: [{ _id: item.product }, { code: item.product }] });
-      if (!product) {
-        return res.status(404).json({ success: false, message: `Product ${item.product} not found` });
-      }
+    try {
+      await session.withTransaction(async () => {
+        for (const item of items) {
+          const product = await Product.findOne({ $or: [{ _id: item.product }, { code: item.product }] }).session(session);
+          if (!product) {
+            throw new Error(`Product ${item.product} not found`);
+          }
 
-      // Validate quantity against min and max limits
-      let orderQuantity = 0;
-      if (product.type === 'land') {
-        orderQuantity = item.plotsRequested || item.quantity;
-      } else {
-        orderQuantity = item.quantity;
-      }
+          // Validate quantity against min and max limits
+          let orderQuantity = 0;
+          if (product.type === 'land') {
+            orderQuantity = item.plotsRequested || item.quantity;
+          } else {
+            orderQuantity = item.quantity;
+          }
 
-      if (orderQuantity < product.minLimit) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `Minimum order for ${product.name} is ${product.minLimit} ${product.unit}` 
+          if (orderQuantity < product.minLimit) {
+            throw new Error(`Minimum order for ${product.name} is ${product.minLimit} ${product.unit}`);
+          }
+
+          if (orderQuantity > product.maxLimit) {
+            throw new Error(`Maximum order for ${product.name} is ${product.maxLimit} ${product.unit}`);
+          }
+
+          const requestedQty = InventoryService.getRequestedQuantity(product, item);
+          if (requestedQty > 0) {
+            await InventoryService.validateStockForItem(product, item);
+            const { product: updatedProduct, remainingStock } = await InventoryService.deductInventory(product, requestedQty, session);
+
+            if (remainingStock === 0) {
+              stockNotifications.push({ type: 'out-of-stock', product: updatedProduct });
+            } else if (LOW_STOCK_THRESHOLD > 0 && remainingStock <= LOW_STOCK_THRESHOLD) {
+              stockNotifications.push({ type: 'low-stock', product: updatedProduct, remainingStock });
+            }
+          }
+
+          let itemSubtotal = 0;
+          let pricePerUnit = 0;
+
+          if (product.type === 'land') {
+            pricePerUnit = product.landPricingType === 'fixed'
+              ? product.pricePerPlot
+              : (product.pricePerSqMeter * product.areaSqMeters);
+            itemSubtotal = pricePerUnit * (item.plotsRequested || item.quantity);
+
+            orderItems.push({
+              product: product._id,
+              quantity: item.plotsRequested || item.quantity,
+              plotsRequested: item.plotsRequested || item.quantity,
+              pricePerUnit: pricePerUnit,
+              subtotal: itemSubtotal,
+              type: 'land'
+            });
+          } else {
+            pricePerUnit = product.pricePerKg;
+            itemSubtotal = pricePerUnit * item.weight * item.quantity;
+
+            orderItems.push({
+              product: product._id,
+              quantity: item.quantity,
+              weight: item.weight,
+              pricePerUnit: pricePerUnit,
+              subtotal: itemSubtotal,
+              type: 'product'
+            });
+          }
+
+          subtotal += itemSubtotal;
+        }
+
+        const shippingCost = 0;
+        const tax = 0;
+        const total = subtotal + shippingCost + tax;
+
+        const order = new Order({
+          buyer: req.user.id,
+          items: orderItems,
+          shippingAddress,
+          subtotal,
+          shippingCost,
+          tax,
+          total,
+          notes
         });
+
+        createdOrder = await order.save({ session });
+      });
+    } catch (orderError) {
+      await session.abortTransaction();
+      session.endSession();
+
+      if (orderError.message && orderError.message.startsWith('Minimum order for')) {
+        return res.status(400).json({ success: false, message: orderError.message });
+      }
+      if (orderError.message && orderError.message.startsWith('Maximum order for')) {
+        return res.status(400).json({ success: false, message: orderError.message });
+      }
+      if (orderError.message && orderError.message.includes('currently available')) {
+        return res.status(400).json({ success: false, message: orderError.message });
       }
 
-      if (orderQuantity > product.maxLimit) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `Maximum order for ${product.name} is ${product.maxLimit} ${product.unit}` 
-        });
-      }
-
-      let itemSubtotal = 0;
-      let pricePerUnit = 0;
-
-      if (product.type === 'land') {
-        // For land: calculate based on pricing type
-        pricePerUnit = product.landPricingType === 'fixed' 
-          ? product.pricePerPlot 
-          : (product.pricePerSqMeter * product.areaSqMeters);
-        itemSubtotal = pricePerUnit * (item.plotsRequested || item.quantity);
-        
-        orderItems.push({
-          product: product._id,
-          quantity: item.plotsRequested || item.quantity,
-          plotsRequested: item.plotsRequested || item.quantity,
-          pricePerUnit: pricePerUnit,
-          subtotal: itemSubtotal,
-          type: 'land'
-        });
-      } else {
-        // For products: calculate based on weight
-        pricePerUnit = product.pricePerKg;
-        itemSubtotal = pricePerUnit * item.weight * item.quantity;
-        
-        orderItems.push({
-          product: product._id,
-          quantity: item.quantity,
-          weight: item.weight,
-          pricePerUnit: pricePerUnit,
-          subtotal: itemSubtotal,
-          type: 'product'
-        });
-      }
-
-      subtotal += itemSubtotal;
+      console.error('Order creation failed:', orderError);
+      return res.status(500).json({ success: false, message: 'Failed to create order' });
     }
 
-    const shippingCost = 0;
-    const tax = 0;
-    const total = subtotal + shippingCost + tax;
+    session.endSession();
 
-    const order = await Order.create({
-      buyer: req.user.id,
-      items: orderItems,
-      shippingAddress,
-      subtotal,
-      shippingCost,
-      tax,
-      total,
-      notes
-    });
+    if (!createdOrder) {
+      return res.status(500).json({ success: false, message: 'Failed to create order' });
+    }
 
-    const populatedOrder = await order.populate([
+    const populatedOrder = await createdOrder.populate([
       { path: 'buyer', select: 'firstName lastName email phone' },
       { path: 'items.product', select: 'name pricePerKg pricePerPlot category type' }
     ]);
+
+    for (const notification of stockNotifications) {
+      try {
+        if (notification.type === 'out-of-stock') {
+          await telegramNotifier.notifyProductOutOfStock(notification.product);
+        } else if (notification.type === 'low-stock') {
+          await telegramNotifier.notifyProductLowStock(notification.product, notification.remainingStock, LOW_STOCK_THRESHOLD);
+        }
+      } catch (notifyError) {
+        console.error('Failed to send stock notification:', notifyError);
+      }
+    }
 
     // Send notification to admin via Telegram
     try {

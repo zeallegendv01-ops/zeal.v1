@@ -381,4 +381,17 @@ productSchema.index({ createdAt: -1 });
 productSchema.index({ category: 1, status: 1 });  // Compound index for filtering by category and status
 productSchema.index({ type: 1, status: 1 });      // Compound index for filtering by type and status
 
+productSchema.pre('save', function(next) {
+  const product = this;
+  const quantityField = product.type === 'land' ? product.numberOfPlots : product.quantity;
+
+  if (typeof quantityField === 'number' && quantityField === 0) {
+    product.status = 'sold-out';
+  } else if (product.status === 'sold-out' && typeof quantityField === 'number' && quantityField > 0) {
+    product.status = 'active';
+  }
+
+  next();
+});
+
 module.exports = mongoose.model('Product', productSchema);

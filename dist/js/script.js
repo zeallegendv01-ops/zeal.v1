@@ -144,20 +144,22 @@ function closeModal(id){
     document.body.style.overflow='';
 }
 
-function toggleCartSidebar(show) {
+function toggleCartSidebar(show, page = '1') {
   const sidebar = document.getElementById('cartSidebar');
   const toggleBtn = document.getElementById('cartToggleBtn');
+  if (!sidebar) return;
+
   if (show) {
     sidebar.classList.add('active');
     document.body.style.overflow = 'hidden';
     const pages = sidebar.querySelector('.sidebar-pages');
-    if (pages) pages.dataset.page = '1';
+    if (pages) pages.dataset.page = page;
     const button = sidebar.querySelector('.sidebar-page-toggle .slide-label');
-    if (button) button.textContent = 'Checkout';
+    if (button) button.textContent = page === '2' ? 'Back' : 'Checkout';
     const arrow = sidebar.querySelector('.sidebar-page-toggle i');
     if (arrow) {
-      arrow.classList.remove('fa-arrow-left');
-      arrow.classList.add('fa-arrow-right');
+      arrow.classList.toggle('fa-arrow-left', page === '2');
+      arrow.classList.toggle('fa-arrow-right', page !== '2');
     }
   } else {
     sidebar.classList.remove('active');
@@ -333,6 +335,8 @@ function addCardShareButtonHandlers() {
 function showProductDetails(product) {
   const price = product.pricePerKg || 0;
   const unit = product.unit || 'kg';
+  const quantity = product.quantity || 0;
+  const isSoldOut = quantity === 0 || product.status === 'sold-out';
   const certification = product.certification?.organic ? 'Organic (Certified)' : '';
   
   const productImages = Array.isArray(product.images) && product.images.length > 0
@@ -356,8 +360,8 @@ function showProductDetails(product) {
         </div>
         <div style="background: linear-gradient(135deg, rgba(46, 80, 22, 0.08), rgba(46, 80, 22, 0.04)); padding: 16px; border-radius: 8px; border: 1px solid rgba(46, 80, 22, 0.15);">
           <div style="font-size: 11px; color: #666; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.5px;">AVAILABLE STOCK</div>
-          <div style="font-size: 20px; font-weight: 700; color: #0d0d0b;">${product.quantity}</div>
-          <div style="font-size: 12px; color: #999; margin-top: 2px;">${unit}</div>
+          <div style="font-size: 20px; font-weight: 700; color: #0d0d0b;">${isSoldOut ? 'Out of Stock' : quantity}</div>
+          <div style="font-size: 12px; color: #999; margin-top: 2px;">${isSoldOut ? '' : unit}</div>
         </div>
       </div>
 
@@ -366,10 +370,10 @@ function showProductDetails(product) {
         <div class="weight-slider-wrap">
           <div class="weight-slider-label">
             <span>Weight (${unit})</span>
-            <span class="wval" id="productDetailWeight">1 ${unit}</span>
+            <span class="wval" id="productDetailWeight">${isSoldOut ? `0 ${unit}` : `1 ${unit}`}</span>
           </div>
-          <input type="range" class="wrange" id="productDetailWeightSlider" min="1" max="${product.quantity || 100}" value="1" step="1"
-            oninput="document.getElementById('productDetailWeight').textContent = this.value + ' ${unit}'; const priceVal = ${price}; const totalValue = (priceVal * this.value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); document.getElementById('productDetailTotal').innerHTML = totalValue; document.getElementById('productDetailTotalFooter').innerHTML = totalValue; document.getElementById('productDetailSelectedQty')?.textContent = this.value + ' ${unit}'; document.getElementById('productDetailActionTotal')?.textContent = 'NGN ' + totalValue;">
+          <input type="range" class="wrange" id="productDetailWeightSlider" min="${isSoldOut ? 0 : 1}" max="${Math.max(quantity, 1)}" value="${isSoldOut ? 0 : 1}" step="1" ${isSoldOut ? 'disabled' : ''}
+            oninput="document.getElementById('productDetailWeight').textContent = this.value + ' ${unit}'; const priceVal = ${price}; const totalValue = (priceVal * this.value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); document.getElementById('productDetailTotal').innerHTML = totalValue; document.getElementById('productDetailTotalFooter').innerHTML = totalValue; const selectedQtyEl = document.getElementById('productDetailSelectedQty'); if (selectedQtyEl) selectedQtyEl.textContent = this.value + ' ${unit}'; const actionTotalEl = document.getElementById('productDetailActionTotal'); if (actionTotalEl) actionTotalEl.textContent = 'NGN ' + totalValue;">
           <div style="font-size: 13px; font-weight: 600; color: var(--gold-lt); min-width: 80px; text-align: right;">
             <span id="productDetailTotal">${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
@@ -407,11 +411,11 @@ function showProductDetails(product) {
     <div style="display:flex;flex-direction:column;gap:18px;">
       <div class="order-summary-glass" style="padding:16px;">
         <div style="font-size:0.8rem; font-weight:700; color:rgba(13,13,11,0.7); margin-bottom:10px; text-transform:uppercase; letter-spacing:1px;">Checkout Actions</div>
-        <div style="display:flex;justify-content:space-between; margin-bottom:10px;"><span>Selected Qty</span><strong id="productDetailSelectedQty">1 ${unit}</strong></div>
+        <div style="display:flex;justify-content:space-between; margin-bottom:10px;"><span>Selected Qty</span><strong id="productDetailSelectedQty">${isSoldOut ? `0 ${unit}` : `1 ${unit}`}</strong></div>
         <div style="display:flex;justify-content:space-between; font-weight:700;"><span>Total</span><span id="productDetailActionTotal">NGN ${price.toLocaleString()}.00</span></div>
       </div>
-      <button class="btn-primary" onclick="addProductDetailToCart('${product._id}')" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 600;">
-        <i class="fa-solid fa-basket-shopping" style="margin-right: 8px;"></i> Add to Selection
+      <button class="btn-primary ${isSoldOut ? 'btn-disabled' : ''}" onclick="${isSoldOut ? 'void(0)' : `addProductDetailToCart('${product._id}')`}" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 600;" ${isSoldOut ? 'disabled' : ''}>
+        <i class="fa-solid fa-basket-shopping" style="margin-right: 8px;"></i> ${isSoldOut ? 'Out of Stock' : 'Add to Selection'}
       </button>
       <button class="cart-continue-btn" onclick="toggleSidebar('productDetailsSidebar', false)">← Back to Products</button>
     </div>
@@ -1611,6 +1615,17 @@ let allProducts = []; // Store all products for cart operations
 let currentCategoryFilter = null; // Track active category filter
 
 function addToCart(product, weight){
+  const stockQty = product.quantity ?? product.numberOfPlots ?? 0;
+  const isSoldOut = stockQty === 0 || product.status === 'sold-out';
+  if (isSoldOut) {
+    showNotification(`${product.name} is currently out of stock`, 'error');
+    return;
+  }
+  if (weight > stockQty) {
+    showNotification(`We apologize, but only ${stockQty} ${product.unit || 'units'} are currently available. Please adjust your quantity.`, 'error');
+    return;
+  }
+
   // Combine same product entries by total kilograms instead of creating duplicate cart lines.
   const existing = cart.find(item => item._id === product._id);
 
@@ -1684,7 +1699,20 @@ function updateCheckoutAddressSummary(){
   }
 }
 
+let shouldReopenCartAfterAddressSave = false;
+let pendingCartSidebarPage = '1';
+
 async function openAddressModal(){
+  const cartSidebar = document.getElementById('cartSidebar');
+  const pages = cartSidebar?.querySelector('.sidebar-pages');
+  if (cartSidebar && cartSidebar.classList.contains('active')) {
+    shouldReopenCartAfterAddressSave = true;
+    pendingCartSidebarPage = pages?.dataset.page || '1';
+    toggleCartSidebar(false);
+  } else {
+    pendingCartSidebarPage = '1';
+  }
+
   if(apiService.isAuthenticated()){
     await loadUserAddressForCheckout();
   }
@@ -1715,6 +1743,11 @@ function saveAddressAndClose(){
   updateCheckoutAddressSummary();
   closeModal('addressModal');
   showNotification('Address saved. You can now proceed to checkout.', 'success');
+
+  if (shouldReopenCartAfterAddressSave) {
+    shouldReopenCartAfterAddressSave = false;
+    setTimeout(() => toggleCartSidebar(true, pendingCartSidebarPage), 100);
+  }
 }
 
 function clearCart(){
@@ -1990,15 +2023,47 @@ let lastProductCount = 0;
 let lastProductsSignature = '';
 let productCheckInterval = null;
 
-async function fetchProducts(){
+// LocalStorage helpers for offline persistence
+function saveProductsToLocalStorage(products) {
+  try {
+    localStorage.setItem('agrocrown_products', JSON.stringify({
+      data: products,
+      timestamp: Date.now()
+    }));
+  } catch (error) {
+    console.warn('[LocalStorage] Failed to save products:', error.message);
+  }
+}
+
+function getProductsFromLocalStorage() {
+  try {
+    const stored = localStorage.getItem('agrocrown_products');
+    if (stored) {
+      const { data } = JSON.parse(stored);
+      return Array.isArray(data) ? data : null;
+    }
+  } catch (error) {
+    console.warn('[LocalStorage] Failed to retrieve products:', error.message);
+  }
+  return null;
+}
+
+async function fetchProducts(options = {}){
   try{
-    console.log('[DEBUG] Fetching products from', `${API_BASE_URL}/products`);
+    const params = new URLSearchParams();
+    if (options.category) params.set('category', options.category);
+    if (options.min !== undefined && options.min !== null && options.min !== '') params.set('min', Number(options.min));
+    if (options.max !== undefined && options.max !== null && options.max !== '') params.set('max', Number(options.max));
+    if (options.sort) params.set('sort', options.sort);
+
+    const url = `${API_BASE_URL}/products${params.toString() ? `?${params.toString()}` : ''}`;
+    console.log('[DEBUG] Fetching products from', url);
     
     // Add timeout to prevent hanging
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
     
-    const response = await fetch(`${API_BASE_URL}/products`, { signal: controller.signal });
+    const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
     console.log('[DEBUG] Response status:', response.status);
     
@@ -2018,6 +2083,8 @@ async function fetchProducts(){
     }
     if(data.success){
       allProducts = data.data; // Store all products
+      // Save to localStorage for offline access
+      saveProductsToLocalStorage(data.data);
       // Compute signature based on id + updatedAt to detect edits
       try{
         lastProductsSignature = data.data.map(p => `${p._id}:${p.updatedAt||''}`).join('|');
@@ -2035,10 +2102,20 @@ async function fetchProducts(){
     }
   }catch(error){
     console.error('[DEBUG] Failed to fetch products:', error);
-    console.error('[DEBUG] Product list unavailable');
-    allProducts = [];
-    renderProducts([]);
-    showNotification('Product not found', 'error');
+    console.error('[DEBUG] Product list unavailable. Attempting to load from cache...');
+    
+    // Try to load from localStorage when offline
+    const cachedProducts = getProductsFromLocalStorage();
+    if (cachedProducts && cachedProducts.length > 0) {
+      console.log('[DEBUG] Loading', cachedProducts.length, 'products from localStorage');
+      allProducts = cachedProducts;
+      renderProducts(cachedProducts);
+      showNotification('Showing cached products (offline mode)', 'info');
+    } else {
+      allProducts = [];
+      renderProducts([]);
+      showNotification('Product not found', 'error');
+    }
   }
 }
 
@@ -2070,6 +2147,8 @@ function startProductPolling(){
           allProducts = data.data;
           lastProductCount = data.data.length;
           lastProductsSignature = sig;
+          // Save updated products to localStorage
+          saveProductsToLocalStorage(data.data);
           renderProducts(data.data);
 
           // Show notification on refresh
@@ -2214,10 +2293,178 @@ function renderCategories(products) {
   console.log('[OK] Categories rendered:', allCategories);
 }
 
+let activeProductDropdown = null;
+let productFilterState = {
+  min: '',
+  max: '',
+  sort: 'asc'
+};
+
+function setupProductFilterBar() {
+  const priceBtn = document.getElementById('priceFilterBtn');
+  const sortBtn = document.getElementById('sortDropdownBtn');
+  const applyPriceBtn = document.getElementById('applyPriceFilterBtn');
+  const clearPriceBtn = document.getElementById('clearPriceFilterBtn');
+  const sortAscBtn = document.getElementById('sortAscBtn');
+  const sortDescBtn = document.getElementById('sortDescBtn');
+
+  if (priceBtn) {
+    priceBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleProductDropdown('priceFilterDropdown', 'priceFilterBtn');
+    });
+  }
+
+  if (sortBtn) {
+    sortBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleProductDropdown('sortDropdownMenu', 'sortDropdownBtn');
+    });
+  }
+
+  if (applyPriceBtn) {
+    applyPriceBtn.addEventListener('click', () => {
+      productFilterState.min = document.getElementById('filterMinPrice')?.value || '';
+      productFilterState.max = document.getElementById('filterMaxPrice')?.value || '';
+      applyProductFilters();
+      updatePriceControlLabel();
+      closeProductDropdowns();
+    });
+  }
+
+  if (clearPriceBtn) {
+    clearPriceBtn.addEventListener('click', () => {
+      productFilterState.min = '';
+      productFilterState.max = '';
+      const minInput = document.getElementById('filterMinPrice');
+      const maxInput = document.getElementById('filterMaxPrice');
+      if (minInput) minInput.value = '';
+      if (maxInput) maxInput.value = '';
+      applyProductFilters();
+      updatePriceControlLabel();
+      closeProductDropdowns();
+    });
+  }
+
+  if (sortAscBtn) {
+    sortAscBtn.addEventListener('click', () => {
+      selectSortOption('asc');
+    });
+  }
+
+  if (sortDescBtn) {
+    sortDescBtn.addEventListener('click', () => {
+      selectSortOption('desc');
+    });
+  }
+
+  const resetBtn = document.getElementById('resetFiltersBtn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      resetProductFilterBar();
+      applyProductFilters();
+      closeProductDropdowns();
+    });
+  }
+
+  document.addEventListener('click', handleProductFilterDocumentClick);
+  updateSortControlLabel();
+  updatePriceControlLabel();
+}
+
+function toggleProductDropdown(menuId, buttonId) {
+  const menu = document.getElementById(menuId);
+  const button = document.getElementById(buttonId);
+  if (!menu || !button) return;
+
+  const isOpen = menu.classList.contains('open');
+  closeProductDropdowns();
+
+  if (!isOpen) {
+    menu.classList.add('open');
+    button.setAttribute('aria-expanded', 'true');
+    activeProductDropdown = menuId;
+  }
+}
+
+function closeProductDropdowns() {
+  document.querySelectorAll('.dropdown-menu.open').forEach(menu => menu.classList.remove('open'));
+  document.querySelectorAll('#priceFilterBtn, #sortDropdownBtn').forEach(btn => btn?.setAttribute('aria-expanded', 'false'));
+  activeProductDropdown = null;
+}
+
+function handleProductFilterDocumentClick(event) {
+  if (activeProductDropdown) {
+    const dropdown = document.getElementById(activeProductDropdown);
+    if (dropdown && !dropdown.contains(event.target) && !event.target.closest('.control-btn')) {
+      closeProductDropdowns();
+    }
+  }
+}
+
+function selectSortOption(direction) {
+  productFilterState.sort = direction;
+  updateSortControlLabel();
+  applyProductFilters();
+  closeProductDropdowns();
+}
+
+function updateSortControlLabel() {
+  const label = document.getElementById('sortControlValue');
+  if (!label) return;
+  label.textContent = productFilterState.sort === 'desc' ? 'Price: High to Low' : 'Price: Low to High';
+}
+
+function applyProductFilters() {
+  const params = {
+    min: productFilterState.min || undefined,
+    max: productFilterState.max || undefined,
+    sort: productFilterState.sort || undefined,
+  };
+
+  if (currentCategoryFilter) {
+    params.category = currentCategoryFilter;
+  }
+
+  console.log('[DEBUG] Applying product filters', params);
+  fetchProducts(params);
+}
+
+function resetProductFilterBar() {
+  productFilterState.min = '';
+  productFilterState.max = '';
+  productFilterState.sort = 'asc';
+  const minInput = document.getElementById('filterMinPrice');
+  const maxInput = document.getElementById('filterMaxPrice');
+  if (minInput) minInput.value = '';
+  if (maxInput) maxInput.value = '';
+  updateSortControlLabel();
+  updatePriceControlLabel();
+}
+
+function updatePriceControlLabel() {
+  const label = document.getElementById('priceControlValue');
+  if (!label) return;
+
+  const minValue = productFilterState.min ? `₦${productFilterState.min}` : '';
+  const maxValue = productFilterState.max ? `₦${productFilterState.max}` : '';
+
+  if (minValue && maxValue) {
+    label.textContent = `${minValue} – ${maxValue}`;
+  } else if (minValue) {
+    label.textContent = `${minValue}+`;
+  } else if (maxValue) {
+    label.textContent = `Up to ${maxValue}`;
+  } else {
+    label.textContent = 'All prices';
+  }
+}
+
 // Show all products and reset category filters
 function showAllProducts() {
   currentCategoryFilter = null;
-  renderProducts(allProducts);
+  resetProductFilterBar();
+  fetchProducts();
   
   // Remove active state from all categories
   document.querySelectorAll('.product-category .category').forEach(tag => {
@@ -2232,19 +2479,14 @@ function showAllProducts() {
 function filterByCategory(category) {
   currentCategoryFilter = category;
   const normalizedCategory = category.toString().trim().toLowerCase();
-  const filtered = allProducts.filter(p => {
-    if (normalizedCategory === 'land') {
-      return p.type === 'land';
-    }
-    if (p.type === 'apartment') {
-      const apartmentType = (p.apartmentType || p.apartment_type || '').toString().trim().toLowerCase();
-      return apartmentType === normalizedCategory;
-    }
-    // Regular product category filter (case-insensitive)
-    return p.category?.toString().trim().toLowerCase() === normalizedCategory;
-  });
-  
-  renderProducts(filtered);
+  const params = {
+    category: category,
+    min: productFilterState.min || undefined,
+    max: productFilterState.max || undefined,
+    sort: productFilterState.sort || undefined
+  };
+
+  fetchProducts(params);
   
   // Optional: highlight the selected category
   document.querySelectorAll('.product-category .category').forEach(tag => {
@@ -2265,9 +2507,18 @@ function renderProductCard(product, totalCount) {
   const quantity = product.quantity || 0;
   const category = product.category || 'Other';
   const certification = product.certification?.organic ? 'Organic (Certified)' : '';
-  
+  const isSoldOut = quantity === 0 || product.status === 'sold-out';
+  const sliderMin = isSoldOut ? 0 : 1;
+  const sliderValue = isSoldOut ? 0 : 1;
+  const sliderMax = Math.max(quantity, 1);
+  const addButtonLabel = isSoldOut ? 'Out of Stock' : '<i class="fa-solid fa-basket-shopping"></i> Add to Selection';
+  const addButtonDisabled = isSoldOut ? 'disabled' : '';
+  const statusBadge = isSoldOut
+    ? `<span class="stock-badge stock-badge--sold-out">Out of Stock</span>`
+    : `<span class="stock-badge stock-badge--available">${quantity} In-Stock </span>`;
+
   return `
-    <div class="product-card" data-product-id="${product._id}" data-name="${product.name.toLowerCase()} ${product.description ? product.description.toLowerCase() : ''}" data-price="${price}">
+    <div class="product-card ${isSoldOut ? 'sold-out' : ''}" data-product-id="${product._id}" data-name="${product.name.toLowerCase()} ${product.description ? product.description.toLowerCase() : ''}" data-price="${price}">
       <img src="${product.image}" alt="${product.name}" loading="lazy">
       <div class="product-card-overlay"></div>
       <button type="button" class="card-share-btn" data-share-type="product" data-share-id="${product._id}" data-share-title="${encodeURIComponent(product.name)}" aria-label="Share ${product.name}"><i class="fa-solid fa-share-nodes"></i></button>
@@ -2276,18 +2527,19 @@ function renderProductCard(product, totalCount) {
         <h3>${product.name}</h3>
         <div class="product-price" id="price-${product._id}">${price.toLocaleString()}.00 / kg</div>
         ${certification ? `<div style="font-size: 0.65rem; color: var(--gold-lt); margin-bottom: 4px;">${certification}</div>` : ''}
-        <div style="font-size: 0.65rem; color: rgba(255,255,255,0.6); margin-bottom: 8px;">
-          Stock: ${quantity} ${unit}${product.minLimit ? ` | Min: ${product.minLimit}` : ''}
+        <div style="margin-bottom: 8px; display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+          ${statusBadge}
+          ${product.minLimit ? `<span style="font-size:0.65rem; color:rgba(255,255,255,0.75);">Min: ${product.minLimit}</span>` : ''}
         </div>
         <div class="weight-slider-wrap">
           <div class="weight-slider-label">
             <span>Weight (${unit})</span>
-            <span class="wval" id="wv-${product._id}" style="min-width: 35px; text-align: right;">1 ${unit}</span>
+            <span class="wval" id="wv-${product._id}" style="min-width: 35px; text-align: right;">${sliderValue} ${unit}</span>
           </div>
-          <input type="range" class="wrange" min="1" max="${quantity}" value="1" step="1"
+          <input type="range" class="wrange" min="${sliderMin}" max="${sliderMax}" value="${sliderValue}" step="1" ${isSoldOut ? 'disabled' : ''}
             oninput="updateProductPrice('${product._id}', ${price}, this.value)">
         </div>
-        <button class="product-btn" onclick="addToCartFromCard('${product._id}')"><i class="fa-solid fa-basket-shopping"></i> Add to Selection</button>
+        <button class="product-btn ${isSoldOut ? 'product-btn--disabled' : ''}" onclick="addToCartFromCard('${product._id}')" ${addButtonDisabled}>${addButtonLabel}</button>
       </div>
     </div>
   `;
@@ -3830,6 +4082,18 @@ async function initializeApp() {
     }
     
     updateCartDisplay();
+    setupProductFilterBar();
+    
+    // Load products - try cache first for faster load, then fetch from server
+    const cachedProducts = getProductsFromLocalStorage();
+    if (cachedProducts && cachedProducts.length > 0) {
+      console.log('[DEBUG] Loading', cachedProducts.length, 'cached products on startup');
+      allProducts = cachedProducts;
+      renderProducts(cachedProducts);
+    }
+    
+    // Always fetch fresh products from server
+    await fetchProducts();
     
     // Add checkout button event listener
     const checkoutBtn = document.getElementById('cartCheckout');

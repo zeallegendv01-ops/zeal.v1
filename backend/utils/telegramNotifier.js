@@ -3,15 +3,23 @@
 class TelegramNotifier {
   constructor() {
     this.botToken = process.env.TELEGRAM_BOT_TOKEN;
-    this.adminId = process.env.ADMIN_TELEGRAM_ID;
+    this.adminIds = (process.env.ADMIN_TELEGRAM_ID || '')
+      .split(',')
+      .map(id => id.trim())
+      .filter(id => id);
     this.baseUrl = `https://api.telegram.org/bot${this.botToken}`;
   }
 
   async sendMessage(chatId, text, options = {}) {
+    if (!chatId || !this.botToken) {
+      console.log('Telegram credentials not configured');
+      return null;
+    }
+
     try {
       const response = await axios.post(`${this.baseUrl}/sendMessage`, {
         chat_id: chatId,
-        text: text,
+        text,
         parse_mode: options.parseMode || 'HTML',
         reply_markup: options.replyMarkup
       });
@@ -22,14 +30,27 @@ class TelegramNotifier {
     }
   }
 
+  async sendToAdmins(text, options = {}) {
+    if (!this.adminIds.length || !this.botToken) {
+      console.log('Telegram admin IDs not configured');
+      return;
+    }
+
+    const results = [];
+    for (const adminId of this.adminIds) {
+      results.push(await this.sendMessage(adminId, text, options));
+    }
+    return results;
+  }
+
   async notifyNewOrder(order) {
-    if (!this.adminId || !this.botToken) {
+    if (!this.adminIds.length || !this.botToken) {
       console.log('Telegram credentials not configured');
       return;
     }
 
     const message = this.formatOrderMessage(order);
-    return await this.sendMessage(this.adminId, message, {
+    return await this.sendToAdmins(message, {
       replyMarkup: {
         inline_keyboard: [
           [
@@ -83,7 +104,7 @@ class TelegramNotifier {
   }
 
   async notifyOrderStatusUpdate(order, oldStatus) {
-    if (!this.adminId || !this.botToken) return;
+    if (!this.adminIds.length || !this.botToken) return;
 
     const message = ` <b>ORDER STATUS UPDATED</b>\n\n` +
       ` <b>Order:</b> ${order.orderNumber}\n` +
@@ -92,11 +113,11 @@ class TelegramNotifier {
       ` <b>Total:</b> $${order.total.toFixed(2)}\n\n` +
       ` <b>Updated:</b> ${new Date().toLocaleString()}`;
 
-    return await this.sendMessage(this.adminId, message);
+    return await this.sendToAdmins(message);
   }
 
   async notifyNewUser(user) {
-    if (!this.adminId || !this.botToken) return;
+    if (!this.adminIds.length || !this.botToken) return;
 
     const message = ` <b>NEW USER REGISTERED</b>\n\n` +
       ` <b>Name:</b> ${user.firstName} ${user.lastName}\n` +
@@ -106,11 +127,37 @@ class TelegramNotifier {
       ` <b>Company:</b> ${user.company || 'Not provided'}\n\n` +
       ` <b>Registered:</b> ${new Date(user.createdAt).toLocaleString()}`;
 
-    return await this.sendMessage(this.adminId, message);
+    return await this.sendToAdmins(message);
+  }
+
+  async notifyProductOutOfStock(product) {
+    if (!this.adminIds.length || !this.botToken) return;
+
+    const unitLabel = product.unit || (product.type === 'land' ? 'plots' : 'units');
+    const message = ` <b>🛑 PRODUCT OUT OF STOCK</b>\n\n` +
+      ` <b>Product:</b> ${product.name}\n` +
+      ` <b>Stock level:</b> 0 ${unitLabel}\n` +
+      ` <b>Status:</b> Sold out / Out of Stock\n` +
+      ` <b>Action:</b> Update inventory or remove from storefront if needed.`;
+
+    return await this.sendToAdmins(message);
+  }
+
+  async notifyProductLowStock(product, remainingStock, threshold) {
+    if (!this.adminIds.length || !this.botToken) return;
+
+    const unitLabel = product.unit || (product.type === 'land' ? 'plots' : 'units');
+    const message = ` <b>⚠️ LOW STOCK ALERT</b>\n\n` +
+      ` <b>Product:</b> ${product.name}\n` +
+      ` <b>Remaining stock:</b> ${remainingStock} ${unitLabel}\n` +
+      ` <b>Threshold:</b> ${threshold} ${unitLabel}\n` +
+      ` <b>Recommendation:</b> Reorder or adjust storefront visibility.`;
+
+    return await this.sendToAdmins(message);
   }
 
   async notifyNewTestimonial(testimonial) {
-    if (!this.adminId || !this.botToken) return;
+    if (!this.adminIds.length || !this.botToken) return;
 
     const message = ` <b>NEW TESTIMONIAL SUBMISSION</b>\n\n` +
       ` <b>Name:</b> ${testimonial.name}\n` +
@@ -119,17 +166,17 @@ class TelegramNotifier {
       ` <b>Status:</b> Pending approval\n\n` +
       `Use /pendingtestimonials in the bot to review pending testimonials.`;
 
-    return await this.sendMessage(this.adminId, message);
+    return await this.sendToAdmins(message);
   }
 
   async notifyPayment(order, paymentIntent) {
-    if (!this.adminId || !this.botToken) {
+    if (!this.adminIds.length || !this.botToken) {
       console.log('Telegram credentials not configured');
       return;
     }
 
     const message = this.formatPaymentMessage(order, paymentIntent);
-    return await this.sendMessage(this.adminId, message, {
+    return await this.sendToAdmins(message, {
       replyMarkup: {
         inline_keyboard: [
           [
@@ -188,13 +235,13 @@ class TelegramNotifier {
   }
 
   async notifyPaymentFailure(order, paymentData, failureReason) {
-    if (!this.adminId || !this.botToken) {
+    if (!this.adminIds.length || !this.botToken) {
       console.log('Telegram credentials not configured');
       return;
     }
 
     const message = this.formatPaymentFailureMessage(order, paymentData, failureReason);
-    return await this.sendMessage(this.adminId, message, {
+    return await this.sendToAdmins(message, {
       replyMarkup: {
         inline_keyboard: [
           [

@@ -26,9 +26,9 @@ import ShieldAI from '/frontend-shield-ai.js';
     fingerprint: true,
     
     // Behavioral tracking
-    trackMouse: true,
+    trackMouse: false,
     trackKeyboard: true,
-    trackScroll: true,
+    trackScroll: false,
     trackTouch: true,
     humanTimeout: 8000,
     allowTouchDevices: true,

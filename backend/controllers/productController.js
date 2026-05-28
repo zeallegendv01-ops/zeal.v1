@@ -15,13 +15,37 @@ const normalizeProductImages = (product) => {
 
 exports.getAllProducts = async (req, res, next) => {
   try {
-    const { category, status } = req.query;
+    const { category, status, min, max, sort } = req.query;
     let filter = {};
 
     if (category) filter.category = category;
     if (status) filter.status = status;
 
-    const products = await Product.find(filter).populate('supplier', 'firstName lastName company');
+    if ((min !== undefined && min !== null && min !== '') || (max !== undefined && max !== null && max !== '')) {
+      filter.pricePerKg = {};
+      if (min !== undefined && min !== null && min !== '') {
+        const minValue = Number(min);
+        if (!Number.isNaN(minValue)) filter.pricePerKg.$gte = minValue;
+      }
+      if (max !== undefined && max !== null && max !== '') {
+        const maxValue = Number(max);
+        if (!Number.isNaN(maxValue)) filter.pricePerKg.$lte = maxValue;
+      }
+    }
+
+    const sortOptions = {};
+    if (sort === 'asc') {
+      sortOptions.pricePerKg = 1;
+    } else if (sort === 'desc') {
+      sortOptions.pricePerKg = -1;
+    }
+
+    let query = Product.find(filter).populate('supplier', 'firstName lastName company');
+    if (Object.keys(sortOptions).length) {
+      query = query.sort(sortOptions);
+    }
+
+    const products = await query;
 
     // Debug: log price fields of returned products to help diagnose frontend NaN
     products.forEach(p => {

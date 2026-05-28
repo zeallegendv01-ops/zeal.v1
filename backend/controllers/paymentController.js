@@ -4,6 +4,8 @@ const Settings = require('../models/Settings');
 const telegramNotifier = require('../utils/telegramNotifier');
 const whatsappNotifier = require('../utils/whatsappNotifier');
 const emailService = require('../utils/emailService');
+const InventoryService = require('../utils/inventoryService');
+const LOW_STOCK_THRESHOLD = parseInt(process.env.LOW_STOCK_THRESHOLD || '5', 10);
 const { generateInvoiceHTML } = require('../utils/invoiceGenerator');
 
 const calculateCartItem = (product, item) => {
@@ -58,6 +60,9 @@ exports.initializePayment = async (req, res, next) => {
         message: `Incomplete address. Missing: ${missingFields.join(', ')}` 
       });
     }
+
+    // Validate requested quantities against current inventory before checkout
+    await InventoryService.validateStockForItems(items);
 
     // Calculate total amount using prices from cart (what user saw)
     let subtotal = 0;
@@ -333,73 +338,112 @@ exports.handleWebhook = async (req, res, next) => {
         return res.status(200).json({ received: true });
       }
 
-      // Create the order
       const Product = require('../models/Product');
       let subtotal = 0;
       const orderItems = [];
+      const stockNotifications = [];
+      const session = await Order.startSession();
+      let createdOrder = null;
 
-      // Validate items and calculate subtotal using prices from cart
-      for (const item of metadata.items) {
-        const product = await Product.findOne({ $or: [{ _id: item.product }, { code: item.product }] });
-        if (!product) {
-          console.error(`Product ${item.product} not found`);
-          continue;
-        }
+      try {
+        await session.withTransaction(async () => {
+          for (const item of metadata.items) {
+            const product = await Product.findOne({ $or: [{ _id: item.product }, { code: item.product }] }).session(session);
+            if (!product) {
+              throw new Error(`Product ${item.product} not found`);
+            }
 
-        const { pricePerUnit, subtotal: itemSubtotal, weight } = calculateCartItem(product, item);
-        orderItems.push({
-          product: product._id,
-          quantity: item.quantity || 1,
-          weight,
-          pricePerUnit: pricePerUnit,
-          subtotal: itemSubtotal
+            const requestedQty = InventoryService.getRequestedQuantity(product, item);
+            if (requestedQty > 0) {
+              await InventoryService.validateStockForItem(product, item);
+              const { product: updatedProduct, remainingStock } = await InventoryService.deductInventory(product, requestedQty, session);
+
+              if (remainingStock === 0) {
+                stockNotifications.push({ type: 'out-of-stock', product: updatedProduct });
+              } else if (LOW_STOCK_THRESHOLD > 0 && remainingStock <= LOW_STOCK_THRESHOLD) {
+                stockNotifications.push({ type: 'low-stock', product: updatedProduct, remainingStock });
+              }
+            }
+
+            const { pricePerUnit, subtotal: itemSubtotal, weight } = calculateCartItem(product, item);
+            orderItems.push({
+              product: product._id,
+              quantity: item.quantity || 1,
+              weight,
+              pricePerUnit: pricePerUnit,
+              subtotal: itemSubtotal
+            });
+
+            subtotal += itemSubtotal;
+          }
+
+          let settings = await Settings.findOne().session(session);
+          if (!settings) {
+            settings = new Settings({ taxRate: 10, shippingFee: 50 });
+            await settings.save({ session });
+          }
+
+          let hasProductItems = false;
+          for (const item of metadata.items) {
+            const product = await Product.findOne({ $or: [{ _id: item.product }, { code: item.product }] }).session(session);
+            if (product && product.type === 'product') {
+              hasProductItems = true;
+              break;
+            }
+          }
+
+          const taxRate = settings.taxRate / 100;
+          const tax = subtotal * taxRate;
+          const shippingCost = hasProductItems ? settings.shippingFee : 0;
+          const total = subtotal + shippingCost + tax;
+
+          const order = new Order({
+            buyer: metadata.userId,
+            items: orderItems,
+            shippingAddress: metadata.shippingAddress,
+            subtotal,
+            shippingCost,
+            tax,
+            total,
+            paymentStatus: 'completed',
+            notes: metadata.notes,
+            metadata: {
+              paystackReference: reference,
+              paystackData: event.data
+            }
+          });
+
+          createdOrder = await order.save({ session });
         });
-
-        subtotal += itemSubtotal;
+      } catch (transactionError) {
+        await session.abortTransaction();
+        console.error('Payment success transaction failed:', transactionError);
+        session.endSession();
+        return res.status(500).json({ received: false, message: 'Failed to finalize order after payment' });
       }
 
-      // Fetch settings from database
-      let settings = await Settings.findOne();
-      if (!settings) {
-        settings = new Settings({ taxRate: 10, shippingFee: 50 });
-        await settings.save();
+      session.endSession();
+
+      if (!createdOrder) {
+        return res.status(500).json({ received: false, message: 'Failed to create order after payment' });
       }
 
-      // Check if order contains product items that require shipping
-      let hasProductItems = false;
-      for (const item of metadata.items) {
-        const product = await Product.findOne({ $or: [{ _id: item.product }, { code: item.product }] });
-        if (product && product.type === 'product') {
-          hasProductItems = true;
-          break;
-        }
-      }
-
-      const taxRate = settings.taxRate / 100;
-      const tax = subtotal * taxRate;
-      const shippingCost = hasProductItems ? settings.shippingFee : 0; // Only add shipping if there are products
-      const total = subtotal + shippingCost + tax;
-
-      const order = await Order.create({
-        buyer: metadata.userId,
-        items: orderItems,
-        shippingAddress: metadata.shippingAddress,
-        subtotal,
-        shippingCost,
-        tax,
-        total,
-        paymentStatus: 'completed',
-        notes: metadata.notes,
-        metadata: {
-          paystackReference: reference,
-          paystackData: event.data
-        }
-      });
-
-      const populatedOrder = await order.populate([
+      const populatedOrder = await createdOrder.populate([
         { path: 'buyer', select: 'firstName lastName email phone address' },
-        { path: 'items.product', select: 'name pricePerKg category' }
+        { path: 'items.product', select: 'name pricePerKg category type unit' }
       ]);
+
+      for (const notification of stockNotifications) {
+        try {
+          if (notification.type === 'out-of-stock') {
+            await telegramNotifier.notifyProductOutOfStock(notification.product);
+          } else if (notification.type === 'low-stock') {
+            await telegramNotifier.notifyProductLowStock(notification.product, notification.remainingStock, LOW_STOCK_THRESHOLD);
+          }
+        } catch (notifyError) {
+          console.error('Failed to send stock notification:', notifyError);
+        }
+      }
 
       // Send payment notification to admin via Telegram
       try {
@@ -439,7 +483,7 @@ exports.handleWebhook = async (req, res, next) => {
         // Don't fail the webhook if cart clearing fails - order is already created
       }
 
-      console.log(`[PAYMENT SUCCESS] Reference: ${reference}, OrderId: ${order._id}`);
+      console.log(`[PAYMENT SUCCESS] Reference: ${reference}, OrderId: ${createdOrder._id}`);
     }
 
     res.status(200).json({ received: true });

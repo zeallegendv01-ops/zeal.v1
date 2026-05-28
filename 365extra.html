@@ -547,6 +547,41 @@
   <div class="product-category">
     <!-- Categories will be dynamically rendered from backend products -->
   </div>
+  <div class="product-controls-bar" id="productControlsBar">
+
+      <div class="product-control">
+      <button type="button" class="control-btn" id="sortDropdownBtn" aria-expanded="false" aria-controls="sortDropdownMenu">
+        <span class="fa-solid fa-filter"></span>
+      </button>
+      <div class="dropdown-menu" id="sortDropdownMenu" role="menu" aria-labelledby="sortDropdownBtn">
+        <button type="button" class="dropdown-item" id="sortAscBtn">Price: Low to High</button>
+        <button type="button" class="dropdown-item" id="sortDescBtn">Price: High to Low</button>
+      </div>
+    </div>
+
+    <div class="product-control">
+      <button type="button" class="control-btn" id="priceFilterBtn" aria-expanded="false" aria-controls="priceFilterDropdown">
+        <span class="fa-solid fa-sliders"></span>
+      </button>
+      <div class="dropdown-menu" id="priceFilterDropdown" role="menu" aria-labelledby="priceFilterBtn">
+        <div class="dropdown-section">
+          <label for="filterMinPrice">Min Price</label>
+          <input type="number" id="filterMinPrice" min="0" placeholder="0" class="filter-input" aria-label="Minimum price">
+        </div>
+        <div class="dropdown-section">
+          <label for="filterMaxPrice">Max Price</label>
+          <input type="number" id="filterMaxPrice" min="0" placeholder="0" class="filter-input" aria-label="Maximum price">
+        </div>
+        <div class="dropdown-actions">
+          <button type="button" id="applyPriceFilterBtn" class="btn-primary">Apply</button>
+          <button type="button" id="clearPriceFilterBtn" class="control-reset-btn">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <button type="button" id="resetFiltersBtn" class="control-reset-btn"><span class="fa-solid fa-rotate-left"></span></button>
+  </div>
+
   <div class="product-grid" id="productGrid">
     <div class="no-products-msg" id="noProductsMsg">No products match your search.</div>
   </div>
@@ -730,7 +765,7 @@
 <script src="/dist/js/marquee.js"></script>
 
 <!-- ShieldAI Bot Detection & Protection -->
-<script type="module" src="/dist/js/SHD.js"></script>
+<!-- <script type="module" src="/dist/js/SHD.js"></script> -->
 
 <div id="whatsappWidget" class="whatsapp-widget hidden">
   <!-- Header -->
