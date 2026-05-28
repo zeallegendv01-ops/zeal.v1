@@ -118,7 +118,15 @@
         </div>
         <div class="auth-2col">
           <div class="auth-field"><label>Password</label><input type="password" placeholder="Min. 8 characters"></div>
-          <div class="auth-field"><label>Account Type</label><input type="text" placeholder="Buyer / Distributor / Wholesaler"></div>
+          <div class="auth-field"><label>Account Type</label>
+            <select id="registerAccountType" aria-label="Account Type">
+              <option value="" disabled selected>Select account type</option>
+              <option value="Buyer">Buyer</option>
+              <option value="Distributor">Distributor</option>
+              <option value="Wholesaler">Wholesaler</option>
+              <option value="Producer">Producer</option>
+            </select>
+          </div>
         </div>
         <button class="auth-submit">Create Account</button>
       </div>
@@ -765,7 +773,7 @@
 <script src="/dist/js/marquee.js"></script>
 
 <!-- ShieldAI Bot Detection & Protection -->
-<script type="module" src="/dist/js/SHD.js"></script>
+<!-- <script type="module" src="/dist/js/SHD.js"></script> -->
 
 <div id="whatsappWidget" class="whatsapp-widget hidden">
   <!-- Header -->

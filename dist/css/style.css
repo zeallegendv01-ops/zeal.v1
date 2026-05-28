@@ -2185,8 +2185,8 @@ nav:hover {
   .dropdown-menu {
     width: calc(100vw - 48px);
     max-width: calc(100vw - 48px);
-    left: 40%;
-    transform: translateX(-40%);
+    left: 50%;
+    transform: translateX(-50%);
   }
 
   .cart-sidebar-header {
@@ -2892,6 +2892,7 @@ h1.headline .solid {
   top: calc(100% + 10px);
   left: 50%;
   transform: translateX(-50%);
+  min-width: 220px;
   width: 250px;
   max-width: calc(100vw - 24px);
   background: #fff;
@@ -2900,10 +2901,18 @@ h1.headline .solid {
   box-shadow: 0 18px 40px rgba(13, 13, 11, 0.14);
   padding: 18px;
   z-index: 20000;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.product-control:last-child .dropdown-menu {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 .dropdown-menu.open {
-  display: block;
+  display: grid;
 }
 
 .dropdown-section {
@@ -3016,7 +3025,7 @@ h1.headline .solid {
 }
 
 .dropdown-item {
-  width: 50%;
+  width: 100%;
   text-align: center;
   background: transparent;
   border: none;
@@ -3024,7 +3033,7 @@ h1.headline .solid {
   border-radius: 8px;
   font-size: 0.95rem;
   cursor: pointer;
-  margin: auto;
+  margin: 0;
   transition: background 0.2s;
 }
 
@@ -4643,11 +4652,22 @@ footer {
     padding: 80px 5%;
   }
 
-  /* Extra compact dropdown for small screens */
+  /* Keep the controls layout as-is, only adjust dropdown positioning */
   .dropdown-menu {
-    width: calc(100vw - 50px);
-    max-width: calc(100vw - 50px);
+    width: min(260px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
     left: 50%;
+    transform: translateX(-50%);
+  }
+
+  #sortDropdownMenu {
+    left: 0;
+    transform: none;
+  }
+
+  .product-control:last-child .dropdown-menu {
+    left: 50%;
+    right: auto;
     transform: translateX(-50%);
   }
 

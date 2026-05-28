@@ -3042,7 +3042,7 @@ function showNotification(message, type = 'info') {
 
 /*  AUTHENTICATION  */
 async function handleLogin(){
-  const email = document.querySelector('#loginPanel input[type="email"]').value;
+  const email = document.querySelector('#loginPanel input[type="email"]').value.trim();
   const password = document.querySelector('#loginPanel input[type="password"]').value;
 
   if(!email || !password){
@@ -3088,12 +3088,12 @@ async function handleLogin(){
 }
 
 async function handleRegister(){
-  const firstName = document.querySelector('#registerPanel input[placeholder="First"]').value;
-  const lastName = document.querySelector('#registerPanel input[placeholder="Last"]').value;
-  const email = document.querySelector('#registerPanel input[type="email"]').value;
-  const phone = document.querySelector('#registerPanel input[type="tel"]').value;
+  const firstName = document.querySelector('#registerPanel input[placeholder="First"]').value.trim();
+  const lastName = document.querySelector('#registerPanel input[placeholder="Last"]').value.trim();
+  const email = document.querySelector('#registerPanel input[type="email"]').value.trim();
+  const phone = document.querySelector('#registerPanel input[type="tel"]').value.trim();
   const password = document.querySelector('#registerPanel input[type="password"]').value;
-  const accountType = document.querySelector('#registerPanel input[placeholder*="Buyer"]').value;
+  const accountType = document.querySelector('#registerAccountType').value;
 
   if(!firstName || !lastName || !email || !password || !accountType){
     showNotification('Please fill in all required fields', 'error');
