@@ -38,12 +38,12 @@ exports.getAllProducts = async (req, res, next) => {
       sortOptions.pricePerKg = 1;
     } else if (sort === 'desc') {
       sortOptions.pricePerKg = -1;
+    } else {
+      sortOptions.name = 1;
     }
 
     let query = Product.find(filter).populate('supplier', 'firstName lastName company');
-    if (Object.keys(sortOptions).length) {
-      query = query.sort(sortOptions);
-    }
+    query = query.sort(sortOptions);
 
     const products = await query;
 

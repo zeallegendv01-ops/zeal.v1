@@ -2905,6 +2905,8 @@ h1.headline .solid {
   gap: 10px;
 }
 
+.sh
+
 .product-control:last-child .dropdown-menu {
   left: auto;
   right: 0;
@@ -3101,8 +3103,13 @@ h1.headline .solid {
 
 .product-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 7px;
+  width: min(100%, 1240px);
+  max-width: 1240px;
+  margin: 0 auto;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  justify-content: center;
+  justify-items: center;
   position: relative;
   z-index: 1;
 }
@@ -3110,6 +3117,7 @@ h1.headline .solid {
 /* Allow land cards and product cards to coexist */
 .product-grid > * {
   min-width: 0;
+  width: 100%;
 }
 
 .product-card {
@@ -3142,6 +3150,32 @@ h1.headline .solid {
 /* Progressive Image Loading - Blur-Up Effect */
 .product-card img.image-loading {
   filter: saturate(0.85) blur(15px);
+}
+
+/* Show More/Less Button */
+.show-more-btn {
+  background: #2c3e50;
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.show-more-btn:hover {
+  background: #1a252f;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.show-more-btn:active {
+  transform: translateY(0);
+}
+
 }
 
 .product-card img.image-loaded {
@@ -4440,8 +4474,11 @@ footer {
   }
 
   .product-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 12px;
+    width: 100%;
+    max-width: none;
+    justify-items: center;
   }
 
   .testimonial {
@@ -4540,18 +4577,30 @@ footer {
   }
 
   .product-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
     gap: 12px;
+    width: 100%;
+    max-width: none;
+    justify-items: center;
   }
 
   .product-card {
     aspect-ratio: 3/4;
-    max-height: 400px;
+    max-height: 500px;
   }
 
   .product-card img {
     object-fit: cover;
   }
+
+  /* .sort-dropdown-menu {
+    position: fixed;
+    top: 105px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(260px, calc(100vw - 32px));
+    z-index: 25000;
+  } */
 
   .land-details {
     grid-template-columns: 1fr;
@@ -4660,9 +4709,13 @@ footer {
     transform: translateX(-50%);
   }
 
-  #sortDropdownMenu {
-    left: 0;
-    transform: none;
+  .sort-dropdown-menu {
+    position: relative;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(260px, calc(100vw - 32px));
+    z-index: 25000;
   }
 
   .product-control:last-child .dropdown-menu {
@@ -4672,8 +4725,11 @@ footer {
   }
 
   .product-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
     gap: 12px;
+    width: 100%;
+    max-width: none;
+    justify-items: center;
   }
 
   .product-card {

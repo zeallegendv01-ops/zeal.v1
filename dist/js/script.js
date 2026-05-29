@@ -1024,13 +1024,16 @@ function getMatchedSearchItems(source, term) {
   }).filter(item => {
     const t = (term || '').toString().trim().toLowerCase();
     if (!t) return true;
-    const tFirst = t.charAt(0);
-    const nameFirst = (item.name || '').toString().trim().toLowerCase().charAt(0);
-    const catFirst = (item.category || '').toString().trim().toLowerCase().charAt(0);
-    const descFirst = (item.description || '').toString().trim().toLowerCase().charAt(0);
+
+    const name = (item.name || '').toString().toLowerCase();
+    const category = (item.category || '').toString().toLowerCase();
+    const description = (item.description || '').toString().toLowerCase();
     const tags = (item.sourceItem?.tags || '').toString().toLowerCase();
-    const tagFirstMatch = tags.split(',').some(tag => tag.trim().charAt(0) === tFirst);
-    return nameFirst === tFirst || catFirst === tFirst || descFirst === tFirst || tagFirstMatch;
+    const apartmentType = (item.sourceItem?.apartmentType || item.sourceItem?.apartment_type || '').toString().toLowerCase();
+    const location = (item.sourceItem?.location || item.sourceItem?.apartmentAddress || item.sourceItem?.address || '').toString().toLowerCase();
+    const fields = [name, category, description, tags, apartmentType, location].join(' ');
+
+    return fields.includes(t);
   });
 }
 
@@ -1613,6 +1616,11 @@ function restoreCartForUser(user) {
 let cart = loadCartFromStorage();
 let allProducts = []; // Store all products for cart operations
 let currentCategoryFilter = null; // Track active category filter
+let batchLoadingState = {
+  isExpanded: false,
+  itemsPerBatch: 20,
+  currentDisplayCount: 20
+};
 
 function addToCart(product, weight){
   const stockQty = product.quantity ?? product.numberOfPlots ?? 0;
@@ -2187,7 +2195,17 @@ function renderProducts(products){
     return;
   }
 
-  grid.innerHTML = products.map(product => {
+  // Reset batch loading state when rendering new products
+  batchLoadingState.isExpanded = false;
+  batchLoadingState.currentDisplayCount = 20;
+
+  // Determine how many items to display
+  const itemsToShow = batchLoadingState.isExpanded ? products.length : Math.min(batchLoadingState.itemsPerBatch, products.length);
+  const displayedProducts = products.slice(0, itemsToShow);
+  const hasMore = products.length > batchLoadingState.itemsPerBatch;
+
+  // Render the products
+  grid.innerHTML = displayedProducts.map(product => {
     // Check product type
     if (product.type === 'land') {
       return renderLandCard(product, products.length);
@@ -2197,6 +2215,26 @@ function renderProducts(products){
       return renderProductCard(product, products.length);
     }
   }).join('');
+
+  // Add "Show More" button if there are more products to display
+  if (hasMore) {
+    const showMoreContainer = document.createElement('div');
+    showMoreContainer.id = 'showMoreContainer';
+    showMoreContainer.style.cssText = 'grid-column: 1 / -1; display: flex; justify-content: center; padding: 20px; margin-top: 10px;';
+    
+    const showMoreBtn = document.createElement('button');
+    showMoreBtn.id = 'showMoreBtn';
+    showMoreBtn.className = 'show-more-btn';
+    showMoreBtn.textContent = 'Show More';
+    showMoreBtn.onclick = toggleBatchLoading;
+    
+    showMoreContainer.appendChild(showMoreBtn);
+    grid.parentNode.insertBefore(showMoreContainer, grid.nextSibling);
+  } else {
+    // Remove show more container if no more items
+    const container = document.getElementById('showMoreContainer');
+    if (container) container.remove();
+  }
 
   // Initialize progressive image loading for ultra-high quality effect
   initProgressiveImageLoading();
@@ -2210,6 +2248,41 @@ function renderProducts(products){
   addLandCardClickHandlers();
   addApartmentCardClickHandlers();
   addCardShareButtonHandlers();
+}
+
+function toggleBatchLoading() {
+  const btn = document.getElementById('showMoreBtn');
+  if (!btn) return;
+  
+  batchLoadingState.isExpanded = !batchLoadingState.isExpanded;
+  btn.textContent = batchLoadingState.isExpanded ? 'Show Less' : 'Show More';
+  
+  // Re-render only the products part with new display count
+  const grid = document.getElementById('productGrid');
+  if (grid && allProducts.length > 0) {
+    const itemsToShow = batchLoadingState.isExpanded ? allProducts.length : batchLoadingState.itemsPerBatch;
+    const displayedProducts = allProducts.slice(0, itemsToShow);
+    
+    grid.innerHTML = displayedProducts.map(product => {
+      if (product.type === 'land') {
+        return renderLandCard(product, allProducts.length);
+      } else if (product.type === 'apartment') {
+        return renderApartmentCard(product, allProducts.length);
+      } else {
+        return renderProductCard(product, allProducts.length);
+      }
+    }).join('');
+
+    // Re-initialize handlers and image loading
+    initProgressiveImageLoading();
+    addProductCardClickHandlers();
+    addLandCardClickHandlers();
+    addApartmentCardClickHandlers();
+    addCardShareButtonHandlers();
+    
+    // Smooth scroll to top of grid
+    grid.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 // Dynamically render product categories
@@ -2297,7 +2370,7 @@ let activeProductDropdown = null;
 let productFilterState = {
   min: '',
   max: '',
-  sort: 'asc'
+  sort: 'name'
 };
 
 function setupProductFilterBar() {
@@ -2305,6 +2378,7 @@ function setupProductFilterBar() {
   const sortBtn = document.getElementById('sortDropdownBtn');
   const applyPriceBtn = document.getElementById('applyPriceFilterBtn');
   const clearPriceBtn = document.getElementById('clearPriceFilterBtn');
+  const sortAlphaBtn = document.getElementById('sortAlphaBtn');
   const sortAscBtn = document.getElementById('sortAscBtn');
   const sortDescBtn = document.getElementById('sortDescBtn');
 
@@ -2343,6 +2417,12 @@ function setupProductFilterBar() {
       applyProductFilters();
       updatePriceControlLabel();
       closeProductDropdowns();
+    });
+  }
+
+  if (sortAlphaBtn) {
+    sortAlphaBtn.addEventListener('click', () => {
+      selectSortOption('name');
     });
   }
 
@@ -2412,7 +2492,15 @@ function selectSortOption(direction) {
 function updateSortControlLabel() {
   const label = document.getElementById('sortControlValue');
   if (!label) return;
-  label.textContent = productFilterState.sort === 'desc' ? 'Price: High to Low' : 'Price: Low to High';
+  if (productFilterState.sort === 'desc') {
+    label.textContent = 'Price: High to Low';
+  } else if (productFilterState.sort === 'asc') {
+    label.textContent = 'Price: Low to High';
+  } else if (productFilterState.sort === 'name') {
+    label.textContent = 'Name: A to Z';
+  } else {
+    label.textContent = 'Sort';
+  }
 }
 
 function applyProductFilters() {
@@ -2433,7 +2521,9 @@ function applyProductFilters() {
 function resetProductFilterBar() {
   productFilterState.min = '';
   productFilterState.max = '';
-  productFilterState.sort = 'asc';
+  productFilterState.sort = 'name';
+  batchLoadingState.isExpanded = false;
+  batchLoadingState.currentDisplayCount = 20;
   const minInput = document.getElementById('filterMinPrice');
   const maxInput = document.getElementById('filterMaxPrice');
   if (minInput) minInput.value = '';
@@ -2944,13 +3034,12 @@ function updateProductSearch(total){
 
   document.getElementById('productSearch').addEventListener('input', function(){
     const q = this.value.trim().toLowerCase();
-    const qFirst = q.charAt(0);
     psClear.style.display = q ? 'block' : 'none';
     let vis = 0;
     cards.forEach(c => {
       const name = (c.dataset.name || '').trim().toLowerCase();
-      const nameFirst = name.charAt(0);
-      const match = !q || (qFirst && nameFirst === qFirst);
+      const category = (c.dataset.category || '').trim().toLowerCase();
+      const match = !q || name.includes(q) || category.includes(q);
       c.classList.toggle('hidden', !match);
       if(match) vis++;
     });
