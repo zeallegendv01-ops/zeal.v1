@@ -2131,6 +2131,30 @@ async function fetchProducts(options = {}){
 // This ensures categories always match the products in the database
 // No dedicated /api/categories endpoint needed
 
+// Save current filter state before updates
+function saveFilterState() {
+  return {
+    category: currentCategoryFilter,
+    sort: productFilterState.sort,
+    minPrice: productFilterState.min,
+    maxPrice: productFilterState.max,
+    batchExpanded: batchLoadingState.isExpanded
+  };
+}
+
+// Restore filter state after product update
+function restoreFilterState(state) {
+  if (!state) return;
+  currentCategoryFilter = state.category || null;
+  productFilterState.sort = state.sort || 'name';
+  productFilterState.min = state.minPrice || '';
+  productFilterState.max = state.maxPrice || '';
+  batchLoadingState.isExpanded = state.batchExpanded || false;
+  
+  // Reapply filters to render the correct filtered products
+  applyProductFilters();
+}
+
 // Auto-check for new products every 30 seconds
 function startProductPolling(){
   if(productCheckInterval) return; // Prevent duplicate intervals
@@ -2152,12 +2176,18 @@ function startProductPolling(){
 
         if (data.data.length !== lastProductCount || sig !== lastProductsSignature) {
           console.log(`Products updated: ${lastProductCount} -> ${data.data.length}`);
+          
+          // PRESERVE FILTER STATE before updating products
+          const savedState = saveFilterState();
+          
           allProducts = data.data;
           lastProductCount = data.data.length;
           lastProductsSignature = sig;
           // Save updated products to localStorage
           saveProductsToLocalStorage(data.data);
-          renderProducts(data.data);
+          
+          // Restore filter state and reapply filters
+          restoreFilterState(savedState);
 
           // Show notification on refresh
           showNotification('Product list has been updated.', 'success');
@@ -2522,6 +2552,7 @@ function resetProductFilterBar() {
   productFilterState.min = '';
   productFilterState.max = '';
   productFilterState.sort = 'name';
+  currentCategoryFilter = null;
   batchLoadingState.isExpanded = false;
   batchLoadingState.currentDisplayCount = 20;
   const minInput = document.getElementById('filterMinPrice');
@@ -2565,12 +2596,22 @@ function showAllProducts() {
   document.querySelector('.show-all-btn')?.classList.add('active');
 }
 
-// Filter products by category
+// Filter products by category (with toggle support)
 function filterByCategory(category) {
-  currentCategoryFilter = category;
-  const normalizedCategory = category.toString().trim().toLowerCase();
+  // Toggle: if same category clicked, deselect it; otherwise select the new category
+  if (currentCategoryFilter === category) {
+    currentCategoryFilter = null; // Deselect the category
+    console.log('[DEBUG] Category filter cleared');
+  } else {
+    currentCategoryFilter = category;
+    console.log('[DEBUG] Category filter set to:', category);
+  }
+  
+  // Reset batch loading when changing category
+  batchLoadingState.isExpanded = false;
+  
   const params = {
-    category: category,
+    category: currentCategoryFilter || undefined,
     min: productFilterState.min || undefined,
     max: productFilterState.max || undefined,
     sort: productFilterState.sort || undefined
@@ -2578,10 +2619,10 @@ function filterByCategory(category) {
 
   fetchProducts(params);
   
-  // Optional: highlight the selected category
+  // Highlight the selected category
   document.querySelectorAll('.product-category .category').forEach(tag => {
     tag.classList.remove('active');
-    if (tag.textContent === category) {
+    if (currentCategoryFilter && tag.textContent.trim() === currentCategoryFilter.trim()) {
       tag.classList.add('active');
     }
   });
