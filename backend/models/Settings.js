@@ -15,6 +15,31 @@ const settingsSchema = new mongoose.Schema(
       min: 0,
       description: 'Flat shipping fee in Naira'
     },
+    heroTitle: {
+      type: String,
+      default: 'Global Marketplace',
+      trim: true,
+      maxlength: 120,
+      description: 'Headline text for the homepage hero section'
+    },
+    heroDescription: {
+      type: String,
+      default: 'Where premium food, real estate, drinks and lifestyle offerings come together in one curated destination for modern buyers and sellers.',
+      trim: true,
+      maxlength: 260,
+      description: 'Subheading text beneath the hero headline'
+    },
+    heroVideos: {
+      type: [
+        {
+          url: { type: String, required: true },
+          caption: { type: String, default: '' },
+          uploadedAt: { type: Date, default: Date.now }
+        }
+      ],
+      default: [],
+      description: 'Hero video playlist items for the homepage hero section'
+    },
     // ════════════════════════ DEALER CONTACT INFO ════════════════════════
     dealerContact: {
       phone: {

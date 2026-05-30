@@ -1,12 +1,12 @@
 ﻿/*  PWA SERVICE WORKER & INSTALL PROMPT  */
 
 // Dynamic API Base URL
-let API_BASE_URL, $url = 'www.365extra.com'; // Default backend URL for development
+let API_BASE_URL, $url = /*'www.365extra.com'*/ window.location.origin ; // Default backend URL for development
 if (window.location.hostname === 'localhost') {
-  API_BASE_URL = 'http://'+$url+'/api';
+  API_BASE_URL = $url+'/api';
 } else if (window.location.protocol === 'file:' || !window.location.host) {
   // When opening the HTML file directly (file://), default to local backend
-  API_BASE_URL = 'http://'+$url+'/api';
+  API_BASE_URL = $url+'/api';
   console.warn('[WARN] Running from file:// - defaulting API_BASE_URL to', API_BASE_URL);
 } else {
   API_BASE_URL = `${window.location.protocol}//${window.location.host}/api`;
@@ -18,6 +18,55 @@ console.log('[DEBUG] API_BASE_URL:', API_BASE_URL);
 let appSettings = {
   taxRate: 10,        // Default fallback
   shippingFee: 2500   // Default fallback
+};
+
+let heroPlaylist = [];
+let heroCurrentVideoIndex = 0;
+
+const DEFAULT_HERO_TITLE = 'Global Marketplace';
+const DEFAULT_HERO_DESCRIPTION = 'Where premium food, real estate, drinks and lifestyle offerings come together in one curated destination for modern buyers and sellers.';
+
+const setHeroVideoUrl = (url) => {
+  const videoEl = document.getElementById('heroVideo');
+  if (!videoEl) return;
+  const newSrc = url || '/dist/vid/1473139_People_Nature_3840x2160.mp4';
+  if (videoEl.src !== new URL(newSrc, window.location.origin).href) {
+    videoEl.src = newSrc;
+    videoEl.load();
+  }
+};
+
+const initializeHeroPlaylist = (videos) => {
+  heroPlaylist = Array.isArray(videos) ? videos.filter(video => video && video.url) : [];
+  heroCurrentVideoIndex = 0;
+  if (heroPlaylist.length > 0) {
+    setHeroVideoUrl(heroPlaylist[0].url);
+  } else {
+    setHeroVideoUrl('/dist/vid/1473139_People_Nature_3840x2160.mp4');
+  }
+  const heroEl = document.getElementById('heroVideo');
+  if (heroEl) {
+    heroEl.loop = heroPlaylist.length <= 1;
+    heroEl.onended = () => {
+      if (heroPlaylist.length <= 1) return;
+      heroCurrentVideoIndex = (heroCurrentVideoIndex + 1) % heroPlaylist.length;
+      setHeroVideoUrl(heroPlaylist[heroCurrentVideoIndex].url);
+      heroEl.play().catch(() => {});
+    };
+  }
+};
+
+const applyHeroSettings = () => {
+  const title = appSettings.heroTitle || DEFAULT_HERO_TITLE;
+  const titleWords = title.split(' ');
+  const ghost = document.querySelector('.headline .ghost');
+  const solid = document.querySelector('.headline .solid');
+  if (ghost) ghost.textContent = titleWords[0] || title;
+  if (solid) solid.textContent = titleWords.slice(1).join(' ') || '';
+
+  const heroSub = document.querySelector('.hero-sub');
+  if (heroSub) heroSub.textContent = appSettings.heroDescription || DEFAULT_HERO_DESCRIPTION;
+  initializeHeroPlaylist(appSettings.heroVideos || []);
 };
 
 // Settings poll interval reference
@@ -45,12 +94,17 @@ async function fetchAndApplySettings() {
 
       appSettings.taxRate = newTax;
       appSettings.shippingFee = newShipping;
+      appSettings.heroTitle = result.data.heroTitle || DEFAULT_HERO_TITLE;
+      appSettings.heroDescription = result.data.heroDescription || DEFAULT_HERO_DESCRIPTION;
+      appSettings.heroVideos = Array.isArray(result.data.heroVideos) ? result.data.heroVideos : [];
 
       if (changed) {
         console.log('[OK] Settings updated:', appSettings);
         // If cart is visible or totals are rendered, refresh display
         if (typeof updateCartDisplay === 'function') updateCartDisplay();
       }
+
+      applyHeroSettings();
 
       return appSettings;
     }
@@ -1618,8 +1672,8 @@ let allProducts = []; // Store all products for cart operations
 let currentCategoryFilter = null; // Track active category filter
 let batchLoadingState = {
   isExpanded: false,
-  itemsPerBatch: 20,
-  currentDisplayCount: 20
+  itemsPerBatch: 12,
+  currentDisplayCount: 12
 };
 
 function addToCart(product, weight){
@@ -2090,6 +2144,9 @@ async function fetchProducts(options = {}){
       });
     }
     if(data.success){
+      // Preserve batch state across cache updates
+      const savedState = saveFilterState();
+      
       allProducts = data.data; // Store all products
       // Save to localStorage for offline access
       saveProductsToLocalStorage(data.data);
@@ -2102,6 +2159,9 @@ async function fetchProducts(options = {}){
       lastProductCount = data.data.length;
       console.log('[DEBUG] Rendering', data.data.length, 'products');
       renderProducts(data.data);
+      
+      // Restore batch loading state after rendering
+      restoreFilterState(savedState);
     } else {
       console.error('[DEBUG] Response not successful:', data.message);
       allProducts = [];
@@ -2112,12 +2172,17 @@ async function fetchProducts(options = {}){
     console.error('[DEBUG] Failed to fetch products:', error);
     console.error('[DEBUG] Product list unavailable. Attempting to load from cache...');
     
+    // Preserve batch state when loading from cache
+    const savedState = saveFilterState();
+    
     // Try to load from localStorage when offline
     const cachedProducts = getProductsFromLocalStorage();
     if (cachedProducts && cachedProducts.length > 0) {
       console.log('[DEBUG] Loading', cachedProducts.length, 'products from localStorage');
       allProducts = cachedProducts;
       renderProducts(cachedProducts);
+      // Restore batch loading state after rendering
+      restoreFilterState(savedState);
       showNotification('Showing cached products (offline mode)', 'info');
     } else {
       allProducts = [];
@@ -2150,9 +2215,6 @@ function restoreFilterState(state) {
   productFilterState.min = state.minPrice || '';
   productFilterState.max = state.maxPrice || '';
   batchLoadingState.isExpanded = state.batchExpanded || false;
-  
-  // Reapply filters to render the correct filtered products
-  applyProductFilters();
 }
 
 // Auto-check for new products every 30 seconds
@@ -2227,7 +2289,7 @@ function renderProducts(products){
 
   // Reset batch loading state when rendering new products
   batchLoadingState.isExpanded = false;
-  batchLoadingState.currentDisplayCount = 20;
+  batchLoadingState.currentDisplayCount = 12;
 
   // Determine how many items to display
   const itemsToShow = batchLoadingState.isExpanded ? products.length : Math.min(batchLoadingState.itemsPerBatch, products.length);
@@ -2554,7 +2616,7 @@ function resetProductFilterBar() {
   productFilterState.sort = 'name';
   currentCategoryFilter = null;
   batchLoadingState.isExpanded = false;
-  batchLoadingState.currentDisplayCount = 20;
+  batchLoadingState.currentDisplayCount = 12;
   const minInput = document.getElementById('filterMinPrice');
   const maxInput = document.getElementById('filterMaxPrice');
   if (minInput) minInput.value = '';

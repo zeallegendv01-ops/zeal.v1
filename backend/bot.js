@@ -808,6 +808,29 @@ const clearCache = (pattern) => {
   }
 };
 
+const HERO_VIDEO_MAX_SIZE = 100 * 1024 * 1024; // 100MB
+const HERO_VIDEO_UPLOAD_DIR = path.join(__dirname, 'uploads');
+
+const isValidVideoMimeType = (mimeType) => {
+  return ['video/mp4', 'video/webm', 'video/quicktime', 'video/mov', 'video/x-matroska'].includes(String(mimeType || '').toLowerCase());
+};
+
+const ensureHeroVideoUploadDir = () => {
+  if (!fs.existsSync(HERO_VIDEO_UPLOAD_DIR)) {
+    fs.mkdirSync(HERO_VIDEO_UPLOAD_DIR, { recursive: true });
+  }
+};
+
+const downloadFileFromTelegram = async (fileUrl, destinationPath) => {
+  const response = await axios.get(fileUrl, { responseType: 'stream', timeout: 90000 });
+  await new Promise((resolve, reject) => {
+    const writer = fs.createWriteStream(destinationPath);
+    response.data.pipe(writer);
+    writer.on('finish', resolve);
+    writer.on('error', reject);
+  });
+};
+
 // Rate limiting per user per command
 const userRateLimits = new Map();
 const RATE_LIMIT_WINDOW = 2000; // 2 seconds
@@ -927,12 +950,12 @@ bot.start(errorWrapper(async (ctx) => {
       ' <b>Products & Land:</b>\n' +
       ' /addproduct - Add product or land property\n' +
       ' /products - List all products & land\n' +
-      ' /editproduct &lt;name&gt; - Edit product/land\n' +
-      ' /deleteproduct &lt;name&gt; - Delete product/land\n\n' +
+      ' /editproduct (name) - Edit product/land\n' +
+      ' /deleteproduct (name) - Delete product/land\n\n' +
       ' <b>Marquee:</b>\n' +
-      ' /addmarquee &lt;text&gt; [url] - Add a marquee item\n' +
-      ' /editmarquee &lt;id&gt; &lt;new text&gt; [url] - Edit a marquee item\n' +
-      ' /deletemarquee &lt;id|text&gt; - Delete a marquee item\n' +
+      ' /addmarquee (text) [url] - Add a marquee item\n' +
+      ' /editmarquee (id) (new text) [url] - Edit a marquee item\n' +
+      ' /deletemarquee (id|text) - Delete a marquee item\n' +
       ' /listmarquee - List active marquee items\n\n' +
       ' <b>Categories:</b>\n' +
       ' /categories - List all categories\n' +
@@ -940,14 +963,22 @@ bot.start(errorWrapper(async (ctx) => {
       ' /deletecategory - Move products from one category to another\n\n' +
       ' <b>Users:</b>\n' +
       ' /users - List all users\n' +
-      ' /user &lt;email&gt; - View user details\n\n' +
+      ' /user (email) - View user details\n\n' +
       ' <b>Orders:</b>\n' +
       ' /orders - List all orders\n' +
       ' /pendingorders - List pending orders\n' +
       ' /completedorders - List completed orders\n' +
-      ' /order &lt;order_id&gt; - View order details\n\n' +
+      ' /order (order_id) - View order details\n\n' +
       ' <b>Stats:</b>\n' +
       ' /stats - View dashboard stats\n\n' +
+      ' <b>Hero Section:</b>\n' +
+      ' /hero - Show hero command help\n' +
+      ' /herotitle (text) - Update homepage hero title\n' +
+      ' /herodescription (text) - Update homepage hero description\n' +
+      ' /heroaddvideo [slot] - Upload a hero video\n' +
+      ' /heroreplacevideo (slot) - Replace a hero video slot\n' +
+      ' /herodeletevideo (slot) - Delete a hero video\n' +
+      ' /listherovideos - List configured hero videos\n\n' +
       ' <b>Settings:</b>\n' +
       ' /settings - View & manage app settings (tax, shipping)\n\n' +
       'Or use the menu below:',
@@ -960,6 +991,7 @@ bot.start(errorWrapper(async (ctx) => {
           [Markup.button.callback(' Orders', 'orders_menu')],
           [Markup.button.callback(' Users', 'users_menu')],
           [Markup.button.callback(' Stats', 'stats_menu')],
+          [Markup.button.callback(' 🏠 Hero', 'settings_hero')],
           [Markup.button.callback(' ⚙️ Settings', 'settings_menu')]
         ]).reply_markup
       }
@@ -1270,7 +1302,7 @@ bot.command('editmarquee', errorWrapper(async (ctx) => {
   }
 
   if (!newText) {
-    return ctx.reply(' Please provide new marquee text. Usage: /editmarquee <id> <new text> [optional url]', { parse_mode: 'HTML' });
+    return ctx.reply(' Please provide new marquee text. Usage: /editmarquee (id) (new text) [optional url]', { parse_mode: 'HTML' });
   }
 
   try {
@@ -1353,7 +1385,7 @@ bot.command('editproduct', errorWrapper(async (ctx) => {
 
   const args = ctx.message.text.split(' ').slice(1);
   if (args.length === 0) {
-    return ctx.reply(' Usage: /editproduct &lt;product_name&gt;\n\nExample: /editproduct "Rice Premium"', { parse_mode: 'HTML' });
+    return ctx.reply(' Usage: /editproduct (product_name)\n\nExample: /editproduct "Rice Premium"', { parse_mode: 'HTML' });
   }
 
   const productName = args.join(' ');
@@ -1380,7 +1412,7 @@ bot.command('deleteproduct', errorWrapper(async (ctx) => {
 
   const args = ctx.message.text.split(' ').slice(1);
   if (args.length === 0) {
-    return ctx.reply(' Usage: /deleteproduct &lt;product_name&gt;\n\nExample: /deleteproduct "Rice Premium"', { parse_mode: 'HTML' });
+    return ctx.reply(' Usage: /deleteproduct (product_name)\n\nExample: /deleteproduct "Rice Premium"', { parse_mode: 'HTML' });
   }
 
   const productName = args.join(' ');
@@ -1516,7 +1548,7 @@ bot.command('user', errorWrapper(async (ctx) => {
 
   const args = ctx.message.text.split(' ').slice(1);
   if (args.length === 0) {
-    return ctx.reply(' Usage: /user &lt;email&gt;\n\nExample: /user john@example.com', { parse_mode: 'HTML' });
+    return ctx.reply(' Usage: /user (email)\n\nExample: /user john@example.com', { parse_mode: 'HTML' });
   }
 
   const userEmail = args[0];
@@ -1630,7 +1662,7 @@ bot.command('order', errorWrapper(async (ctx) => {
 
   const args = ctx.message.text.split(' ').slice(1);
   if (args.length === 0) {
-    return ctx.reply(' Usage: /order &lt;order_id&gt;\n\nExample: /order 507f1f77bcf86cd799439011\n\n Tip: You can use the short ID shown in /orders lists', { parse_mode: 'HTML' });
+    return ctx.reply(' Usage: /order (order_id)\n\nExample: /order 507f1f77bcf86cd799439011\n\n Tip: You can use the short ID shown in /orders lists', { parse_mode: 'HTML' });
   }
 
   const orderId = args[0];
@@ -1715,12 +1747,16 @@ bot.command('settings', errorWrapper(async (ctx) => {
 
     const message = ` <b>Current Settings</b>\n\n` +
       ` <b>Tax Rate:</b> ${settings.taxRate}%\n` +
-      ` <b>Shipping Fee:</b> ₦${settings.shippingFee.toLocaleString()}\n\n` +
-      `Use the menu below to update:`;
+      ` <b>Shipping Fee:</b> ₦${settings.shippingFee.toLocaleString()}\n` +
+      ` <b>Hero Title:</b> ${settings.heroTitle || 'N/A'}\n` +
+      ` <b>Hero Description:</b> ${settings.heroDescription || 'N/A'}\n` +
+      ` <b>Hero Videos:</b> ${Array.isArray(settings.heroVideos) ? settings.heroVideos.length : 0}\n\n` +
+      `Use the menu below or type /hero to manage hero content:`;
 
     ctx.reply(message, {
       parse_mode: 'HTML',
       reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback('🏠 Hero Settings', 'settings_hero')],
         [Markup.button.callback('📊 Set Tax Rate', 'settings_tax')],
         [Markup.button.callback('🚚 Set Shipping Fee', 'settings_shipping')],
         [Markup.button.callback(' Back', 'main_menu')]
@@ -1746,6 +1782,7 @@ bot.action('settings_menu', async (ctx) => {
     return safeEditMessageText(ctx, message, {
       parse_mode: 'HTML',
       reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback('🏠 Hero Settings', 'settings_hero')],
         [Markup.button.callback('📊 Set Tax Rate', 'settings_tax')],
         [Markup.button.callback('🚚 Set Shipping Fee', 'settings_shipping')],
         [Markup.button.callback(' Back', 'main_menu')]
@@ -1769,6 +1806,171 @@ bot.action('settings_shipping', async (ctx) => {
   userContext[ctx.from.id] = { step: 'update_shipping_fee' };
   ctx.reply('🚚 Enter new shipping fee (in Naira):');
 });
+
+bot.action('settings_hero', async (ctx) => {
+  await ctx.answerCbQuery();
+  try {
+    const settingsRes = await queueRequest(() => api.get('/settings'));
+    const settings = settingsRes.data.data || {};
+    const message = ` <b>Hero Settings</b>\n\n` +
+      ` <b>Hero Title:</b> ${settings.heroTitle || 'N/A'}\n` +
+      ` <b>Hero Description:</b> ${settings.heroDescription || 'N/A'}\n` +
+      ` <b>Hero Videos:</b> ${Array.isArray(settings.heroVideos) ? settings.heroVideos.length : 0}\n\n` +
+      `Choose an action below or use /hero commands.`;
+
+    return safeEditMessageText(ctx, message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback('🖊️ Update Title', 'settings_hero_title')],
+        [Markup.button.callback('📝 Update Description', 'settings_hero_description')],
+        [Markup.button.callback('🎬 Add / Replace Video', 'settings_hero_upload')],
+        [Markup.button.callback('📄 List Videos', 'settings_hero_list')],
+        [Markup.button.callback(' Back', 'settings_menu')]
+      ]).reply_markup
+    });
+  } catch (error) {
+    return ctx.reply('Error fetching hero settings: ' + error.message);
+  }
+});
+
+bot.action('settings_hero_title', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id] = { step: 'update_hero_title' };
+  return ctx.reply('🏠 Enter new hero title:');
+});
+
+bot.action('settings_hero_description', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id] = { step: 'update_hero_description' };
+  return ctx.reply('📝 Enter new hero description:');
+});
+
+bot.action('settings_hero_list', async (ctx) => {
+  await ctx.answerCbQuery();
+  try {
+    const settingsRes = await queueRequest(() => api.get('/settings'));
+    const videos = (settingsRes.data.data?.heroVideos || []).slice(0, 6);
+    let message = ' <b>Hero Video Playlist</b>\n\n';
+    if (videos.length === 0) {
+      message += 'No hero videos configured yet.';
+    } else {
+      videos.forEach((video, index) => {
+        message += `${index + 1}. ${video.caption || `Video ${index + 1}`}\n`;
+        message += `   URL: ${video.url}\n`;
+        message += `   Uploaded: ${video.uploadedAt ? new Date(video.uploadedAt).toLocaleString() : 'Unknown'}\n\n`;
+      });
+    }
+    return safeEditMessageText(ctx, message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback(' Back', 'settings_hero')]
+      ]).reply_markup
+    });
+  } catch (error) {
+    return ctx.reply('Error listing hero videos: ' + error.message);
+  }
+});
+
+bot.action('settings_hero_upload', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id] = { step: 'upload_hero_video' };
+  return ctx.reply('🎬 Send the hero video file now (MP4/WebM, max 100MB). Use /heroaddvideo <slot> if you want a specific position.');
+});
+
+bot.command('hero', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+  return ctx.reply(' <b>Hero Content Commands</b>\n\n' +
+    ' /hero - Show hero command help\n' +
+    ' /herotitle (text) - Update homepage hero title\n' +
+    ' /herodescription (text) - Update homepage hero description\n' +
+    ' /heroaddvideo [slot] - Upload a hero video by sending the next video file\n' +
+    ' /heroreplacevideo (slot) - Replace a hero video by slot number\n' +
+    ' /herodeletevideo (slot) - Delete a hero video slot\n' +
+    ' /listherovideos - List configured hero videos',
+    { parse_mode: 'HTML' }
+  );
+}));
+
+bot.command('herotitle', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+  const text = ctx.message.text.replace(/\/herotitle\s*/i, '').trim();
+  if (!text) {
+    return ctx.reply('Usage: /herotitle <new hero title>');
+  }
+  await queueRequest(() => api.put('/settings', { heroTitle: text }));
+  return ctx.reply(`✅ Hero title updated.\n\n${text}`);
+}));
+
+bot.command('herodescription', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+  const text = ctx.message.text.replace(/\/herodescription\s*/i, '').trim();
+  if (!text) {
+    return ctx.reply('Usage: /herodescription <new hero description>');
+  }
+  await queueRequest(() => api.put('/settings', { heroDescription: text }));
+  return ctx.reply(`✅ Hero description updated.\n\n${text}`);
+}));
+
+bot.command('heroaddvideo', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+  const args = ctx.message.text.split(' ').slice(1);
+  const slot = args[0] ? parseInt(args[0], 10) - 1 : null;
+  if (args[0] && (isNaN(slot) || slot < 0 || slot > 5)) {
+    return ctx.reply('Usage: /heroaddvideo [slot]\nSlot must be a number between 1 and 6.');
+  }
+  userContext[ctx.from.id] = { step: 'upload_hero_video', slot };
+  return ctx.reply('🎬 Send the hero video file now (MP4/WebM, max 100MB).');
+}));
+
+bot.command('heroreplacevideo', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+  const args = ctx.message.text.split(' ').slice(1);
+  if (!args[0]) {
+    return ctx.reply('Usage: /heroreplacevideo <slot>\nExample: /heroreplacevideo 2');
+  }
+  const slot = parseInt(args[0], 10) - 1;
+  if (isNaN(slot) || slot < 0 || slot > 5) {
+    return ctx.reply('Slot must be a number between 1 and 6.');
+  }
+  userContext[ctx.from.id] = { step: 'upload_hero_video', slot };
+  return ctx.reply(`🎬 Send the new hero video for slot ${slot + 1} now.`);
+}));
+
+bot.command('herodeletevideo', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+  const args = ctx.message.text.split(' ').slice(1);
+  if (!args[0]) {
+    return ctx.reply('Usage: /herodeletevideo <slot>\nExample: /herodeletevideo 2');
+  }
+  const slot = parseInt(args[0], 10) - 1;
+  if (isNaN(slot) || slot < 0 || slot > 5) {
+    return ctx.reply('Slot must be a number between 1 and 6.');
+  }
+  const settingsRes = await queueRequest(() => api.get('/settings'));
+  const videos = (settingsRes.data.data?.heroVideos || []).slice();
+  if (!videos[slot]) {
+    return ctx.reply(`No hero video found in slot ${slot + 1}.`);
+  }
+  videos.splice(slot, 1);
+  await queueRequest(() => api.put('/settings', { heroVideos: videos }));
+  return ctx.reply(`✅ Hero video slot ${slot + 1} deleted.`);
+}));
+
+bot.command('listherovideos', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+  const settingsRes = await queueRequest(() => api.get('/settings'));
+  const videos = settingsRes.data.data?.heroVideos || [];
+  if (videos.length === 0) {
+    return ctx.reply('No hero videos configured yet. Add one with /heroaddvideo.');
+  }
+
+  let message = ' <b>Hero Video Playlist</b>\n\n';
+  videos.forEach((video, index) => {
+    message += `${index + 1}. ${video.caption || `Video ${index + 1}`}\n`;
+    message += `   URL: ${video.url}\n\n`;
+  });
+  return ctx.reply(message, { parse_mode: 'HTML' });
+}));
 
 // Handle numeric input - for both settings and product/land creation
 bot.hears(/^(\d+(?:\.\d{1,2})?)$/, errorWrapper(async (ctx) => {
@@ -2952,6 +3154,45 @@ bot.on('text', errorWrapper(async (ctx) => {
         return ctx.reply('❌ Error updating shipping fee: ' + error.message);
       }
       break;
+
+    case 'update_hero_title':
+      const heroTitle = ctx.message.text.trim();
+      if (!heroTitle) {
+        delete userContext[userId];
+        return ctx.reply('❌ Hero title cannot be empty. Try again with a non-empty title.');
+      }
+      try {
+        await queueRequest(() => api.put('/settings', { heroTitle }));
+        delete userContext[userId];
+        return ctx.reply(`✅ Hero title updated.`, {
+          reply_markup: Markup.inlineKeyboard([[Markup.button.callback(' Back to Settings', 'settings_menu')]]).reply_markup
+        });
+      } catch (error) {
+        delete userContext[userId];
+        return ctx.reply('❌ Error updating hero title: ' + error.message);
+      }
+      break;
+
+    case 'update_hero_description':
+      const heroDescription = ctx.message.text.trim();
+      if (!heroDescription) {
+        delete userContext[userId];
+        return ctx.reply('❌ Hero description cannot be empty. Try again with a non-empty description.');
+      }
+      try {
+        await queueRequest(() => api.put('/settings', { heroDescription }));
+        delete userContext[userId];
+        return ctx.reply(`✅ Hero description updated.`, {
+          reply_markup: Markup.inlineKeyboard([[Markup.button.callback(' Back to Settings', 'settings_menu')]]).reply_markup
+        });
+      } catch (error) {
+        delete userContext[userId];
+        return ctx.reply('❌ Error updating hero description: ' + error.message);
+      }
+      break;
+
+    case 'upload_hero_video':
+      return ctx.reply('🎬 Please send the hero video file now. If you want to cancel, use /cancel.');
       
     default:
       console.log(`[Bot] No matching case for step: ${context.step}`);
@@ -3966,7 +4207,7 @@ bot.command('newsletter', errorWrapper(async (ctx) => {
   if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
 
   return ctx.reply(' <b>Newsletter Commands</b>\n\n' +
-    ' /sendmail &lt;email&gt; - Send email to specific user\n' +
+    ' /sendmail (email) - Send email to specific user\n' +
     ' /sendall - Broadcast email to all subscribers\n' +
     ' /newsletter - Show this menu\n\n' +
     'Or use the menu system with /start', 
@@ -3979,7 +4220,7 @@ bot.command('sendmail', errorWrapper(async (ctx) => {
 
   const args = ctx.message.text.split(' ').slice(1);
   if (args.length === 0) {
-    return ctx.reply(' <b>Usage:</b> /sendmail &lt;user_email&gt;\n\n<i>Example:</i> /sendmail john@example.com\n\nThen provide subject and message when prompted.', { parse_mode: 'HTML' });
+    return ctx.reply(' <b>Usage:</b> /sendmail (user_email)\n\n<i>Example:</i> /sendmail john@example.com\n\nThen provide subject and message when prompted.', { parse_mode: 'HTML' });
   }
 
   const userEmail = args[0];
@@ -4333,6 +4574,86 @@ if (!context || (context.step !== 'create_product_image_upload' && context.step 
   }
 }));
 
+// HERO VIDEO UPLOAD HANDLER
+bot.on(['video', 'document'], errorWrapper(async (ctx) => {
+  const userId = ctx.from.id;
+  const context = userContext[userId];
+
+  if (!context || context.step !== 'upload_hero_video') {
+    return;
+  }
+
+  if (!isAdmin(ctx)) {
+    delete userContext[userId];
+    return ctx.reply(' Unauthorized.');
+  }
+
+  const file = ctx.message.video || ctx.message.document;
+  if (!file) {
+    return ctx.reply('Please send a video file (MP4/WebM) as the next message.');
+  }
+
+  const fileSize = file.file_size || 0;
+  if (fileSize > HERO_VIDEO_MAX_SIZE) {
+    return ctx.reply('⚠️ Video exceeds 100MB max. Please send a smaller file.');
+  }
+
+  const mimeType = file.mime_type || file.mimeType || '';
+  if (!isValidVideoMimeType(mimeType)) {
+    return ctx.reply('⚠️ Unsupported video format. Please send MP4 or WebM.');
+  }
+
+  try {
+    const fileId = file.file_id;
+    const fileResponse = await axios.get(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileId}`);
+    const filePath = fileResponse.data.result.file_path;
+    const downloadUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${filePath}`;
+    ensureHeroVideoUploadDir();
+
+    const extension = path.extname(file.file_name || '') || (mimeType.includes('webm') ? '.webm' : '.mp4');
+    const safeName = `hero_${Date.now()}_${Math.round(Math.random() * 1e6)}${extension}`;
+    const destinationPath = path.join(HERO_VIDEO_UPLOAD_DIR, safeName);
+
+    await downloadFileFromTelegram(downloadUrl, destinationPath);
+
+    const settingsRes = await queueRequest(() => api.get('/settings'));
+    const videos = Array.isArray(settingsRes.data.data?.heroVideos) ? [...settingsRes.data.data.heroVideos] : [];
+    const newVideo = {
+      url: `/uploads/${safeName}`,
+      caption: `Hero video ${videos.length + 1}`,
+      uploadedAt: new Date()
+    };
+
+    let updatedSlot = videos.length;
+    if (typeof context.slot === 'number' && context.slot >= 0 && context.slot <= 5) {
+      if (context.slot < videos.length) {
+        videos[context.slot] = { ...newVideo, caption: `Hero video ${context.slot + 1}` };
+        updatedSlot = context.slot;
+      } else {
+        videos.push({ ...newVideo, caption: `Hero video ${videos.length + 1}` });
+        updatedSlot = videos.length - 1;
+      }
+    } else {
+      videos.push(newVideo);
+      updatedSlot = videos.length - 1;
+    }
+
+    const savedVideos = videos.slice(0, 6);
+    await queueRequest(() => api.put('/settings', { heroVideos: savedVideos }));
+    delete userContext[userId];
+
+    return ctx.reply(`✅ Hero video uploaded successfully and saved to slot ${updatedSlot + 1}.`, {
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback(' Back to Hero Settings', 'settings_hero')]
+      ]).reply_markup
+    });
+  } catch (error) {
+    console.error('[Hero Video Upload] Error:', error.message || error);
+    delete userContext[userId];
+    return ctx.reply(' Error uploading hero video: ' + (error.message || 'Unknown error'));
+  }
+}));
+
 // Enhanced error handling
 bot.catch((err, ctx) => {
   console.error('Telegraf Error:', err);
@@ -4372,6 +4693,15 @@ const startBot = async (attempt = 1, maxAttempts = 8) => {
       { command: 'editproduct', description: 'Edit an existing product (admin only)' },
       { command: 'deleteproduct', description: 'Delete a product (admin only)' }
     ];
+    botCommands.push(
+      { command: 'hero', description: 'Show hero content commands (admin only)' },
+      { command: 'herotitle', description: 'Update the homepage hero title' },
+      { command: 'herodescription', description: 'Update the homepage hero description' },
+      { command: 'heroaddvideo', description: 'Upload a homepage hero video' },
+      { command: 'heroreplacevideo', description: 'Replace a hero video slot' },
+      { command: 'herodeletevideo', description: 'Delete a hero video from the playlist' },
+      { command: 'listherovideos', description: 'List configured hero videos' }
+    );
 
     try {
       await bot.telegram.setMyCommands(botCommands, { scope: { type: 'default' } });

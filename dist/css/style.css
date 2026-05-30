@@ -2453,7 +2453,7 @@ h1.headline .solid {
 
 .hero-right video {
   width: 100%;
-  height: 114dvh;
+  height: 110%;
   object-fit: cover;
   display: block;
   -webkit-user-select: none;
@@ -2511,7 +2511,7 @@ h1.headline .solid {
   position: relative;
   top: 32px;
   z-index: 2;
-  background: rgba(13, 13, 11, 0.95);
+  background: rgba(13, 13, 11, 1);
   overflow: hidden;
   width: 100%;
   padding: 18px 0;
@@ -4562,7 +4562,7 @@ footer {
 
   .hero-right video {
     width: 100%;
-    height: 100%;
+    height: 110%;
     object-fit: cover;
     display: block;
   }
