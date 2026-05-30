@@ -989,7 +989,7 @@ function getMatchedSearchItems(source, term) {
 
     const priceLabel = (() => {
       if (type === 'product') {
-        return rawPrice > 0 ? `NGN ${rawPrice.toLocaleString()}.00 / kg` : 'Price unavailable';
+        return rawPrice > 0 ? `NGN ${rawPrice.toLocaleString()}.00 / unit` : 'Price unavailable';
       }
       if (type === 'apartment') {
         if (listingType === 'rent') return rawPrice > 0 ? `NGN ${rawPrice.toLocaleString()}.00 / month` : 'Price unavailable';
@@ -1933,7 +1933,7 @@ function renderCartProductItem(item, index) {
       <img src="${item.image || 'https://via.placeholder.com/80?text=Product'}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/80?text=Product'">
       <div class="cart-item-info">
         <div class="ci-name">${item.name}</div>
-        <div class="ci-meta">${parseFloat(item.pricePerKg).toLocaleString()}.00 / kg • ${totalKg}kg selected</div>
+        <div class="ci-meta">${parseFloat(item.pricePerKg).toLocaleString()}.00 / unit • ${totalKg}kg selected</div>
         <div class="qty-control">
           <button class="qty-btn" onclick="updateCartItemQuantity(${index}, ${item.quantity - 1})">-</button>
           <span class="qty-num">${totalKg}</span>
@@ -2656,7 +2656,7 @@ function renderProductCard(product, totalCount) {
       <div class="product-info">
         <div class="product-num">${category}</div>
         <h3>${product.name}</h3>
-        <div class="product-price" id="price-${product._id}">${price.toLocaleString()}.00 / kg</div>
+        <div class="product-price" id="price-${product._id}">${price.toLocaleString()}.00 / ${unit}</div>
         ${certification ? `<div style="font-size: 0.65rem; color: var(--gold-lt); margin-bottom: 4px;">${certification}</div>` : ''}
         <div style="margin-bottom: 8px; display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
           ${statusBadge}
