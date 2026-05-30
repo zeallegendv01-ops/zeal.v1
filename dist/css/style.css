@@ -2844,7 +2844,7 @@ h1.headline .solid {
   position: relative;
   display: flex;
   flex-wrap: wrap; 
-  gap: 14px;
+  gap: 5px;
   align-items: center;
   justify-content: end;
   margin-bottom: 18px;
@@ -2860,13 +2860,13 @@ h1.headline .solid {
 }
 
 .control-btn {
-  width: 50%;
+  width: 100%;
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 14px 18px;
-  border-radius: 16px;
+  gap: -5px;
+  padding: 8px 14px;
+  border-radius: 5px;
   border: 1px solid rgba(13, 13, 11, 0.12);
   background: #fff;
   color: var(--gold);
@@ -2969,12 +2969,12 @@ h1.headline .solid {
 }
 
 .control-reset-btn {
-  height: 44px;
-  padding: 0 18px;
+  height: 36px;
+  padding: 0 14px;
   border-radius: 12px;
   border: 1px solid rgba(13, 13, 11, 0.12);
   color: rgba(13, 13, 11, 0.85);
-  background: transparent;
+  background: #fff;
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
@@ -3057,12 +3057,13 @@ h1.headline .solid {
 }
 
 .control-reset-btn {
-  height: 48px;
-  background: transparent;
+  height: 36px;  
+  padding: 0 14px;
+  background: #fff;
   color: rgba(13, 13, 11, 0.8);
   border: 1px solid rgba(13, 13, 11, 0.12);
   border-radius: 8px;
-  padding: 0 18px;
+
   font-size: 0.95rem;
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s;
