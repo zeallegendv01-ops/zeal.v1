@@ -2647,8 +2647,30 @@ bot.on('text', errorWrapper(async (ctx) => {
       if (!context.image.match(/^https?:\/\/.+/)) {
         return ctx.reply(' Invalid URL. Please provide a valid image URL starting with http:// or https://');
       }
-      await saveProduct(ctx, context);
+      context.images = context.images || [];
+      context.images.push(context.image);
+      if (context.images.length >= SLIDER_IMAGES_MAX) {
+        await saveProduct(ctx, context);
+      } else {
+        context.step = 'product_slider_image_upload_next';
+        return ctx.reply(' Image URL saved. Send another photo or image URL to add more slider images, or type SKIP to finish and save the product.', { parse_mode: 'HTML' });
+      }
       break;
+
+    case 'product_slider_image_upload_next':
+      if (ctx.message.text.trim().toLowerCase() === 'skip') {
+        return await saveProduct(ctx, context);
+      }
+      if (ctx.message.text.match(/^https?:\/\/.+/)) {
+        context.images = context.images || [];
+        context.images.push(ctx.message.text.trim());
+        if (context.images.length >= SLIDER_IMAGES_MAX) {
+          await saveProduct(ctx, context);
+        } else {
+          return ctx.reply(` Image URL added. Send another photo or URL, or type SKIP to finish and save the product.`, { parse_mode: 'HTML' });
+        }
+      }
+      return ctx.reply(' Invalid input. Send a valid image URL, photo, or type SKIP to finish.', { parse_mode: 'HTML' });
 
     //  LAND PROPERTY CREATION 
 
@@ -2744,8 +2766,30 @@ bot.on('text', errorWrapper(async (ctx) => {
       if (!context.image.match(/^https?:\/\/.+/)) {
         return ctx.reply(' Invalid URL. Please provide a valid image URL starting with http:// or https://');
       }
-      await saveLandProperty(ctx, context);
+      context.images = context.images || [];
+      context.images.push(context.image);
+      if (context.images.length >= SLIDER_IMAGES_MAX) {
+        await saveLandProperty(ctx, context);
+      } else {
+        context.step = 'land_slider_image_upload_next';
+        return ctx.reply(' Image URL saved. Send another photo or image URL to add more slider images, or type SKIP to finish and save the land property.', { parse_mode: 'HTML' });
+      }
       break;
+
+    case 'land_slider_image_upload_next':
+      if (ctx.message.text.trim().toLowerCase() === 'skip') {
+        return await saveLandProperty(ctx, context);
+      }
+      if (ctx.message.text.match(/^https?:\/\/.+/)) {
+        context.images = context.images || [];
+        context.images.push(ctx.message.text.trim());
+        if (context.images.length >= SLIDER_IMAGES_MAX) {
+          await saveLandProperty(ctx, context);
+        } else {
+          return ctx.reply(` Image URL added. Send another photo or URL, or type SKIP to finish and save the land property.`, { parse_mode: 'HTML' });
+        }
+      }
+      return ctx.reply(' Invalid input. Send a valid image URL, photo, or type SKIP to finish.', { parse_mode: 'HTML' });
 
     // ════════════════════════ APARTMENT CREATION ════════════════════════
     case 'create_apartment_type_custom':
@@ -3395,6 +3439,7 @@ async function saveProduct(ctx, context) {
     const productData = {
       name: context.name,
       description: context.description,
+      type: 'product',
       // Coerce to number to ensure backend receives numeric price
       pricePerKg: context.pricePerKg !== undefined ? parseFloat(context.pricePerKg) : undefined,
       category: context.category,
@@ -4482,7 +4527,7 @@ bot.on('photo', errorWrapper(async (ctx) => {
   const userId = ctx.from.id;
   const context = userContext[userId];
 
-if (!context || (context.step !== 'create_product_image_upload' && context.step !== 'create_land_image_upload' && context.step !== 'upload_apartment_image' && context.step !== 'apartment_slider_image_upload_next')) {
+if (!context || (context.step !== 'create_product_image_upload' && context.step !== 'create_land_image_upload' && context.step !== 'upload_apartment_image' && context.step !== 'apartment_slider_image_upload_next' && context.step !== 'product_slider_image_upload_next' && context.step !== 'land_slider_image_upload_next')) {
     return ctx.reply(' Please use the product, land, or apartment creation flow to upload images.');
   }
 
@@ -4536,8 +4581,27 @@ if (!context || (context.step !== 'create_product_image_upload' && context.step 
     const sizeInfo = context.compressedSize ? ` (${(context.compressedSize / 1024).toFixed(2)}KB)` : '';
 
     if (context.type === 'land') {
-      await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nCreating land property...`, { parse_mode: 'HTML' });
-      await saveLandProperty(ctx, context);
+      context.images = context.images || [];
+      context.images.push(context.image);
+      const currentCount = context.images.length;
+      if (context.step === 'create_land_image_upload') {
+        if (currentCount >= SLIDER_IMAGES_MAX) {
+          await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nMaximum of ${SLIDER_IMAGES_MAX} images reached. Saving land property...`, { parse_mode: 'HTML' });
+          await saveLandProperty(ctx, context);
+        } else {
+          context.step = 'land_slider_image_upload_next';
+          await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nYou can add more images to this land listing. Send another photo or image URL, or type SKIP to finish and save the listing.`, { parse_mode: 'HTML' });
+        }
+      } else {
+        if (currentCount >= SLIDER_IMAGES_MAX) {
+          await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nCollected ${currentCount} image(s). Saving land property...`, { parse_mode: 'HTML' });
+          await saveLandProperty(ctx, context);
+        } else {
+          const nextImageNumber = currentCount + 1;
+          await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nSend photo ${nextImageNumber}, another image URL, or type SKIP to finish and save the listing.`, { parse_mode: 'HTML' });
+          context.step = 'land_slider_image_upload_next';
+        }
+      }
     } else if (context.type === 'apartment') {
       context.sliderImages = context.sliderImages || [];
       context.sliderImages.push(context.image);
@@ -4557,8 +4621,27 @@ if (!context || (context.step !== 'create_product_image_upload' && context.step 
         }
       }
     } else {
-      await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nCreating product...`, { parse_mode: 'HTML' });
-      await saveProduct(ctx, context);
+      context.images = context.images || [];
+      context.images.push(context.image);
+      const currentCount = context.images.length;
+      if (context.step === 'create_product_image_upload') {
+        if (currentCount >= SLIDER_IMAGES_MAX) {
+          await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nMaximum of ${SLIDER_IMAGES_MAX} images reached. Saving product...`, { parse_mode: 'HTML' });
+          await saveProduct(ctx, context);
+        } else {
+          context.step = 'product_slider_image_upload_next';
+          await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nYou can add more images to this product. Send another photo or image URL, or type SKIP to finish and save the product.`, { parse_mode: 'HTML' });
+        }
+      } else {
+        if (currentCount >= SLIDER_IMAGES_MAX) {
+          await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nCollected ${currentCount} image(s). Saving product...`, { parse_mode: 'HTML' });
+          await saveProduct(ctx, context);
+        } else {
+          const nextImageNumber = currentCount + 1;
+          await ctx.reply(` <b>Image uploaded successfully!</b>${sizeInfo}\n\nSend photo ${nextImageNumber}, another image URL, or type SKIP to finish and save the product.`, { parse_mode: 'HTML' });
+          context.step = 'product_slider_image_upload_next';
+        }
+      }
     }
   } catch (error) {
     console.error(`[Photo Upload] Error uploading photo for userId ${userId}:`, {

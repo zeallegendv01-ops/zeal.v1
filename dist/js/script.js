@@ -529,6 +529,18 @@ function getApartmentTypeLabel(apartmentType) {
   return `${getInlineSvgIcon(iconMap[apartmentType] || 'building')} ${label}`;
 }
 
+function getApartmentTypeCategoryLabel(apartmentType) {
+  if (!apartmentType) return '';
+  const normalizedType = apartmentType.toString().toLowerCase().trim();
+  const categoryMap = {
+    'room': 'Room',
+    'self-contained': 'Self-Contained',
+    'house': 'House',
+    'flat': 'Flat'
+  };
+  return categoryMap[normalizedType] || (normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1));
+}
+
 function getFurnishedLabel(isFurnished) {
   return isFurnished
     ? `${getInlineSvgIcon('check')} Furnished`
@@ -2248,8 +2260,27 @@ function startProductPolling(){
           // Save updated products to localStorage
           saveProductsToLocalStorage(data.data);
           
-          // Restore filter state and reapply filters
+          // Restore filter state and reapply filters immediately
           restoreFilterState(savedState);
+
+          if (currentCategoryFilter) {
+            const isApartmentCategory = allProducts.some(p => p.type === 'apartment' && getApartmentTypeCategoryLabel(p.apartmentType) === currentCategoryFilter);
+            const isLandCategory = currentCategoryFilter === 'Land';
+
+            if (isApartmentCategory) {
+              const filteredProducts = allProducts.filter(p => p.type === 'apartment' && getApartmentTypeCategoryLabel(p.apartmentType) === currentCategoryFilter);
+              renderProducts(filteredProducts);
+            } else if (isLandCategory) {
+              const filteredProducts = allProducts.filter(p => p.type === 'land');
+              renderProducts(filteredProducts);
+            } else {
+              applyProductFilters();
+            }
+          } else if (productFilterState.min || productFilterState.max || productFilterState.sort !== 'name') {
+            applyProductFilters();
+          } else {
+            renderProducts(allProducts);
+          }
 
           // Show notification on refresh
           showNotification('Product list has been updated.', 'success');
@@ -2284,6 +2315,7 @@ function renderProducts(products){
 
   if(!Array.isArray(products) || products.length === 0){
     grid.innerHTML = '<div class="no-products-msg">Product not found.</div>';
+    renderCategories(allProducts.length ? allProducts : products);
     return;
   }
 
@@ -2387,14 +2419,16 @@ function renderCategories(products) {
   
   if (!products || products.length === 0) {
     console.warn('[WARN] renderCategories - No products received');
-    categoryContainer.innerHTML = '<span class="category show-all-btn" onclick="showAllProducts()">All Products</span>';
+    categoryContainer.innerHTML = '';
+    categoryContainer.style.display = 'none';
     return;
   }
   
+  categoryContainer.style.display = 'flex';
   console.log('[DEBUG] renderCategories - products received:', products.length);
   
   // Extract unique categories from products
-  const productCategories = [...new Set(products.filter(p => p.type === 'product').map(p => {
+  const productCategories = [...new Set(products.filter(p => !p.type || p.type === 'product').map(p => {
     const cat = p.category || null;
     if (!cat) {
       console.warn('[WARN] Product missing category:', p.name || p._id);
@@ -2403,16 +2437,7 @@ function renderCategories(products) {
   }).filter(Boolean))];
   
   // Extract unique apartment types (for display as categories) - now supports custom types
-  const apartmentTypes = [...new Set(products.filter(p => p.type === 'apartment').map(p => {
-    if (!p.apartmentType) return null;
-    const typeLabels = {
-      'room': 'Room',
-      'self-contained': 'Self-Contained',
-      'house': 'House',
-      'flat': 'Flat'
-    };
-    return typeLabels[p.apartmentType.toLowerCase()] || (p.apartmentType.charAt(0).toUpperCase() + p.apartmentType.slice(1));
-  }).filter(Boolean))];
+  const apartmentTypes = [...new Set(products.filter(p => p.type === 'apartment').map(p => getApartmentTypeCategoryLabel(p.apartmentType)).filter(Boolean))];
   
   // Check if there are any land items
   const hasLand = products.some(p => p.type === 'land');
@@ -2431,7 +2456,8 @@ function renderCategories(products) {
   
   if (allCategories.length === 0) {
     console.warn('[WARN] No categories found in products');
-    categoryContainer.innerHTML = '<span class="category show-all-btn" onclick="showAllProducts()">All</span>';
+    categoryContainer.innerHTML = '';
+    categoryContainer.style.display = 'none';
     return;
   }
   
@@ -2644,18 +2670,20 @@ function updatePriceControlLabel() {
 }
 
 // Show all products and reset category filters
+function updateCategoryActiveTags(activeCategory) {
+  document.querySelectorAll('.product-category .category').forEach(tag => {
+    tag.classList.toggle('active', activeCategory && tag.textContent.trim().toLowerCase() === activeCategory.toLowerCase());
+  });
+  if (!activeCategory) {
+    document.querySelector('.show-all-btn')?.classList.add('active');
+  }
+}
+
 function showAllProducts() {
   currentCategoryFilter = null;
   resetProductFilterBar();
   fetchProducts();
-  
-  // Remove active state from all categories
-  document.querySelectorAll('.product-category .category').forEach(tag => {
-    tag.classList.remove('active');
-  });
-  
-  // Mark "All Products" as active
-  document.querySelector('.show-all-btn')?.classList.add('active');
+  updateCategoryActiveTags(null);
 }
 
 // Filter products by category (with toggle support)
@@ -2671,6 +2699,23 @@ function filterByCategory(category) {
   
   // Reset batch loading when changing category
   batchLoadingState.isExpanded = false;
+
+  const isApartmentCategory = allProducts.some(p => p.type === 'apartment' && getApartmentTypeCategoryLabel(p.apartmentType) === category);
+  const isLandCategory = category === 'Land';
+
+  if (currentCategoryFilter && isApartmentCategory && allProducts.length > 0) {
+    const filteredProducts = allProducts.filter(p => p.type === 'apartment' && getApartmentTypeCategoryLabel(p.apartmentType) === category);
+    renderProducts(filteredProducts);
+    updateCategoryActiveTags(category);
+    return;
+  }
+
+  if (currentCategoryFilter && isLandCategory && allProducts.length > 0) {
+    const filteredProducts = allProducts.filter(p => p.type === 'land');
+    renderProducts(filteredProducts);
+    updateCategoryActiveTags(category);
+    return;
+  }
   
   const params = {
     category: currentCategoryFilter || undefined,
@@ -2680,14 +2725,7 @@ function filterByCategory(category) {
   };
 
   fetchProducts(params);
-  
-  // Highlight the selected category
-  document.querySelectorAll('.product-category .category').forEach(tag => {
-    tag.classList.remove('active');
-    if (currentCategoryFilter && tag.textContent.trim() === currentCategoryFilter.trim()) {
-      tag.classList.add('active');
-    }
-  });
+  updateCategoryActiveTags(currentCategoryFilter);
 }
 
 function renderProductCard(product, totalCount) {

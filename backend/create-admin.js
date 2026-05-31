@@ -1,6 +1,23 @@
 ﻿const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
+const { URL } = require('url');
 require('dotenv').config();
+
+const defaultDb = process.env.MONGODB_DB_NAME || '365extra';
+let mongoUri = process.env.MONGODB_URI || `mongodb://localhost:27017/${defaultDb}`;
+try {
+  const parsed = new URL(mongoUri);
+  if (!parsed.pathname || parsed.pathname === '/') {
+    parsed.pathname = `/${defaultDb}`;
+    mongoUri = parsed.toString();
+    console.warn(`MongoDB URI did not include a database name; defaulting to '${defaultDb}'`);
+  }
+} catch (e) {
+  if (!mongoUri.match(/mongodb(\+srv)?:\/\/[^/]+\//)) {
+    mongoUri = `${mongoUri}/${defaultDb}`;
+    console.warn(`MongoDB URI did not include a database name; appending default database '${defaultDb}'`);
+  }
+}
 
 // Connect to MongoDB with timeout
 const mongooseOptions = {
@@ -10,7 +27,7 @@ const mongooseOptions = {
   socketTimeoutMS: 10000
 };
 
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/365extra', mongooseOptions);
+mongoose.connect(mongoUri, mongooseOptions);
 
 // Set up connection event handlers
 mongoose.connection.on('connected', () => {

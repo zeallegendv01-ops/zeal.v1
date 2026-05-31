@@ -995,7 +995,7 @@ nav:hover {
   background: rgba(212, 175, 55, 0.28);
 }
 
-..search-no-results {
+.search-no-results {
   color: rgba(244, 242, 237, 0.5);
   font-family: var(--serif);
   font-size: 1.1rem;
@@ -3107,7 +3107,8 @@ h1.headline .solid {
   width: min(100%, 1240px);
   max-width: 1240px;
   margin: 0 auto;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(3, minmax(280px, 1fr));
+  grid-auto-rows: auto;
   gap: 16px;
   justify-content: center;
   justify-items: center;
@@ -3177,7 +3178,6 @@ h1.headline .solid {
   transform: translateY(0);
 }
 
-}
 
 .product-card img.image-loaded {
   filter: saturate(0.85) blur(0px);
@@ -3341,7 +3341,7 @@ input[type="range"].wrange::-moz-range-thumb {
   gap: 8px;
   background: var(--gold);
   color: var(--canvas);
-  padding: 11px 20px;
+  padding: 12px 20px;
   font-family: var(--sans);
   font-size: 0.65rem;
   font-weight: 700;
