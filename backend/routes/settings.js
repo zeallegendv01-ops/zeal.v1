@@ -1,7 +1,27 @@
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
 const Settings = require('../models/Settings');
 const auth = require('../middleware/auth');
+
+const normalizeHeroVideos = (videos) => {
+  if (!Array.isArray(videos)) return [];
+
+  return videos.filter(video => {
+    if (!video || typeof video.url !== 'string') return false;
+
+    if (video.url.startsWith('/uploads/')) {
+      const filePath = path.join(__dirname, '..', video.url);
+      if (!fs.existsSync(filePath)) {
+        console.warn(`[Settings] Dropping missing hero video from settings: ${video.url}`);
+        return false;
+      }
+    }
+
+    return true;
+  });
+};
 
 // Get current settings
 router.get('/', async (req, res, next) => {
@@ -17,6 +37,12 @@ router.get('/', async (req, res, next) => {
       await settings.save();
     }
     
+    const filteredHeroVideos = normalizeHeroVideos(settings.heroVideos || []);
+    if (filteredHeroVideos.length !== (settings.heroVideos || []).length) {
+      settings.heroVideos = filteredHeroVideos;
+      await settings.save();
+    }
+
     res.status(200).json({
       success: true,
       data: {
@@ -24,7 +50,8 @@ router.get('/', async (req, res, next) => {
         shippingFee: settings.shippingFee,
         heroTitle: settings.heroTitle,
         heroDescription: settings.heroDescription,
-        heroVideos: settings.heroVideos || []
+        heroVideos: filteredHeroVideos,
+        aboutImage: settings.aboutImage || { url: '', uploadedAt: Date.now() }
       }
     });
   } catch (error) {
@@ -66,6 +93,12 @@ router.put('/', auth.protect, async (req, res, next) => {
           caption: String(video.caption || '').trim().slice(0, 120),
           uploadedAt: video.uploadedAt ? new Date(video.uploadedAt) : Date.now()
         })).filter(video => video.url) : [],
+        aboutImage: req.body.aboutImage && typeof req.body.aboutImage.url === 'string'
+          ? {
+              url: String(req.body.aboutImage.url).trim(),
+              uploadedAt: req.body.aboutImage.uploadedAt ? new Date(req.body.aboutImage.uploadedAt) : Date.now()
+            }
+          : { url: '', uploadedAt: Date.now() },
         updatedBy: req.user.id
       });
     } else {
@@ -82,6 +115,15 @@ router.put('/', auth.protect, async (req, res, next) => {
             uploadedAt: video.uploadedAt ? new Date(video.uploadedAt) : Date.now()
           }))
           .filter(video => video.url);
+      }
+      if (req.body.aboutImage !== undefined) {
+        const aboutImageUrl = typeof req.body.aboutImage === 'string'
+          ? req.body.aboutImage.trim()
+          : req.body.aboutImage?.url ? String(req.body.aboutImage.url).trim() : '';
+        settings.aboutImage = {
+          url: aboutImageUrl,
+          uploadedAt: Date.now()
+        };
       }
       settings.updatedBy = req.user.id;
     }

@@ -980,7 +980,10 @@ bot.start(errorWrapper(async (ctx) => {
       ' /herodeletevideo (slot) - Delete a hero video\n' +
       ' /listherovideos - List configured hero videos\n\n' +
       ' <b>Settings:</b>\n' +
-      ' /settings - View & manage app settings (tax, shipping)\n\n' +
+      ' /settings - View & manage app settings (tax, shipping)\n' +
+      ' /aboutimage - Show current About section image settings\n' +
+      ' /aboutimageupload - Upload or replace the About section image\n' +
+      ' /aboutimagedelete - Remove the custom About section image\n\n' +
       'Or use the menu below:',
       {
         parse_mode: 'HTML',
@@ -1750,13 +1753,15 @@ bot.command('settings', errorWrapper(async (ctx) => {
       ` <b>Shipping Fee:</b> ₦${settings.shippingFee.toLocaleString()}\n` +
       ` <b>Hero Title:</b> ${settings.heroTitle || 'N/A'}\n` +
       ` <b>Hero Description:</b> ${settings.heroDescription || 'N/A'}\n` +
-      ` <b>Hero Videos:</b> ${Array.isArray(settings.heroVideos) ? settings.heroVideos.length : 0}\n\n` +
-      `Use the menu below or type /hero to manage hero content:`;
+      ` <b>Hero Videos:</b> ${Array.isArray(settings.heroVideos) ? settings.heroVideos.length : 0}\n` +
+      ` <b>About Image:</b> ${settings.aboutImage?.url ? 'Configured' : 'Default fallback'}\n\n` +
+      `Use the menu below or type /hero to manage hero content, /aboutimage to manage the About image:`;
 
     ctx.reply(message, {
       parse_mode: 'HTML',
       reply_markup: Markup.inlineKeyboard([
         [Markup.button.callback('🏠 Hero Settings', 'settings_hero')],
+        [Markup.button.callback('🖼️ About Image', 'settings_about_image')],
         [Markup.button.callback('📊 Set Tax Rate', 'settings_tax')],
         [Markup.button.callback('🚚 Set Shipping Fee', 'settings_shipping')],
         [Markup.button.callback(' Back', 'main_menu')]
@@ -1783,6 +1788,7 @@ bot.action('settings_menu', async (ctx) => {
       parse_mode: 'HTML',
       reply_markup: Markup.inlineKeyboard([
         [Markup.button.callback('🏠 Hero Settings', 'settings_hero')],
+        [Markup.button.callback('🖼️ About Image', 'settings_about_image')],
         [Markup.button.callback('📊 Set Tax Rate', 'settings_tax')],
         [Markup.button.callback('🚚 Set Shipping Fee', 'settings_shipping')],
         [Markup.button.callback(' Back', 'main_menu')]
@@ -1831,6 +1837,41 @@ bot.action('settings_hero', async (ctx) => {
   } catch (error) {
     return ctx.reply('Error fetching hero settings: ' + error.message);
   }
+});
+
+bot.action('settings_about_image', async (ctx) => {
+  await ctx.answerCbQuery();
+  try {
+    const settingsRes = await queueRequest(() => api.get('/settings'));
+    const aboutImage = settingsRes.data.data?.aboutImage;
+    const message = ` <b>About Section Image</b>\n\n` +
+      `URL: ${aboutImage?.url ? aboutImage.url : 'Default fallback image'}\n` +
+      `Uploaded: ${aboutImage?.url ? new Date(aboutImage.uploadedAt || Date.now()).toLocaleString() : 'N/A'}\n\n` +
+      `Use the buttons below or the /aboutimage commands to manage the About image.`;
+
+    return safeEditMessageText(ctx, message, {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback('🖼️ Upload / Replace', 'settings_about_image_upload')],
+        [Markup.button.callback('🗑️ Delete Image', 'settings_about_image_delete')],
+        [Markup.button.callback(' Back', 'settings_menu')]
+      ]).reply_markup
+    });
+  } catch (error) {
+    return ctx.reply('Error fetching About image settings: ' + error.message);
+  }
+});
+
+bot.action('settings_about_image_upload', async (ctx) => {
+  await ctx.answerCbQuery();
+  userContext[ctx.from.id] = { step: 'upload_about_image', type: 'about' };
+  return ctx.reply('🖼️ Send the new About section image now. It will replace the current About image and fallback to default if removed.');
+});
+
+bot.action('settings_about_image_delete', async (ctx) => {
+  await ctx.answerCbQuery();
+  await queueRequest(() => api.put('/settings', { aboutImage: { url: '', uploadedAt: Date.now() } }));
+  return ctx.reply('✅ About section image cleared. The About section will now fall back to the default image.');
 });
 
 bot.action('settings_hero_title', async (ctx) => {
@@ -1886,7 +1927,10 @@ bot.command('hero', errorWrapper(async (ctx) => {
     ' /heroaddvideo [slot] - Upload a hero video by sending the next video file\n' +
     ' /heroreplacevideo (slot) - Replace a hero video by slot number\n' +
     ' /herodeletevideo (slot) - Delete a hero video slot\n' +
-    ' /listherovideos - List configured hero videos',
+    ' /listherovideos - List configured hero videos\n' +
+    ' /aboutimage - Show current About section image settings\n' +
+    ' /aboutimageupload - Upload or replace the About section image\n' +
+    ' /aboutimagedelete - Remove the custom About section image',
     { parse_mode: 'HTML' }
   );
 }));
@@ -1920,6 +1964,29 @@ bot.command('heroaddvideo', errorWrapper(async (ctx) => {
   }
   userContext[ctx.from.id] = { step: 'upload_hero_video', slot };
   return ctx.reply('🎬 Send the hero video file now (MP4/WebM, max 100MB).');
+}));
+
+bot.command('aboutimage', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+  const settingsRes = await queueRequest(() => api.get('/settings'));
+  const aboutImage = settingsRes.data.data?.aboutImage;
+  const message = ` <b>About Section Image</b>\n\n` +
+    `URL: ${aboutImage?.url ? aboutImage.url : 'Default fallback image'}\n` +
+    `Uploaded: ${aboutImage?.url ? new Date(aboutImage.uploadedAt || Date.now()).toLocaleString() : 'N/A'}\n\n` +
+    `Use /aboutimageupload to upload or replace the image, or /aboutimagedelete to reset to the default.`;
+  return ctx.reply(message, { parse_mode: 'HTML' });
+}));
+
+bot.command('aboutimageupload', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+  userContext[ctx.from.id] = { step: 'upload_about_image', type: 'about' };
+  return ctx.reply('🖼️ Send the new about section image now. It will replace the current About image and fallback to default if removed.');
+}));
+
+bot.command('aboutimagedelete', errorWrapper(async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply(' Unauthorized.');
+  await queueRequest(() => api.put('/settings', { aboutImage: { url: '', uploadedAt: Date.now() } }));
+  return ctx.reply('✅ About section image cleared. The About section will now fall back to the default image.');
 }));
 
 bot.command('heroreplacevideo', errorWrapper(async (ctx) => {
@@ -4527,8 +4594,8 @@ bot.on('photo', errorWrapper(async (ctx) => {
   const userId = ctx.from.id;
   const context = userContext[userId];
 
-if (!context || (context.step !== 'create_product_image_upload' && context.step !== 'create_land_image_upload' && context.step !== 'upload_apartment_image' && context.step !== 'apartment_slider_image_upload_next' && context.step !== 'product_slider_image_upload_next' && context.step !== 'land_slider_image_upload_next')) {
-    return ctx.reply(' Please use the product, land, or apartment creation flow to upload images.');
+if (!context || (context.step !== 'create_product_image_upload' && context.step !== 'create_land_image_upload' && context.step !== 'upload_apartment_image' && context.step !== 'apartment_slider_image_upload_next' && context.step !== 'product_slider_image_upload_next' && context.step !== 'land_slider_image_upload_next' && context.step !== 'upload_about_image')) {
+    return ctx.reply(' Please use the product, land, apartment, or about image upload flow to upload this photo.');
   }
 
   try {
@@ -4548,7 +4615,7 @@ if (!context || (context.step !== 'create_product_image_upload' && context.step 
     // Create form data for upload
     const form = new FormData();
     form.append('image', imageBuffer, {
-      filename: context.type === 'land' ? `land_${Date.now()}.jpg` : `product_${Date.now()}.jpg`,
+      filename: context.type === 'land' ? `land_${Date.now()}.jpg` : context.type === 'about' ? `about_${Date.now()}.jpg` : `product_${Date.now()}.jpg`,
       contentType: 'image/jpeg'
     });
 
@@ -4579,6 +4646,17 @@ if (!context || (context.step !== 'create_product_image_upload' && context.step 
     }
     
     const sizeInfo = context.compressedSize ? ` (${(context.compressedSize / 1024).toFixed(2)}KB)` : '';
+
+    if (context.step === 'upload_about_image') {
+      const filename = uploadResponse.data.data.filename || `about_${Date.now()}.jpg`;
+      const aboutImageUrl = `/uploads/${filename}`;
+      await queueRequest(() => api.put('/settings', { aboutImage: { url: aboutImageUrl, uploadedAt: new Date() } }));
+      delete userContext[userId];
+      return ctx.reply(`✅ About section image uploaded successfully${sizeInfo}.\n\nIt will replace the current About image and fallback to the default if removed.`, {
+        parse_mode: 'HTML',
+        reply_markup: Markup.inlineKeyboard([[Markup.button.callback(' Back to Settings', 'settings_menu')]]).reply_markup
+      });
+    }
 
     if (context.type === 'land') {
       context.images = context.images || [];
@@ -4783,7 +4861,10 @@ const startBot = async (attempt = 1, maxAttempts = 8) => {
       { command: 'heroaddvideo', description: 'Upload a homepage hero video' },
       { command: 'heroreplacevideo', description: 'Replace a hero video slot' },
       { command: 'herodeletevideo', description: 'Delete a hero video from the playlist' },
-      { command: 'listherovideos', description: 'List configured hero videos' }
+      { command: 'listherovideos', description: 'List configured hero videos' },
+      { command: 'aboutimage', description: 'Show current About section image settings' },
+      { command: 'aboutimageupload', description: 'Upload or replace the About section image' },
+      { command: 'aboutimagedelete', description: 'Remove the custom About section image' }
     );
 
     try {

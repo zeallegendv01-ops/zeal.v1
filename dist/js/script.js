@@ -33,15 +33,48 @@ let heroCurrentVideoIndex = 0;
 
 const DEFAULT_HERO_TITLE = 'Global Marketplace';
 const DEFAULT_HERO_DESCRIPTION = 'Where premium food, real estate, drinks and lifestyle offerings come together in one curated destination for modern buyers and sellers.';
+const DEFAULT_ABOUT_IMAGE = '/dist/img/download.jfif';
 
 const setHeroVideoUrl = (url) => {
   const videoEl = document.getElementById('heroVideo');
   if (!videoEl) return;
   const newSrc = url || '/dist/vid/1473139_People_Nature_3840x2160.mp4';
-  if (videoEl.src !== new URL(newSrc, window.location.origin).href) {
+  const resolvedNewSrc = new URL(newSrc, window.location.origin).href;
+
+  if (videoEl.src !== resolvedNewSrc) {
     videoEl.src = newSrc;
-    videoEl.load();
   }
+
+  videoEl.load();
+  videoEl.muted = true;
+  videoEl.playsInline = true;
+  videoEl.play().catch(() => {});
+};
+
+const handleHeroVideoError = () => {
+  const heroEl = document.getElementById('heroVideo');
+  if (!heroEl) return;
+
+  console.warn('[WARN] Hero video failed to load:', heroEl.src);
+
+  const failedPath = new URL(heroEl.src, window.location.origin).pathname;
+  heroPlaylist = heroPlaylist.filter(video => {
+    if (!video || !video.url) return false;
+    try {
+      return new URL(video.url, window.location.origin).pathname !== failedPath;
+    } catch {
+      return false;
+    }
+  });
+
+  heroCurrentVideoIndex = 0;
+  setHeroVideoUrl(heroPlaylist[0]?.url || '/dist/vid/1473139_People_Nature_3840x2160.mp4');
+};
+
+const handleHeroVideoEnded = () => {
+  if (heroPlaylist.length <= 1) return;
+  heroCurrentVideoIndex = (heroCurrentVideoIndex + 1) % heroPlaylist.length;
+  setHeroVideoUrl(heroPlaylist[heroCurrentVideoIndex].url);
 };
 
 const initializeHeroPlaylist = (videos) => {
@@ -55,12 +88,16 @@ const initializeHeroPlaylist = (videos) => {
   const heroEl = document.getElementById('heroVideo');
   if (heroEl) {
     heroEl.loop = heroPlaylist.length <= 1;
-    heroEl.onended = () => {
-      if (heroPlaylist.length <= 1) return;
-      heroCurrentVideoIndex = (heroCurrentVideoIndex + 1) % heroPlaylist.length;
-      setHeroVideoUrl(heroPlaylist[heroCurrentVideoIndex].url);
-      heroEl.play().catch(() => {});
-    };
+    heroEl.autoplay = true;
+    heroEl.muted = true;
+    heroEl.playsInline = true;
+    heroEl.removeEventListener('ended', handleHeroVideoEnded);
+    heroEl.removeEventListener('error', handleHeroVideoError);
+    heroEl.addEventListener('ended', handleHeroVideoEnded);
+    heroEl.addEventListener('error', handleHeroVideoError);
+    if (heroPlaylist.length > 1) {
+      heroEl.loop = false;
+    }
   }
 };
 
@@ -74,6 +111,14 @@ const applyHeroSettings = () => {
 
   const heroSub = document.querySelector('.hero-sub');
   if (heroSub) heroSub.textContent = appSettings.heroDescription || DEFAULT_HERO_DESCRIPTION;
+  const aboutImg = document.getElementById('aboutImage');
+  if (aboutImg) {
+    aboutImg.src = appSettings.aboutImageUrl || DEFAULT_ABOUT_IMAGE;
+    aboutImg.style.width = '100%';
+    aboutImg.style.height = '100%';
+    aboutImg.style.objectFit = 'cover';
+    aboutImg.style.objectPosition = 'center center';
+  }
   initializeHeroPlaylist(appSettings.heroVideos || []);
 };
 
@@ -105,6 +150,7 @@ async function fetchAndApplySettings() {
       appSettings.heroTitle = result.data.heroTitle || DEFAULT_HERO_TITLE;
       appSettings.heroDescription = result.data.heroDescription || DEFAULT_HERO_DESCRIPTION;
       appSettings.heroVideos = Array.isArray(result.data.heroVideos) ? result.data.heroVideos : [];
+      appSettings.aboutImageUrl = result.data.aboutImage?.url || '';
 
       if (changed) {
         console.log('[OK] Settings updated:', appSettings);

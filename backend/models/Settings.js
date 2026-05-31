@@ -40,6 +40,19 @@ const settingsSchema = new mongoose.Schema(
       default: [],
       description: 'Hero video playlist items for the homepage hero section'
     },
+    aboutImage: {
+      url: {
+        type: String,
+        default: '',
+        trim: true,
+        description: 'Optional about section image URL'
+      },
+      uploadedAt: {
+        type: Date,
+        default: Date.now,
+        description: 'Timestamp when the about image was last updated'
+      }
+    },
     // ════════════════════════ DEALER CONTACT INFO ════════════════════════
     dealerContact: {
       phone: {
