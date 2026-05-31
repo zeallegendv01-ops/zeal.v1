@@ -30,6 +30,7 @@ let appSettings = {
 
 let heroPlaylist = [];
 let heroCurrentVideoIndex = 0;
+let lastHeroVideosJson = ''; // Track playlist changes
 
 const DEFAULT_HERO_TITLE = 'Global Marketplace';
 const DEFAULT_HERO_DESCRIPTION = 'Where premium food, real estate, drinks and lifestyle offerings come together in one curated destination for modern buyers and sellers.';
@@ -78,15 +79,29 @@ const handleHeroVideoEnded = () => {
 };
 
 const initializeHeroPlaylist = (videos) => {
-  heroPlaylist = Array.isArray(videos) ? videos.filter(video => video && video.url) : [];
+  const filteredPlaylist = Array.isArray(videos) ? videos.filter(video => video && video.url) : [];
+  const newPlaylistJson = JSON.stringify(filteredPlaylist);
+  
+  // Only reinitialize if the playlist actually changed
+  if (newPlaylistJson === lastHeroVideosJson) {
+    console.log('[DEBUG] Video playlist unchanged, skipping reinitialization');
+    return;
+  }
+  
+  console.log('[DEBUG] Video playlist changed, reinitializing', filteredPlaylist.length, 'videos');
+  lastHeroVideosJson = newPlaylistJson;
+  heroPlaylist = filteredPlaylist;
   heroCurrentVideoIndex = 0;
+  
   if (heroPlaylist.length > 0) {
     setHeroVideoUrl(heroPlaylist[0].url);
   } else {
     setHeroVideoUrl('/dist/vid/1473139_People_Nature_3840x2160.mp4');
   }
+  
   const heroEl = document.getElementById('heroVideo');
   if (heroEl) {
+    // Set loop: true only if single video, false if multiple
     heroEl.loop = heroPlaylist.length <= 1;
     heroEl.autoplay = true;
     heroEl.muted = true;
@@ -95,9 +110,6 @@ const initializeHeroPlaylist = (videos) => {
     heroEl.removeEventListener('error', handleHeroVideoError);
     heroEl.addEventListener('ended', handleHeroVideoEnded);
     heroEl.addEventListener('error', handleHeroVideoError);
-    if (heroPlaylist.length > 1) {
-      heroEl.loop = false;
-    }
   }
 };
 
@@ -111,6 +123,7 @@ const applyHeroSettings = () => {
 
   const heroSub = document.querySelector('.hero-sub');
   if (heroSub) heroSub.textContent = appSettings.heroDescription || DEFAULT_HERO_DESCRIPTION;
+  
   const aboutImg = document.getElementById('aboutImage');
   if (aboutImg) {
     aboutImg.src = appSettings.aboutImageUrl || DEFAULT_ABOUT_IMAGE;
@@ -119,6 +132,8 @@ const applyHeroSettings = () => {
     aboutImg.style.objectFit = 'cover';
     aboutImg.style.objectPosition = 'center center';
   }
+  
+  // Only reinitialize playlist if videos changed (avoids interrupting playback)
   initializeHeroPlaylist(appSettings.heroVideos || []);
 };
 
