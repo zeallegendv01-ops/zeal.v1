@@ -1,15 +1,17 @@
 ﻿/*  PWA SERVICE WORKER & INSTALL PROMPT  */
 
 // Dynamic API Base URL
-let API_BASE_URL, $url = /*'www.365extra.com'*/ window.location.origin ; // Default backend URL for development
-if (window.location.hostname === 'localhost') {
-  API_BASE_URL = $url+'/api';
-} else if (window.location.protocol === 'file:' || !window.location.host) {
-  // When opening the HTML file directly (file://), default to local backend
-  API_BASE_URL = $url+'/api';
-  console.warn('[WARN] Running from file:// - defaulting API_BASE_URL to', API_BASE_URL);
+let API_BASE_URL;
+const host = window.location.hostname;
+const protocol = window.location.protocol;
+
+if (protocol === 'file:') {
+  // When opening directly from filesystem in local development,
+  // fallback to localhost:4000 backend.
+  API_BASE_URL = 'http://localhost:4000/api';
+  console.warn('[WARN] Running from file://, defaulting API_BASE_URL to', API_BASE_URL);
 } else {
-  API_BASE_URL = `${window.location.protocol}//${window.location.host}/api`;
+  API_BASE_URL = `${protocol}//${window.location.host}/api`;
 }
 
 console.log('[DEBUG] API_BASE_URL:', API_BASE_URL);
@@ -3385,6 +3387,7 @@ function handleAuthButtonClick(){
     toggleSidebar('dashboardSidebar', true);
   } else {
     openModal('authModal');
+    switchAuthTab('register', document.querySelector('.auth-tab:nth-child(2)'));
   }
 }
 
