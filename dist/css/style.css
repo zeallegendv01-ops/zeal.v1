@@ -1137,7 +1137,8 @@ nav:hover {
   color: rgba(13, 13, 11, 0.45);
 }
 
-.auth-field input {
+.auth-field input,
+.auth-field select {
   width: 100%;
   padding: 14px 16px;
   background: var(--mist);
@@ -1151,10 +1152,21 @@ nav:hover {
   box-sizing: border-box;
 }
 
-.auth-field input:focus {
+.auth-field input:focus,
+.auth-field select:focus {
   border-color: var(--gold);
   background: #fff;
   box-shadow: 0 0 0 3px rgba(201, 169, 97, 0.1);
+}
+
+.auth-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%230d0d0b'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 16px 16px;
 }
 
 .auth-2col {

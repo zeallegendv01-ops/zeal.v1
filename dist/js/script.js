@@ -4,12 +4,18 @@
 let API_BASE_URL;
 const host = window.location.hostname;
 const protocol = window.location.protocol;
+const port = window.location.port;
 
 if (protocol === 'file:') {
-  // When opening directly from filesystem in local development,
-  // fallback to localhost:4000 backend.
   API_BASE_URL = 'http://localhost:4000/api';
   console.warn('[WARN] Running from file://, defaulting API_BASE_URL to', API_BASE_URL);
+} else if (host === 'localhost' || host === '127.0.0.1') {
+  if (port === '4000') {
+    API_BASE_URL = `${protocol}//${host}:${port}/api`;
+  } else {
+    API_BASE_URL = `http://localhost:4000/api`;
+    console.warn('[WARN] Local dev frontend origin detected, using backend at', API_BASE_URL);
+  }
 } else {
   API_BASE_URL = `${protocol}//${window.location.host}/api`;
 }
