@@ -4862,6 +4862,7 @@ const startBot = async (attempt = 1, maxAttempts = 8) => {
       { command: 'heroreplacevideo', description: 'Replace a hero video slot' },
       { command: 'herodeletevideo', description: 'Delete a hero video from the playlist' },
       { command: 'listherovideos', description: 'List configured hero videos' },
+      { command: 'newsletter', description: 'Show newsletter admin commands' },
       { command: 'aboutimage', description: 'Show current About section image settings' },
       { command: 'aboutimageupload', description: 'Upload or replace the About section image' },
       { command: 'aboutimagedelete', description: 'Remove the custom About section image' }

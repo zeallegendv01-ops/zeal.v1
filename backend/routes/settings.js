@@ -12,7 +12,8 @@ const normalizeHeroVideos = (videos) => {
     if (!video || typeof video.url !== 'string') return false;
 
     if (video.url.startsWith('/uploads/')) {
-      const filePath = path.join(__dirname, '..', video.url);
+      const relativePath = video.url.replace(/^[/\\]+/, '');
+      const filePath = path.join(__dirname, '..', relativePath);
       if (!fs.existsSync(filePath)) {
         console.warn(`[Settings] Dropping missing hero video from settings: ${video.url}`);
         return false;
