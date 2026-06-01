@@ -37,7 +37,7 @@ import ShieldAI from '/frontend-shield-ai.js';
     immediateAnalysisThreshold: 95,
     autoBlockThreshold: 100,
     aiAnalysisInterval: 30000,
-    // onSuspiciousAction: "log",
+    onSuspiciousAction: "log",
     // onBlockAction: "log",
     
     // Custom callbacks
