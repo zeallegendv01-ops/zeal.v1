@@ -927,15 +927,53 @@ app.get('/api/hero-videos/:id', async (req, res) => {
         return res.status(416).end();
       }
 
+      const contentLength = end - start + 1;
       res.status(206);
       res.set({
         'Content-Range': `bytes ${start}-${end}/${totalSize}`,
         'Accept-Ranges': 'bytes',
-        'Content-Length': end - start + 1,
+        'Content-Length': contentLength,
         'Content-Type': contentType
       });
 
-      bucket.openDownloadStream(_id, { start, end }).pipe(res);
+      const downloadStream = bucket.openDownloadStream(_id, { start });
+      let bytesSent = 0;
+      let finished = false;
+
+      downloadStream.on('data', (chunk) => {
+        if (finished) return;
+
+        const remaining = contentLength - bytesSent;
+        if (chunk.length > remaining) {
+          res.write(chunk.slice(0, remaining));
+          bytesSent += remaining;
+          finished = true;
+          downloadStream.destroy();
+          return res.end();
+        }
+
+        bytesSent += chunk.length;
+        res.write(chunk);
+      });
+
+      downloadStream.on('end', () => {
+        if (!finished) {
+          finished = true;
+          res.end();
+        }
+      });
+
+      downloadStream.on('error', (err) => {
+        console.error('[Hero Video Stream] Range stream error:', err);
+        if (!res.headersSent) {
+          return res.status(500).json({ success: false, message: 'Error streaming hero video' });
+        }
+        if (!finished) {
+          finished = true;
+          res.end();
+        }
+      });
+
       return;
     }
 
