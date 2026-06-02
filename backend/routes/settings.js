@@ -11,11 +11,23 @@ const normalizeHeroVideos = (videos) => {
   return videos.filter(video => {
     if (!video || typeof video.url !== 'string') return false;
 
+    // For /uploads/ URLs, verify the file exists
     if (video.url.startsWith('/uploads/')) {
-      const relativePath = video.url.replace(/^[/\\]+/, '');
-      const filePath = path.join(__dirname, '..', relativePath);
+      // Extract just the filename from the URL
+      const filename = video.url.substring('/uploads/'.length);
+      
+      // Build the correct path to backend/uploads/
+      const uploadsDir = path.join(__dirname, '..', 'uploads');
+      const filePath = path.join(uploadsDir, filename);
+      
       if (!fs.existsSync(filePath)) {
-        console.warn(`[Settings] Dropping missing hero video from settings: ${video.url}`);
+        console.warn(
+          `[Settings] Hero video file not found:\n` +
+          `  URL: ${video.url}\n` +
+          `  Expected path: ${filePath}\n` +
+          `  Uploads dir: ${uploadsDir}\n` +
+          `  Uploads dir exists: ${fs.existsSync(uploadsDir)}`
+        );
         return false;
       }
     }
@@ -39,9 +51,29 @@ router.get('/', async (req, res, next) => {
     }
     
     const filteredHeroVideos = normalizeHeroVideos(settings.heroVideos || []);
-    if (filteredHeroVideos.length !== (settings.heroVideos || []).length) {
-      settings.heroVideos = filteredHeroVideos;
-      await settings.save();
+    const videosWereRemoved = filteredHeroVideos.length !== (settings.heroVideos || []).length;
+    
+    if (videosWereRemoved) {
+      const removedCount = (settings.heroVideos || []).length - filteredHeroVideos.length;
+      console.warn(
+        `[Settings] WARNING: ${removedCount} hero video(s) were missing from filesystem.\n` +
+        `  Before: ${(settings.heroVideos || []).length} videos\n` +
+        `  After: ${filteredHeroVideos.length} videos\n` +
+        `  Removed videos: ${(settings.heroVideos || [])
+          .filter(v => !filteredHeroVideos.find(fv => fv.url === v.url))
+          .map(v => v.url)
+          .join(', ')}`
+      );
+      
+      // Only auto-save if there are still videos remaining
+      // This prevents losing the entire collection if there's a path issue
+      if (filteredHeroVideos.length > 0) {
+        settings.heroVideos = filteredHeroVideos;
+        await settings.save();
+      } else if (settings.heroVideos && settings.heroVideos.length > 0) {
+        // Videos were removed but this might be a path issue
+        console.error('[Settings] ERROR: All hero videos were marked as missing! This might indicate a filesystem or path configuration issue.');
+      }
     }
 
     res.status(200).json({
@@ -146,5 +178,108 @@ router.put('/', auth.protect, async (req, res, next) => {
     next(error);
   }
 });
+
+// Diagnostic endpoint for hero videos (admin only)
+router.get('/diagnose/hero-videos', auth.protect, async (req, res, next) => {
+  try {
+    const uploadsDir = path.join(__dirname, '..', 'uploads');
+    const settings = await Settings.findOne();
+    const storedVideos = settings?.heroVideos || [];
+    
+    // Check filesystem
+    const uploadsExists = fs.existsSync(uploadsDir);
+    let filesOnDisk = [];
+    if (uploadsExists) {
+      const allFiles = fs.readdirSync(uploadsDir);
+      filesOnDisk = allFiles
+        .filter(f => f.startsWith('hero_'))
+        .map(f => {
+          const filePath = path.join(uploadsDir, f);
+          const stats = fs.statSync(filePath);
+          return {
+            filename: f,
+            url: `/uploads/${f}`,
+            sizeBytes: stats.size,
+            sizeKB: Math.round(stats.size / 1024),
+            createdAt: stats.birthtime,
+            modifiedAt: stats.mtime
+          };
+        })
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+    
+    // Compare stored vs. filesystem
+    const videoDiagnostics = storedVideos.map(video => {
+      const filename = video.url.substring('/uploads/'.length);
+      const fileExists = filesOnDisk.some(f => f.filename === filename);
+      return {
+        url: video.url,
+        caption: video.caption,
+        uploadedAt: video.uploadedAt,
+        fileExists: fileExists,
+        onDisk: filesOnDisk.find(f => f.filename === filename) || null
+      };
+    });
+    
+    const orphanedFiles = filesOnDisk.filter(
+      file => !storedVideos.some(video => video.url === file.url)
+    );
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        uploadsDirectory: uploadsDir,
+        uploadsDirExists: uploadsExists,
+        storedVideosCount: storedVideos.length,
+        filesOnDiskCount: filesOnDisk.length,
+        orphanedFilesCount: orphanedFiles.length,
+        videos: videoDiagnostics,
+        orphanedFiles: orphanedFiles,
+        issues: {
+          missingFromDisk: videoDiagnostics.filter(v => !v.fileExists).length,
+          orphanedOnDisk: orphanedFiles.length,
+          hasIssues: videoDiagnostics.some(v => !v.fileExists) || orphanedFiles.length > 0
+        },
+        recommendations: generateDiagnosticRecommendations(videoDiagnostics, orphanedFiles, uploadsExists)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Helper function for diagnostic recommendations
+const generateDiagnosticRecommendations = (videos, orphaned, uploadsExists) => {
+  const recommendations = [];
+  
+  if (!uploadsExists) {
+    recommendations.push({
+      issue: 'Uploads directory does not exist',
+      severity: 'HIGH',
+      fix: 'Create backend/uploads/ directory and re-upload videos'
+    });
+  }
+  
+  const missing = videos.filter(v => !v.fileExists);
+  if (missing.length > 0) {
+    recommendations.push({
+      issue: `${missing.length} stored videos are missing from filesystem`,
+      severity: 'HIGH',
+      videos: missing.map(v => v.url),
+      fix: 'Either restore the video files or remove these entries from database'
+    });
+  }
+  
+  if (orphaned.length > 0) {
+    recommendations.push({
+      issue: `${orphaned.length} video files on disk are not registered in database`,
+      severity: 'MEDIUM',
+      files: orphaned.map(f => f.url),
+      fix: 'Either register these videos in database or delete orphaned files to free space'
+    });
+  }
+  
+  return recommendations;
+};
 
 module.exports = router;
