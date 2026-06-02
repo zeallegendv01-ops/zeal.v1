@@ -4771,9 +4771,19 @@ bot.on(['video', 'document'], errorWrapper(async (ctx) => {
       maxContentLength: Infinity
     });
 
-    const uploadedUrl = uploadResponse.data?.data?.url;
+    let uploadedUrl = uploadResponse.data?.data?.url;
     if (!uploadedUrl) {
       throw new Error('Failed to upload hero video to server');
+    }
+
+    // Convert relative URLs returned by the API into absolute URLs so settings store stable links
+    try {
+      if (uploadedUrl.startsWith('/')) {
+        const base = API_BASE_URL.replace(/\/api\/?$/, '');
+        uploadedUrl = base + uploadedUrl;
+      }
+    } catch (e) {
+      // noop - keep uploadedUrl as returned if conversion fails
     }
 
     const settingsRes = await queueRequest(() => api.get('/settings'));

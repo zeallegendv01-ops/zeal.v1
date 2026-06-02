@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const Settings = require('../models/Settings');
 const auth = require('../middleware/auth');
-const { fileExistsInGridFs, HERO_VIDEO_URL_PREFIX } = require('../utils/gridfsStorage');
+// GridFS removed: hero videos are served from /uploads or external URLs
 
 const normalizeHeroVideos = async (videos) => {
   if (!Array.isArray(videos)) return [];
@@ -14,16 +14,7 @@ const normalizeHeroVideos = async (videos) => {
   for (const video of videos) {
     if (!video || typeof video.url !== 'string') continue;
 
-    if (video.url.startsWith(HERO_VIDEO_URL_PREFIX)) {
-      const exists = await fileExistsInGridFs(video.url).catch(error => {
-        console.error(`[Settings] GridFS validation failed for ${video.url}:`, error.message || error);
-        return true; // Preserve on transient error to avoid accidental deletion
-      });
-      if (!exists) {
-        console.warn(`[Settings] Dropping missing GridFS hero video from settings: ${video.url}`);
-        continue;
-      }
-    } else if (video.url.startsWith('/uploads/')) {
+    if (video.url.startsWith('/uploads/')) {
       const filename = video.url.substring('/uploads/'.length);
       const uploadsDir = path.join(__dirname, '..', 'uploads');
       const filePath = path.join(uploadsDir, filename);
@@ -227,12 +218,8 @@ router.get('/diagnose/hero-videos', auth.protect, async (req, res, next) => {
         const filename = video.url.substring('/uploads/'.length);
         fileExists = filesOnDisk.some(f => f.filename === filename);
         onDisk = filesOnDisk.find(f => f.filename === filename) || null;
-      } else if (video.url.startsWith(HERO_VIDEO_URL_PREFIX)) {
-        fileExists = await fileExistsInGridFs(video.url).catch(error => {
-          console.error(`[Settings] GridFS diagnostic failed for ${video.url}:`, error.message || error);
-          return false;
-        });
       } else {
+        // External URLs are assumed to exist (can't verify from server)
         fileExists = true;
       }
 
