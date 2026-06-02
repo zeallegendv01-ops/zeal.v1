@@ -809,26 +809,9 @@ const clearCache = (pattern) => {
 };
 
 const HERO_VIDEO_MAX_SIZE = 100 * 1024 * 1024; // 100MB
-const HERO_VIDEO_UPLOAD_DIR = path.join(__dirname, 'uploads');
 
 const isValidVideoMimeType = (mimeType) => {
   return ['video/mp4', 'video/webm', 'video/quicktime', 'video/mov', 'video/x-matroska'].includes(String(mimeType || '').toLowerCase());
-};
-
-const ensureHeroVideoUploadDir = () => {
-  if (!fs.existsSync(HERO_VIDEO_UPLOAD_DIR)) {
-    fs.mkdirSync(HERO_VIDEO_UPLOAD_DIR, { recursive: true });
-  }
-};
-
-const downloadFileFromTelegram = async (fileUrl, destinationPath) => {
-  const response = await axios.get(fileUrl, { responseType: 'stream', timeout: 90000 });
-  await new Promise((resolve, reject) => {
-    const writer = fs.createWriteStream(destinationPath);
-    response.data.pipe(writer);
-    writer.on('finish', resolve);
-    writer.on('error', reject);
-  });
 };
 
 // Rate limiting per user per command
@@ -4769,18 +4752,34 @@ bot.on(['video', 'document'], errorWrapper(async (ctx) => {
     const fileResponse = await axios.get(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileId}`);
     const filePath = fileResponse.data.result.file_path;
     const downloadUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${filePath}`;
-    ensureHeroVideoUploadDir();
+    const videoResponse = await axios.get(downloadUrl, { responseType: 'arraybuffer', timeout: 90000 });
+    const videoBuffer = Buffer.from(videoResponse.data);
 
     const extension = path.extname(file.file_name || '') || (mimeType.includes('webm') ? '.webm' : '.mp4');
     const safeName = `hero_${Date.now()}_${Math.round(Math.random() * 1e6)}${extension}`;
-    const destinationPath = path.join(HERO_VIDEO_UPLOAD_DIR, safeName);
+    const form = new FormData();
+    form.append('video', videoBuffer, {
+      filename: safeName,
+      contentType: mimeType || 'video/mp4'
+    });
 
-    await downloadFileFromTelegram(downloadUrl, destinationPath);
+    const uploadResponse = await api.post('/hero-videos', form, {
+      headers: {
+        ...form.getHeaders()
+      },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity
+    });
+
+    const uploadedUrl = uploadResponse.data?.data?.url;
+    if (!uploadedUrl) {
+      throw new Error('Failed to upload hero video to server');
+    }
 
     const settingsRes = await queueRequest(() => api.get('/settings'));
     const videos = Array.isArray(settingsRes.data.data?.heroVideos) ? [...settingsRes.data.data.heroVideos] : [];
     const newVideo = {
-      url: `/uploads/${safeName}`,
+      url: uploadedUrl,
       caption: `Hero video ${videos.length + 1}`,
       uploadedAt: new Date()
     };

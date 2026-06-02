@@ -10,6 +10,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/database');
 const errorHandler = require('./middleware/errorHandler');
+const auth = require('./middleware/auth');
 const Product = require('./models/Product');
 const ThreatLog = require('./models/ThreatLog');
 const seedProducts = require('./seed-products');
@@ -147,6 +148,20 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only image files are allowed!'), false);
+    }
+  }
+});
+
+const videoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 120 * 1024 * 1024 // 120MB max for video uploads
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype && file.mimetype.startsWith('video/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only video files are allowed!'), false);
     }
   }
 });
@@ -832,6 +847,111 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ success: false, message: 'Error processing image: ' + error.message });
+  }
+});
+
+app.post('/api/hero-videos', auth.protect, videoUpload.single('video'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No video file uploaded' });
+    }
+
+    if (!mongoose.connection || !mongoose.connection.db) {
+      return res.status(503).json({ success: false, message: 'Database not ready for file storage' });
+    }
+
+    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+      bucketName: 'heroVideos'
+    });
+
+    const filename = req.file.originalname || `hero_${Date.now()}`;
+    const file = await new Promise((resolve, reject) => {
+      const uploadStream = bucket.openUploadStream(filename, {
+        contentType: req.file.mimetype || 'application/octet-stream',
+        metadata: { uploadedBy: req.user?.id || null }
+      });
+
+      uploadStream.end(req.file.buffer);
+      uploadStream.on('error', reject);
+      uploadStream.on('finish', resolve);
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        id: file._id,
+        filename: file.filename,
+        url: `/api/hero-videos/${file._id}`,
+        contentType: file.contentType
+      }
+    });
+  } catch (error) {
+    console.error('[Hero Video Upload] Error:', error);
+    return res.status(500).json({ success: false, message: 'Error uploading hero video: ' + error.message });
+  }
+});
+
+app.get('/api/hero-videos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid video ID' });
+    }
+
+    if (!mongoose.connection || !mongoose.connection.db) {
+      return res.status(503).json({ success: false, message: 'Database not ready for file streaming' });
+    }
+
+    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+      bucketName: 'heroVideos'
+    });
+
+    const _id = new mongoose.Types.ObjectId(id);
+    const files = await bucket.find({ _id }).toArray();
+    if (!files || files.length === 0) {
+      return res.status(404).json({ success: false, message: 'Hero video not found' });
+    }
+
+    const file = files[0];
+    const totalSize = file.length;
+    const range = req.headers.range;
+    const contentType = file.contentType || 'video/mp4';
+
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = Number(parts[0]);
+      const end = parts[1] ? Number(parts[1]) : totalSize - 1;
+
+      if (Number.isNaN(start) || Number.isNaN(end) || start > end || end >= totalSize) {
+        res.set('Content-Range', `bytes */${totalSize}`);
+        return res.status(416).end();
+      }
+
+      res.status(206);
+      res.set({
+        'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': end - start + 1,
+        'Content-Type': contentType
+      });
+
+      bucket.openDownloadStream(_id, { start, end }).pipe(res);
+      return;
+    }
+
+    res.status(200);
+    res.set({
+      'Content-Type': contentType,
+      'Content-Length': totalSize,
+      'Accept-Ranges': 'bytes'
+    });
+
+    bucket.openDownloadStream(_id).pipe(res);
+  } catch (error) {
+    console.error('[Hero Video Stream] Error:', error);
+    if (!res.headersSent) {
+      return res.status(500).json({ success: false, message: 'Error streaming hero video' });
+    }
   }
 });
 

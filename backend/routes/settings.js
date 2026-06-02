@@ -4,22 +4,30 @@ const path = require('path');
 const fs = require('fs');
 const Settings = require('../models/Settings');
 const auth = require('../middleware/auth');
+const { fileExistsInGridFs, HERO_VIDEO_URL_PREFIX } = require('../utils/gridfsStorage');
 
-const normalizeHeroVideos = (videos) => {
+const normalizeHeroVideos = async (videos) => {
   if (!Array.isArray(videos)) return [];
 
-  return videos.filter(video => {
-    if (!video || typeof video.url !== 'string') return false;
+  const normalized = [];
 
-    // For /uploads/ URLs, verify the file exists
-    if (video.url.startsWith('/uploads/')) {
-      // Extract just the filename from the URL
+  for (const video of videos) {
+    if (!video || typeof video.url !== 'string') continue;
+
+    if (video.url.startsWith(HERO_VIDEO_URL_PREFIX)) {
+      const exists = await fileExistsInGridFs(video.url).catch(error => {
+        console.error(`[Settings] GridFS validation failed for ${video.url}:`, error.message || error);
+        return true; // Preserve on transient error to avoid accidental deletion
+      });
+      if (!exists) {
+        console.warn(`[Settings] Dropping missing GridFS hero video from settings: ${video.url}`);
+        continue;
+      }
+    } else if (video.url.startsWith('/uploads/')) {
       const filename = video.url.substring('/uploads/'.length);
-      
-      // Build the correct path to backend/uploads/
       const uploadsDir = path.join(__dirname, '..', 'uploads');
       const filePath = path.join(uploadsDir, filename);
-      
+
       if (!fs.existsSync(filePath)) {
         console.warn(
           `[Settings] Hero video file not found:\n` +
@@ -28,12 +36,14 @@ const normalizeHeroVideos = (videos) => {
           `  Uploads dir: ${uploadsDir}\n` +
           `  Uploads dir exists: ${fs.existsSync(uploadsDir)}`
         );
-        return false;
+        continue;
       }
     }
 
-    return true;
-  });
+    normalized.push(video);
+  }
+
+  return normalized;
 };
 
 // Get current settings
@@ -50,7 +60,7 @@ router.get('/', async (req, res, next) => {
       await settings.save();
     }
     
-    const filteredHeroVideos = normalizeHeroVideos(settings.heroVideos || []);
+    const filteredHeroVideos = await normalizeHeroVideos(settings.heroVideos || []);
     const videosWereRemoved = filteredHeroVideos.length !== (settings.heroVideos || []).length;
     
     if (videosWereRemoved) {
@@ -209,17 +219,31 @@ router.get('/diagnose/hero-videos', auth.protect, async (req, res, next) => {
     }
     
     // Compare stored vs. filesystem
-    const videoDiagnostics = storedVideos.map(video => {
-      const filename = video.url.substring('/uploads/'.length);
-      const fileExists = filesOnDisk.some(f => f.filename === filename);
+    const videoDiagnostics = await Promise.all(storedVideos.map(async video => {
+      let fileExists = false;
+      let onDisk = null;
+
+      if (video.url.startsWith('/uploads/')) {
+        const filename = video.url.substring('/uploads/'.length);
+        fileExists = filesOnDisk.some(f => f.filename === filename);
+        onDisk = filesOnDisk.find(f => f.filename === filename) || null;
+      } else if (video.url.startsWith(HERO_VIDEO_URL_PREFIX)) {
+        fileExists = await fileExistsInGridFs(video.url).catch(error => {
+          console.error(`[Settings] GridFS diagnostic failed for ${video.url}:`, error.message || error);
+          return false;
+        });
+      } else {
+        fileExists = true;
+      }
+
       return {
         url: video.url,
         caption: video.caption,
         uploadedAt: video.uploadedAt,
-        fileExists: fileExists,
-        onDisk: filesOnDisk.find(f => f.filename === filename) || null
+        fileExists,
+        onDisk
       };
-    });
+    }));
     
     const orphanedFiles = filesOnDisk.filter(
       file => !storedVideos.some(video => video.url === file.url)
