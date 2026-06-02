@@ -40,7 +40,7 @@ import ShieldAI from '/frontend-shield-ai.js';
     onSuspiciousAction: "log",
     // onBlockAction: "log",
     
-    // Custom callbacks
+    // Custom callbacks 
     onBlock: (reason, score) => {
       console.warn(`[365extra] Blocked: ${reason} (score: ${score})`);
     },
