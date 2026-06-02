@@ -920,11 +920,15 @@ app.get('/api/hero-videos/:id', async (req, res) => {
     if (range) {
       const parts = range.replace(/bytes=/, '').split('-');
       const start = Number(parts[0]);
-      const end = parts[1] ? Number(parts[1]) : totalSize - 1;
+      let end = parts[1] ? Number(parts[1]) : totalSize - 1;
 
-      if (Number.isNaN(start) || Number.isNaN(end) || start > end || end >= totalSize) {
+      if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= totalSize) {
         res.set('Content-Range', `bytes */${totalSize}`);
         return res.status(416).end();
+      }
+
+      if (end >= totalSize) {
+        end = totalSize - 1;
       }
 
       const contentLength = end - start + 1;
@@ -936,44 +940,7 @@ app.get('/api/hero-videos/:id', async (req, res) => {
         'Content-Type': contentType
       });
 
-      const downloadStream = bucket.openDownloadStream(_id, { start });
-      let bytesSent = 0;
-      let finished = false;
-
-      downloadStream.on('data', (chunk) => {
-        if (finished) return;
-
-        const remaining = contentLength - bytesSent;
-        if (chunk.length > remaining) {
-          res.write(chunk.slice(0, remaining));
-          bytesSent += remaining;
-          finished = true;
-          downloadStream.destroy();
-          return res.end();
-        }
-
-        bytesSent += chunk.length;
-        res.write(chunk);
-      });
-
-      downloadStream.on('end', () => {
-        if (!finished) {
-          finished = true;
-          res.end();
-        }
-      });
-
-      downloadStream.on('error', (err) => {
-        console.error('[Hero Video Stream] Range stream error:', err);
-        if (!res.headersSent) {
-          return res.status(500).json({ success: false, message: 'Error streaming hero video' });
-        }
-        if (!finished) {
-          finished = true;
-          res.end();
-        }
-      });
-
+      bucket.openDownloadStream(_id, { start, end }).pipe(res);
       return;
     }
 
