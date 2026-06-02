@@ -43,20 +43,25 @@ const setHeroVideoUrl = (url) => {
   const resolvedNewSrc = new URL(newSrc, window.location.origin).href;
 
   if (videoEl.src !== resolvedNewSrc) {
-    videoEl.src = newSrc;
+    try {
+      videoEl.pause();
+    } catch {}
+    videoEl.src = resolvedNewSrc;
   }
 
   videoEl.load();
   videoEl.muted = true;
   videoEl.playsInline = true;
-  videoEl.play().catch(() => {});
+  videoEl.play().catch((err) => {
+    console.warn('[WARN] Hero video autoplay failed:', err);
+  });
 };
 
-const handleHeroVideoError = () => {
+const handleHeroVideoError = (event) => {
   const heroEl = document.getElementById('heroVideo');
   if (!heroEl) return;
 
-  console.warn('[WARN] Hero video failed to load:', heroEl.src);
+  console.warn('[WARN] Hero video failed to load:', heroEl.src, event);
 
   const failedPath = new URL(heroEl.src, window.location.origin).pathname;
   heroPlaylist = heroPlaylist.filter(video => {

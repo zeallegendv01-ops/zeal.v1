@@ -920,9 +920,9 @@ app.get('/api/hero-videos/:id', async (req, res) => {
     if (range) {
       const parts = range.replace(/bytes=/, '').split('-');
       const start = Number(parts[0]);
-      let end = parts[1] ? Number(parts[1]) : totalSize - 1;
+      let end = parts[1] === '' ? totalSize - 1 : (parts[1] ? Number(parts[1]) : totalSize - 1);
 
-      if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= totalSize) {
+      if (Number.isNaN(start) || Number.isNaN(end) || start < 0 || end < start || start >= totalSize) {
         res.set('Content-Range', `bytes */${totalSize}`);
         return res.status(416).end();
       }
