@@ -4750,26 +4750,27 @@ if (!context || (context.step !== 'create_product_image_upload' && context.step 
 
     console.log(`[Photo Upload] Upload successful, data:`, uploadResponse.data.data);
     
-    // Handle new response format with compression
-    if (uploadResponse.data.data.dataUrl) {
+    if (uploadResponse.data.data.imageUrl) {
+      context.image = uploadResponse.data.data.imageUrl;
+      context.filename = uploadResponse.data.data.filename;
+      context.compressedSize = uploadResponse.data.data.size;
+      console.log(`[Photo Upload] Image stored at: ${context.image}`);
+    } else if (uploadResponse.data.data.dataUrl) {
       context.imageData = uploadResponse.data.data.imageData;
       context.imageMimeType = uploadResponse.data.data.mimeType;
       context.image = uploadResponse.data.data.dataUrl; // Full data URL
       context.filename = uploadResponse.data.data.filename;
       context.compressedSize = uploadResponse.data.data.size;
-      
-      // Log compression details
       console.log(`[Photo Upload] Image compressed: ${context.filename} (${(context.compressedSize / 1024).toFixed(2)}KB)`);
     } else {
-      // Fallback for old format
       context.image = uploadResponse.data.data.imageUrl;
+      context.filename = uploadResponse.data.data.filename;
     }
     
     const sizeInfo = context.compressedSize ? ` (${(context.compressedSize / 1024).toFixed(2)}KB)` : '';
 
     if (context.step === 'upload_about_image') {
-      const filename = uploadResponse.data.data.filename || `about_${Date.now()}.jpg`;
-      const aboutImageUrl = `/uploads/${filename}`;
+      const aboutImageUrl = uploadResponse.data.data.imageUrl || uploadResponse.data.data.dataUrl || `/uploads/${uploadResponse.data.data.filename}`;
       await queueRequest(() => api.put('/settings', { aboutImage: { url: aboutImageUrl, uploadedAt: new Date() } }));
       delete userContext[userId];
       return ctx.reply(`✅ About section image uploaded successfully${sizeInfo}.\n\nIt will replace the current About image and fallback to the default if removed.`, {
