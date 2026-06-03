@@ -5,6 +5,14 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const sharp = require('sharp');
+const cloudinary = require('cloudinary').v2;
+
+if (process.env.CLOUDINARY_URL) {
+  cloudinary.config({ secure: true });
+} else {
+  console.warn('[Cloudinary] CLOUDINARY_URL is not configured. Hero video uploads will fail until it is set.');
+}
+
 const mongoose = require('mongoose');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -878,30 +886,40 @@ app.post('/api/hero-videos', auth.protect, videoUpload.single('video'), async (r
       return res.status(400).json({ success: false, message: 'No video file uploaded' });
     }
 
+    if (!process.env.CLOUDINARY_URL) {
+      return res.status(500).json({ success: false, message: 'Cloudinary is not configured. Set CLOUDINARY_URL in your environment.' });
+    }
+
     const uploadsDir = path.join(__dirname, 'uploads');
     fs.mkdirSync(uploadsDir, { recursive: true });
 
     const fileName = req.file.originalname || `hero_${Date.now()}.mp4`;
     const safeFileName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const publicId = path.parse(safeFileName).name.replace(/[^a-zA-Z0-9_-]/g, '_');
     filePath = path.join(uploadsDir, safeFileName);
 
     // Use async write to prevent blocking and allow better memory cleanup
     await fs.promises.writeFile(filePath, req.file.buffer);
 
-    // Explicitly clear the buffer from memory after writing
-    if (req.file.buffer) {
-      req.file.buffer = null;
-    }
-    if (req.file) {
-      req.file = null;
-    }
+    const uploadResult = await cloudinary.uploader.upload(filePath, {
+      resource_type: 'video',
+      folder: 'hero_videos',
+      public_id: publicId,
+      overwrite: true,
+      use_filename: false,
+      unique_filename: false
+    });
+
+    // Clean up local file after upload succeeds
+    await fs.promises.unlink(filePath);
+    filePath = null;
 
     res.status(201).json({
       success: true,
       data: {
         filename: safeFileName,
-        url: `/uploads/${safeFileName}`,
-        contentType: req.file ? (req.file.mimetype || 'video/mp4') : 'video/mp4'
+        url: uploadResult.secure_url || uploadResult.url,
+        contentType: req.file.mimetype || 'video/mp4'
       }
     });
   } catch (error) {
@@ -909,7 +927,7 @@ app.post('/api/hero-videos', auth.protect, videoUpload.single('video'), async (r
     // Clean up partially written file if upload failed
     if (filePath) {
       try {
-        fs.unlinkSync(filePath);
+        await fs.promises.unlink(filePath);
       } catch (unlinkError) {
         console.error('[Hero Video Upload] Failed to clean up file:', unlinkError);
       }
@@ -918,7 +936,7 @@ app.post('/api/hero-videos', auth.protect, videoUpload.single('video'), async (r
   }
 });
 
-// Legacy GridFS hero URL route kept only for compatibility reasons, but local disk uploads are preferred.
+// Legacy GridFS hero URL route kept only for compatibility reasons, but Cloudinary uploads are preferred.
 app.get('/api/hero-videos/:id', async (req, res) => {
   return res.status(404).json({ success: false, message: 'Legacy hero video streaming is no longer supported' });
 });

@@ -35,6 +35,7 @@ let lastHeroVideosJson = ''; // Track playlist changes
 const DEFAULT_HERO_TITLE = 'Global Marketplace';
 const DEFAULT_HERO_DESCRIPTION = 'Where premium food, real estate, drinks and lifestyle offerings come together in one curated destination for modern buyers and sellers.';
 const DEFAULT_ABOUT_IMAGE = '/dist/img/download.jfif';
+const DEFAULT_HERO_VIDEO_URL = '/dist/vid/1473139_People_Nature_3840x2160.mp4';
 
 const setHeroVideoUrl = (url) => {
   const container = document.querySelector('.hero-right');
@@ -42,8 +43,10 @@ const setHeroVideoUrl = (url) => {
   const heroSection = document.querySelector('.hero');
   if (!container || !current || !heroSection) return;
 
-  const newSrc = url || '/dist/vid/1473139_People_Nature_3840x2160.mp4';
+  const newSrc = url || DEFAULT_HERO_VIDEO_URL;
   const resolvedNewSrc = new URL(newSrc, window.location.origin).href;
+  const useCustomPlaylist = heroPlaylist.length > 0;
+  const shouldLoop = heroPlaylist.length <= 1;
 
   // Ensure container has explicit height
   const heroHeight = heroSection.clientHeight;
@@ -55,7 +58,7 @@ const setHeroVideoUrl = (url) => {
   if (current.src === resolvedNewSrc) {
     current.muted = true;
     current.playsInline = true;
-    current.loop = heroPlaylist.length <= 1;
+    current.loop = shouldLoop;
     current.play().catch(() => {});
     return;
   }
@@ -99,9 +102,13 @@ const setHeroVideoUrl = (url) => {
   const next = document.createElement('video');
   next.preload = 'auto';
   next.muted = true;
+  next.autoplay = true;
+  next.loop = shouldLoop;
   next.playsInline = true;
   next.setAttribute('webkit-playsinline', '');
+  next.setAttribute('muted', '');
   next.src = resolvedNewSrc;
+  next.load();
   Object.assign(next.style, {
     position: 'absolute',
     top: '0',
@@ -122,7 +129,7 @@ const setHeroVideoUrl = (url) => {
     try { if (current && current.parentNode) current.parentNode.removeChild(current); } catch(e){}
     next.id = 'heroVideo';
     // ensure loop and autoplay are set on the new active element
-    next.loop = heroPlaylist.length <= 1;
+    next.loop = shouldLoop;
     next.autoplay = true;
     next.muted = true;
     next.playsInline = true;
@@ -211,7 +218,7 @@ const initializeHeroPlaylist = (videos) => {
   if (heroPlaylist.length > 0) {
     setHeroVideoUrl(heroPlaylist[0].url);
   } else {
-    setHeroVideoUrl('/dist/vid/1473139_People_Nature_3840x2160.mp4');
+    setHeroVideoUrl(DEFAULT_HERO_VIDEO_URL);
   }
   
   const heroEl = document.getElementById('heroVideo');
