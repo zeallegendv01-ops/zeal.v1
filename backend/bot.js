@@ -2608,17 +2608,55 @@ bot.on('text', errorWrapper(async (ctx) => {
         console.log(`[Bot] Price set to ${context.pricePerKg}, moving to category step`);
         context.step = 'create_product_category';
         console.log(`[Bot] Sending category options...`);
-        return ctx.reply('Select category or type a custom one:', {
-          reply_markup: Markup.inlineKeyboard([
-            [Markup.button.callback('Smoked Fish', 'cat_fish'), Markup.button.callback('Grains', 'cat_grains')],
-            [Markup.button.callback('Rice', 'cat_rice'), Markup.button.callback('Other', 'cat_other')],
-            [Markup.button.callback('Custom Category', 'cat_custom')]
-          ]).reply_markup
-        }).then(() => {
-          console.log(`[Bot] Category options sent successfully`);
-        }).catch(err => {
-          console.error(`[Bot] Failed to send category options:`, err.message);
-        });
+        
+        // Fetch categories dynamically from backend
+        try {
+          const categoriesResponse = await axios.get(`${API_BASE_URL}/products/categories`, { timeout: 5000 });
+          let categories = categoriesResponse.data?.data || [];
+          
+          // Build keyboard with dynamic categories
+          let keyboard = [];
+          
+          // Add up to 8 categories in rows of 2
+          for (let i = 0; i < Math.min(categories.length, 8); i += 2) {
+            const row = [];
+            row.push(Markup.button.callback(categories[i], `cat_${categories[i]}`));
+            if (i + 1 < categories.length) {
+              row.push(Markup.button.callback(categories[i + 1], `cat_${categories[i + 1]}`));
+            }
+            keyboard.push(row);
+          }
+          
+          // Always add custom category option
+          keyboard.push([Markup.button.callback('➕ Custom Category', 'cat_custom')]);
+          
+          console.log('[Bot] Fetched categories:', categories);
+          
+          return ctx.reply('📂 <b>Select Category</b>\n\nChoose from existing categories or create a custom one:', {
+            parse_mode: 'HTML',
+            reply_markup: Markup.inlineKeyboard(keyboard).reply_markup
+          }).then(() => {
+            console.log(`[Bot] Dynamic category options sent successfully`);
+          }).catch(err => {
+            console.error(`[Bot] Failed to send category options:`, err.message);
+          });
+        } catch (error) {
+          console.error('[Bot] Failed to fetch categories, using fallback:', error.message);
+          
+          // Fallback to hardcoded if API fails
+          return ctx.reply('📂 <b>Select Category</b>\n\nChoose from available categories or create a custom one:', {
+            parse_mode: 'HTML',
+            reply_markup: Markup.inlineKeyboard([
+              [Markup.button.callback('Smoked Fish', 'cat_Smoked Fish'), Markup.button.callback('Grains', 'cat_Grains')],
+              [Markup.button.callback('Rice', 'cat_Rice'), Markup.button.callback('Other', 'cat_Other')],
+              [Markup.button.callback('➕ Custom Category', 'cat_custom')]
+            ]).reply_markup
+          }).then(() => {
+            console.log(`[Bot] Fallback category options sent`);
+          }).catch(err => {
+            console.error(`[Bot] Failed to send fallback category options:`, err.message);
+          });
+        }
         // Break here to prevent fall-through
         break;
 
@@ -3386,25 +3424,7 @@ bot.on('text', errorWrapper(async (ctx) => {
   }
 }));
 
-bot.action(/^cat_(?!custom)(.+)$/, async (ctx) => {
-  const category = ctx.match[1];
-  const categoryMap = {
-    'fish': 'Smoked Fish',
-    'grains': 'Grains',
-    'rice': 'Rice',
-    'other': 'Other'
-  };
-
-  const context = userContext[ctx.from.id];
-  // Check if category is in the map (lowercase), otherwise use the category as-is (for dynamic categories)
-  context.category = categoryMap[category] || category;
-  context.step = 'create_product_quantity';
-
-  console.log(`[Bot] Category selected: "${category}" -> set as: "${context.category}"`);
-
-  await ctx.answerCbQuery();
-  return ctx.reply(`Category: <b>${context.category}</b>\n\nEnter quantity in kg:`, { parse_mode: 'HTML' });
-});
+// REMOVED DUPLICATE: Old hardcoded category handler replaced by dynamic handler below
 
 // Land property legal status callbacks
 bot.action(/^legal_(.+)$/, async (ctx) => {
