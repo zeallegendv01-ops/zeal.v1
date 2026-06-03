@@ -63,6 +63,9 @@ const setHeroVideoUrl = (url) => {
     current.playsInline = true;
     current.loop = shouldLoop;
     current.autoplay = true;
+    current.preload = 'metadata';
+    current.crossOrigin = 'anonymous';
+    current.setAttribute('playsinline', '');
     current.setAttribute('webkit-playsinline', '');
     current.setAttribute('muted', '');
 
@@ -114,11 +117,13 @@ const setHeroVideoUrl = (url) => {
 
   // Create next video layer
   const next = document.createElement('video');
-  next.preload = 'auto';
+  next.preload = 'metadata';
   next.muted = true;
   next.autoplay = true;
   next.loop = shouldLoop;
   next.playsInline = true;
+  next.crossOrigin = 'anonymous';
+  next.setAttribute('playsinline', '');
   next.setAttribute('webkit-playsinline', '');
   next.setAttribute('muted', '');
   next.src = resolvedNewSrc;

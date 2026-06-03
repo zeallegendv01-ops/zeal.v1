@@ -910,19 +910,27 @@ app.post('/api/hero-videos', auth.protect, videoUpload.single('video'), async (r
       public_id: publicId,
       overwrite: true,
       use_filename: false,
-      unique_filename: false
+      unique_filename: false,
+      format: 'mp4'
     });
 
     // Clean up local file after upload succeeds
     await fs.promises.unlink(filePath);
     filePath = null;
 
+    const heroVideoUrl = cloudinary.url(uploadResult.public_id, {
+      resource_type: 'video',
+      format: 'mp4',
+      secure: true,
+      type: uploadResult.type || 'upload'
+    });
+
     res.status(201).json({
       success: true,
       data: {
         filename: safeFileName,
-        url: uploadResult.secure_url || uploadResult.url,
-        contentType: req.file.mimetype || 'video/mp4'
+        url: heroVideoUrl,
+        contentType: 'video/mp4'
       }
     });
   } catch (error) {
