@@ -17,7 +17,7 @@
       video.autoplay = true;
     } catch(e){}
   }
-
+// try play function, with fallback to show overlay if it fails (e.g. on iOS without user interaction)  
   function tryPlay(){
     ensureInlineAndMuted();
     const playPromise = video.play();
