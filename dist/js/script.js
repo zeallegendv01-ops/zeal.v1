@@ -37,6 +37,55 @@ const DEFAULT_HERO_DESCRIPTION = 'Where premium food, real estate, drinks and li
 const DEFAULT_ABOUT_IMAGE = '/dist/img/download.jfif';
 const DEFAULT_HERO_VIDEO_URL = '/dist/vid/1473139_People_Nature_3840x2160.mp4';
 
+const getHeroVideoElement = () => document.getElementById('heroVideo');
+const getHeroPlayOverlay = () => document.getElementById('heroPlayOverlay');
+const getHeroPlayBtn = () => document.getElementById('heroPlayBtn');
+const isIOS = /iP(hone|od|ad)/.test(navigator.platform) || (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
+
+const ensureInlineAndMuted = (videoEl) => {
+  if (!videoEl) return;
+  try {
+    videoEl.muted = true;
+    videoEl.playsInline = true;
+    videoEl.loop = true;
+    videoEl.autoplay = true;
+    videoEl.setAttribute('playsinline', '');
+    videoEl.setAttribute('webkit-playsinline', '');
+    videoEl.setAttribute('muted', '');
+    videoEl.setAttribute('preload', 'auto');
+  } catch (e) {}
+};
+
+const showHeroOverlay = (show) => {
+  const overlay = getHeroPlayOverlay();
+  if (!overlay) return;
+  overlay.style.display = show ? 'flex' : 'none';
+};
+
+const heroVideoOnPlay = () => showHeroOverlay(false);
+const heroVideoOnPause = () => showHeroOverlay(true);
+
+const attachHeroPlaybackListeners = (videoEl) => {
+  if (!videoEl) return;
+  videoEl.removeEventListener('play', heroVideoOnPlay);
+  videoEl.removeEventListener('pause', heroVideoOnPause);
+  videoEl.addEventListener('play', heroVideoOnPlay);
+  videoEl.addEventListener('pause', heroVideoOnPause);
+};
+
+const tryPlayHeroVideo = () => {
+  const videoEl = getHeroVideoElement();
+  if (!videoEl) return;
+  ensureInlineAndMuted(videoEl);
+  const playPromise = videoEl.play();
+  if (playPromise !== undefined) {
+    playPromise.then(() => showHeroOverlay(false)).catch((err) => {
+      console.warn('[WARN] Hero video autoplay blocked:', err);
+      showHeroOverlay(true);
+    });
+  }
+};
+
 const setHeroVideoUrl = (url) => {
   const container = document.querySelector('.hero-right');
   const current = document.getElementById('heroVideo');
@@ -75,25 +124,11 @@ const setHeroVideoUrl = (url) => {
       current.load();
     }
 
+    ensureInlineAndMuted(current);
+    attachHeroPlaybackListeners(current);
     current.play().catch((error) => {
       console.warn('[WARN] Hero video play failed:', error);
-    });
-    return;
-  }
-
-  // Prepare container and current element styles for crossfade
-  Object.assign(current.style, {
-    position: 'absolute',
-    top: '0',
-    left: '0',
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    objectPosition: 'center center',
-    transition: 'opacity 600ms ease'
-  });
-
-  // Add a subtle buffering overlay while the next video is preparing
+      showHeroOverlay(true);
   let bufferOverlay = container.querySelector('.hero-buffer-overlay');
   if (!bufferOverlay) {
     bufferOverlay = document.createElement('div');
@@ -152,6 +187,7 @@ const setHeroVideoUrl = (url) => {
     next.autoplay = true;
     next.muted = true;
     next.playsInline = true;
+    attachHeroPlaybackListeners(next);
     // Reattach handlers
     next.removeEventListener('error', handleHeroVideoError);
     next.removeEventListener('ended', handleHeroVideoEnded);
