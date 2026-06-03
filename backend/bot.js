@@ -4571,10 +4571,141 @@ ${statusSummary}`, [], { isAdmin: false, isGroupChat: true, mode: 'status' })
     }
   }
 
-  if (context.step === 'broadcast_subject' || context.step === 'send_user_email') {
-    // Delegate to existing message handlers structure
-    // These will be handled by existing text handler
-    return;
+  if (context.step === 'broadcast_subject') {
+    context.subject = ctx.message.text;
+    context.step = 'broadcast_message';
+    return ctx.reply(` <b>Broadcast Subject:</b> ${context.subject}
+
+Now enter the message body to send to all subscribers:`, { parse_mode: 'HTML' });
+  }
+
+  if (context.step === 'broadcast_message') {
+    context.message = ctx.message.text;
+    try {
+      await ctx.reply(` Fetching subscriber count...`, { parse_mode: 'HTML' });
+      const statsRes = await queueRequest(() => api.get('/newsletter/stats'));
+      const subscriberCount = statsRes.data.data?.activeCount || 0;
+
+      if (subscriberCount === 0) {
+        delete userContext[userId];
+        return ctx.reply(' No active subscribers to send to.');
+      }
+
+      context.step = 'broadcast_confirm';
+      return ctx.reply(` <b>Broadcast Confirmation</b>
+
+` +
+        `Subject: ${context.subject}
+` +
+        `Recipients: ${subscriberCount} active subscribers
+
+` +
+        `Send this broadcast to all subscribers?
+
+` +
+        `Reply with "YES" to confirm or "NO" to cancel:`,
+        { parse_mode: 'HTML' }
+      );
+    } catch (error) {
+      delete userContext[userId];
+      return ctx.reply(` Error: ${error.message}`);
+    }
+  }
+
+  if (context.step === 'broadcast_confirm') {
+    if (ctx.message.text.toUpperCase() === 'YES') {
+      try {
+        await ctx.reply(` Processing broadcast...`, { parse_mode: 'HTML' });
+        const response = await queueRequest(() => api.post('/newsletter/broadcast', {
+          subject: context.subject,
+          message: context.message
+        }));
+        const result = response.data.data || {};
+        delete userContext[userId];
+
+        return ctx.reply(` <b>✅ Broadcast sent successfully!</b>
+
+` +
+          `Subject: ${context.subject}
+` +
+          `Recipients: ${result.count || 'multiple'} subscribers
+` +
+          `Status: ${result.status || 'completed'}`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Markup.inlineKeyboard([
+              [Markup.button.callback(' Back to Menu', 'main_menu')]
+            ]).reply_markup
+          }
+        );
+      } catch (error) {
+        delete userContext[userId];
+        return ctx.reply(` Error sending broadcast: ${error.message}`);
+      }
+    }
+
+    delete userContext[userId];
+    return ctx.reply(' Broadcast cancelled.', {
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback(' Back to Menu', 'main_menu')]
+      ]).reply_markup
+    });
+  }
+
+  if (context.step === 'send_user_email') {
+    const emailText = ctx.message.text.trim();
+    if (!emailText) {
+      return ctx.reply(' Please enter a valid email address.');
+    }
+
+    context.userEmail = emailText;
+    context.step = 'send_user_subject';
+    return ctx.reply(` <b>Send Email to ${emailText}</b>
+
+Enter email subject:`, { parse_mode: 'HTML' });
+  }
+
+  if (context.step === 'send_user_subject') {
+    context.subject = ctx.message.text;
+    context.step = 'send_user_message';
+    return ctx.reply(` <b>Email Subject:</b> ${context.subject}
+
+Now enter the email message/body:`, { parse_mode: 'HTML' });
+  }
+
+  if (context.step === 'send_user_message') {
+    context.message = ctx.message.text;
+    try {
+      await ctx.reply(` Sending email to ${context.userEmail}...`, { parse_mode: 'HTML' });
+      const usersRes = await queueRequest(() => api.get('/auth/users'));
+      const users = usersRes.data.data || [];
+      const user = users.find(u => u.email.toLowerCase() === context.userEmail.toLowerCase());
+
+      if (!user) {
+        delete userContext[userId];
+        return ctx.reply(` User with email "${context.userEmail}" not found.`);
+      }
+
+      await queueRequest(() => api.post('/newsletter/send-email', {
+        userId: user._id,
+        subject: context.subject,
+        message: context.message
+      }));
+
+      delete userContext[userId];
+      return ctx.reply(` <b>✅ Email sent successfully!</b>
+
+To: ${context.userEmail}
+Subject: ${context.subject}`, {
+        parse_mode: 'HTML',
+        reply_markup: Markup.inlineKeyboard([
+          [Markup.button.callback(' Back to Menu', 'main_menu')]
+        ]).reply_markup
+      });
+    } catch (error) {
+      delete userContext[userId];
+      return ctx.reply(` Error sending email: ${error.message}`);
+    }
   }
 }, 'newsletter'));
 
