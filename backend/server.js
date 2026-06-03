@@ -212,6 +212,8 @@ app.use(helmet({
       formAction: ["'self'"],
       frameAncestors: ["'self'"],
       imgSrc: ["'self'", 'data:', 'https://images.unsplash.com'],
+      mediaSrc: ["'self'", 'https://res.cloudinary.com'],
+      videoSrc: ["'self'", 'https://res.cloudinary.com'],
       objectSrc: ["'none'"],
       scriptSrc: ["'self'", 'https://cdnjs.cloudflare.com'],
       scriptSrcAttr: ["'unsafe-inline'"],

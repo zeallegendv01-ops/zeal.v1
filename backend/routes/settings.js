@@ -2,19 +2,41 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
+const cloudinary = require('cloudinary').v2;
 const Settings = require('../models/Settings');
 const auth = require('../middleware/auth');
+
+if (process.env.CLOUDINARY_URL) {
+  cloudinary.config({ secure: true });
+}
 
 const normalizeHeroVideos = (videos) => {
   if (!Array.isArray(videos)) return [];
 
-  // Simply validate data structure - DO NOT check filesystem
-  // Videos are stored in DB, not on disk. Render's ephemeral filesystem
-  // means files are deleted on restart, but we preserve DB records.
   return videos.filter(video => {
     if (!video || typeof video.url !== 'string') return false;
+    const url = String(video.url).trim();
+    if (!url) return false;
+
+    // Remove any local upload URLs - only keep Cloudinary and external URLs
+    if (isLocalUploadUrl(url)) {
+      console.log('[Hero Video] Filtering out local upload URL:', url);
+      return false;
+    }
+
     return true;
   });
+};
+
+const isLocalUploadUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname.startsWith('/uploads/');
+  } catch {
+    return url.startsWith('/uploads/') || url.includes('/uploads/');
+  }
 };
 
 // Get current settings
@@ -35,13 +57,14 @@ router.get('/', async (req, res, next) => {
       heroVideos: settings.heroVideos,
       heroVideosCount: (settings.heroVideos || []).length
     }, null, 2));
-    
-    const filteredHeroVideos = normalizeHeroVideos(settings.heroVideos || []);
+
+    let filteredHeroVideos = normalizeHeroVideos(settings.heroVideos || []);
+
     console.log('[DEBUG] After normalization:', JSON.stringify({
       filteredCount: filteredHeroVideos.length,
       filtered: filteredHeroVideos
     }, null, 2));
-    
+
     if (filteredHeroVideos.length !== (settings.heroVideos || []).length) {
       settings.heroVideos = filteredHeroVideos;
       await settings.save();

@@ -45,26 +45,40 @@ const setHeroVideoUrl = (url) => {
 
   const newSrc = url || DEFAULT_HERO_VIDEO_URL;
   const resolvedNewSrc = new URL(newSrc, window.location.origin).href;
-  const useCustomPlaylist = heroPlaylist.length > 0;
   const shouldLoop = heroPlaylist.length <= 1;
+  const shouldCrossfade = heroPlaylist.length > 0 && current.src !== resolvedNewSrc;
 
-  // Ensure container has explicit height
+  // Ensure container has explicit height and correct positioning
   const heroHeight = heroSection.clientHeight;
   if (heroHeight > 0 && !container.style.height) {
     container.style.height = heroHeight + 'px';
   }
+  if (window.getComputedStyle(container).position === 'static') {
+    container.style.position = 'relative';
+  }
 
-  // If identical source, ensure it's playing
-  if (current.src === resolvedNewSrc) {
+  // If identical source or default fallback, use single player flow
+  if (!shouldCrossfade) {
     current.muted = true;
     current.playsInline = true;
     current.loop = shouldLoop;
-    current.play().catch(() => {});
+    current.autoplay = true;
+    current.setAttribute('webkit-playsinline', '');
+    current.setAttribute('muted', '');
+
+    if (current.src !== resolvedNewSrc) {
+      current.src = resolvedNewSrc;
+      current.currentTime = 0;
+      current.load();
+    }
+
+    current.play().catch((error) => {
+      console.warn('[WARN] Hero video play failed:', error);
+    });
     return;
   }
 
   // Prepare container and current element styles for crossfade
-  container.style.position = 'absolute';
   Object.assign(current.style, {
     position: 'absolute',
     top: '0',
