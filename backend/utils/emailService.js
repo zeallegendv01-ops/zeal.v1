@@ -2,13 +2,48 @@
 
 class EmailService {
   constructor() {
-    this.transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD
+    // Support explicit SMTP config via env vars (preferred for Render deployments)
+    // If EMAIL_SMTP_HOST is provided, use SMTP transport. Otherwise fall back to
+    // EMAIL_SERVICE (e.g., 'gmail') for backwards compatibility.
+    try {
+      if (process.env.EMAIL_SMTP_HOST) {
+        this.transporter = nodemailer.createTransport({
+          host: process.env.EMAIL_SMTP_HOST,
+          port: parseInt(process.env.EMAIL_SMTP_PORT || '587', 10),
+          secure: (process.env.EMAIL_SMTP_SECURE === 'true'), // true for 465, false for other ports
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASSWORD
+          }
+        });
+      } else if (process.env.EMAIL_SERVICE) {
+        this.transporter = nodemailer.createTransport({
+          service: process.env.EMAIL_SERVICE,
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASSWORD
+          }
+        });
+      } else {
+        // Legacy default: Gmail service
+        this.transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASSWORD
+          }
+        });
       }
-    });
+
+      // Verify transporter early to surface credential/config issues in logs
+      this.transporter.verify()
+        .then(() => console.log('[EmailService] SMTP transporter verified'))
+        .catch(err => console.warn('[EmailService] SMTP verification failed:', err && err.message ? err.message : err));
+    } catch (err) {
+      console.error('[EmailService] Failed to initialize transporter:', err && err.message ? err.message : err);
+      // Create a dummy transporter that will throw on send to avoid null refs
+      this.transporter = nodemailer.createTransport({ jsonTransport: true });
+    }
   }
 
   async sendVerificationEmail(user, verificationToken) {

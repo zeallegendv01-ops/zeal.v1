@@ -9,6 +9,7 @@ const cloudinary = require('cloudinary').v2;
 
 if (process.env.CLOUDINARY_URL) {
   cloudinary.config({ secure: true });
+  console.log('[Cloudinary] CLOUDINARY_URL is configured');
 } else {
   console.warn('[Cloudinary] CLOUDINARY_URL is not configured. Hero video uploads will fail until it is set.');
 }
@@ -944,7 +945,7 @@ app.get('/api/hero-videos/:id', async (req, res) => {
 });
 // Health check
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ success: true, message: 'Server is running' });
+  res.status(200).json({ status: 'healthy', success: true, message: 'Server is running' });
 });
 
 // Serve the main HTML page

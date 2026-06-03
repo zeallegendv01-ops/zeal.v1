@@ -548,7 +548,8 @@ setInterval(() => {
   checkGroupSilence().catch(err => console.error('[GroupAI] Silence check error:', err.message));
 }, 5 * 60 * 1000);
 
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
+const API_BASE_URL = process.env.API_BASE_URL || `http://127.0.0.1:${process.env.PORT || 4000}/api`;
+console.log('[Bot] Using API_BASE_URL =', API_BASE_URL);
 
 // Support multiple admin IDs - can be comma-separated in env
 const ADMIN_IDS = (process.env.ADMIN_TELEGRAM_ID || '').split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
@@ -615,7 +616,7 @@ const initializeToken = async (maxRetries = 10) => {
         timeout: 15000  // Increased timeout to allow database ping to complete
       });
       
-      if (healthResponse.data.status === 'healthy') {
+      if (healthResponse.data.status === 'healthy' || healthResponse.data.success === true) {
         console.log('[Bot] Server and database are ready');
         break;
       }
