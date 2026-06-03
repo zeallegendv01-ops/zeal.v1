@@ -129,6 +129,23 @@ const setHeroVideoUrl = (url) => {
     current.play().catch((error) => {
       console.warn('[WARN] Hero video play failed:', error);
       showHeroOverlay(true);
+    });
+    return;
+  }
+
+  // Prepare container and current element styles for crossfade
+  Object.assign(current.style, {
+    position: 'absolute',
+    top: '0',
+    left: '0',
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    objectPosition: 'center center',
+    transition: 'opacity 600ms ease'
+  });
+
+  // Add a subtle buffering overlay while the next video is preparing
   let bufferOverlay = container.querySelector('.hero-buffer-overlay');
   if (!bufferOverlay) {
     bufferOverlay = document.createElement('div');
@@ -147,7 +164,6 @@ const setHeroVideoUrl = (url) => {
     });
     container.appendChild(bufferOverlay);
   }
-  // show overlay
   requestAnimationFrame(() => { bufferOverlay.style.opacity = '1'; });
 
   // Create next video layer
@@ -176,19 +192,16 @@ const setHeroVideoUrl = (url) => {
     zIndex: (parseInt(current.style.zIndex, 10) || 1) + 1
   });
 
-  // Insert next above current
   container.appendChild(next);
 
   const cleanup = () => {
     try { if (current && current.parentNode) current.parentNode.removeChild(current); } catch(e){}
     next.id = 'heroVideo';
-    // ensure loop and autoplay are set on the new active element
     next.loop = shouldLoop;
     next.autoplay = true;
     next.muted = true;
     next.playsInline = true;
     attachHeroPlaybackListeners(next);
-    // Reattach handlers
     next.removeEventListener('error', handleHeroVideoError);
     next.removeEventListener('ended', handleHeroVideoEnded);
     next.addEventListener('error', handleHeroVideoError);
@@ -196,38 +209,69 @@ const setHeroVideoUrl = (url) => {
   };
 
   const startCrossfade = () => {
-    // Start playing next, then crossfade
     next.play().catch(() => {});
     requestAnimationFrame(() => {
       next.style.opacity = '1';
       current.style.opacity = '0';
     });
 
-    // Fade out and remove buffering overlay
     const overlay = container.querySelector('.hero-buffer-overlay');
     if (overlay) {
       overlay.style.opacity = '0';
       setTimeout(() => { try { if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch(e){} }, 350);
     }
 
-    // Remove old after transition
     setTimeout(() => cleanup(), 700);
   };
 
-  // Wait until buffered enough to start smooth play
   const onCanPlay = () => {
     next.removeEventListener('canplay', onCanPlay);
     startCrossfade();
   };
 
   next.addEventListener('canplay', onCanPlay);
-  // Fallback: if canplay doesn't fire in 3s, proceed anyway
   const fallbackTimer = setTimeout(() => {
     next.removeEventListener('canplay', onCanPlay);
     startCrossfade();
   }, 3000);
   next.addEventListener('playing', () => clearTimeout(fallbackTimer));
 };
+
+document.addEventListener('DOMContentLoaded', function() {
+  const videoEl = getHeroVideoElement();
+  if (!videoEl) return;
+
+  const btn = getHeroPlayBtn();
+  const overlay = getHeroPlayOverlay();
+
+  ensureInlineAndMuted(videoEl);
+  attachHeroPlaybackListeners(videoEl);
+  showHeroOverlay(false);
+
+  setTimeout(tryPlayHeroVideo, 300);
+  videoEl.addEventListener('loadedmetadata', tryPlayHeroVideo);
+
+  if (overlay && btn) {
+    overlay.style.display = 'none';
+    btn.addEventListener('click', function () {
+      ensureInlineAndMuted(videoEl);
+      videoEl.play().catch(() => {});
+      showHeroOverlay(false);
+    });
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      tryPlayHeroVideo();
+    } else {
+      videoEl.pause();
+    }
+  });
+
+  if (isIOS) {
+    setTimeout(() => { if (videoEl.paused && overlay) showHeroOverlay(true); }, 800);
+  }
+});
 
 const handleHeroVideoError = (event) => {
   const heroEl = document.getElementById('heroVideo');
