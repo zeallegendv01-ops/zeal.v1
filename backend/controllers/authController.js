@@ -51,9 +51,9 @@ exports.register = async (req, res, next) => {
       // Don't fail registration if email fails
     }
 
-    // Generate JWT token
+    // Generate JWT token including accountType
     const token = jwt.sign(
-      { id: user._id, email: user.email },
+      { id: user._id, email: user.email, accountType: user.accountType },
       process.env.JWT_SECRET || 'your_jwt_secret_key',
       { expiresIn: process.env.JWT_EXPIRE || '7d' }
     );
@@ -101,9 +101,9 @@ exports.login = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
-    // Generate JWT token
+    // Generate JWT token including accountType
     const token = jwt.sign(
-      { id: user._id, email: user.email },
+      { id: user._id, email: user.email, accountType: user.accountType },
       process.env.JWT_SECRET || 'your_jwt_secret_key',
       { expiresIn: process.env.JWT_EXPIRE || '7d' }
     );
