@@ -33,9 +33,14 @@ let heroCurrentVideoIndex = 0;
 let lastHeroVideosJson = ''; // Track playlist changes
 
 const DEFAULT_HERO_TITLE = 'Global Marketplace';
-const DEFAULT_HERO_DESCRIPTION = 'Where premium food, real estate, drinks and lifestyle offerings come together in one curated destination for modern buyers and sellers.';
+const DEFAULT_HERO_DESCRIPTION = "We believe that modern living isn't just about the spaces we inhabit or the things we buy, it's about how they all connect. That’s why we’ve built a curated destination where premium real estate, exceptional culinary experiences, fine drinks, delicious food and elevated lifestyle offerings naturally converge. Whether you're looking to discover your next investment, savor something extraordinary, or connect with a discerning audience, this is where refined taste meets everyday life for today’s buyers and sellers.";
 const DEFAULT_ABOUT_IMAGE = '/dist/img/download.jfif';
 const DEFAULT_HERO_VIDEO_URL = '/dist/vid/1473139_People_Nature_3840x2160.mp4';
+
+const isIosDevice = () => {
+  const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
 
 const setHeroVideoUrl = (url) => {
   const container = document.querySelector('.hero-right');
@@ -46,7 +51,7 @@ const setHeroVideoUrl = (url) => {
   const newSrc = url || DEFAULT_HERO_VIDEO_URL;
   const resolvedNewSrc = new URL(newSrc, window.location.origin).href;
   const shouldLoop = heroPlaylist.length <= 1;
-  const shouldCrossfade = heroPlaylist.length > 0 && current.src !== resolvedNewSrc;
+  const shouldCrossfade = heroPlaylist.length > 0 && current.src !== resolvedNewSrc && !isIosDevice();
 
   // Ensure container has explicit height and correct positioning
   const heroHeight = heroSection.clientHeight;
@@ -70,6 +75,7 @@ const setHeroVideoUrl = (url) => {
     current.setAttribute('muted', '');
 
     if (current.src !== resolvedNewSrc) {
+      current.pause();
       current.src = resolvedNewSrc;
       current.currentTime = 0;
       current.load();
@@ -77,6 +83,9 @@ const setHeroVideoUrl = (url) => {
 
     current.play().catch((error) => {
       console.warn('[WARN] Hero video play failed:', error);
+      current.muted = true;
+      current.setAttribute('muted', '');
+      current.play().catch(() => {});
     });
     return;
   }
@@ -184,13 +193,23 @@ const setHeroVideoUrl = (url) => {
     startCrossfade();
   };
 
+  let fallbackTimer = null;
   next.addEventListener('canplay', onCanPlay);
+  next.addEventListener('error', (errorEvent) => {
+    console.warn('[WARN] Hero crossfade video failed to load:', next.src, errorEvent);
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+    cleanup();
+    setHeroVideoUrl(DEFAULT_HERO_VIDEO_URL);
+  });
+
   // Fallback: if canplay doesn't fire in 3s, proceed anyway
-  const fallbackTimer = setTimeout(() => {
+  fallbackTimer = setTimeout(() => {
     next.removeEventListener('canplay', onCanPlay);
     startCrossfade();
   }, 3000);
-  next.addEventListener('playing', () => clearTimeout(fallbackTimer));
+  next.addEventListener('playing', () => {
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+  });
 };
 
 const handleHeroVideoError = (event) => {
@@ -268,10 +287,17 @@ const applyHeroSettings = () => {
   const aboutImg = document.getElementById('aboutImage');
   if (aboutImg) {
     aboutImg.src = appSettings.aboutImageUrl || DEFAULT_ABOUT_IMAGE;
+    aboutImg.alt = 'About Us';
     aboutImg.style.width = '100%';
     aboutImg.style.height = '100%';
     aboutImg.style.objectFit = 'cover';
     aboutImg.style.objectPosition = 'center center';
+    aboutImg.onerror = () => {
+      if (aboutImg.src !== DEFAULT_ABOUT_IMAGE) {
+        console.warn('[WARN] About section image failed to load, falling back to default');
+        aboutImg.src = DEFAULT_ABOUT_IMAGE;
+      }
+    };
   }
   
   // Only reinitialize playlist if videos changed (avoids interrupting playback)
@@ -306,7 +332,9 @@ async function fetchAndApplySettings() {
       appSettings.heroTitle = result.data.heroTitle || DEFAULT_HERO_TITLE;
       appSettings.heroDescription = result.data.heroDescription || DEFAULT_HERO_DESCRIPTION;
       appSettings.heroVideos = Array.isArray(result.data.heroVideos) ? result.data.heroVideos : [];
-      appSettings.aboutImageUrl = result.data.aboutImage?.url || '';
+      appSettings.aboutImageUrl = typeof result.data.aboutImage === 'string'
+        ? result.data.aboutImage
+        : result.data.aboutImage?.url || '';
 
       if (changed) {
         console.log('[OK] Settings updated:', appSettings);
