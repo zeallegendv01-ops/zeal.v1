@@ -30,6 +30,16 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="/dist/css/style.css">
 <link rel="stylesheet" href="/dist/css/whatsapp.css">
+<style>
+  /* Hero video play overlay for mobile/autoplay fallbacks */
+  .hero-right{ position:relative }
+  .video-play-overlay{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:auto;
+    background:linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.15));
+  }
+  .video-play-overlay button{ background:rgba(13,13,11,0.85); color:#fff; border:0; padding:10px 16px; border-radius:6px; font-weight:700 }
+  @media(min-width:900px){ .video-play-overlay{ display:none } }
+</style>
 </head>
 <body>
 
@@ -499,8 +509,11 @@
       <a href="#about" class="btn-ghost">Our Story</a>
     </div>
   </div>
-  <div class="hero-right">
-    <video id="heroVideo" src="/dist/vid/1473139_People_Nature_3840x2160.mp4" alt="Aerial farm" loading="eager" muted autoplay playsinline webkit-playsinline preload="metadata" crossorigin="anonymous"></video>
+    <div class="hero-right">
+    <video id="heroVideo" src="/dist/vid/1473139_People_Nature_3840x2160.mp4" alt="Aerial farm" loading="eager" muted autoplay playsinline webkit-playsinline preload="metadata" crossorigin="anonymous" loop></video>
+    <div class="video-play-overlay" id="heroPlayOverlay" style="display:none">
+      <button id="heroPlayBtn" aria-label="Play hero video">Play Video</button>
+    </div>
   </div>
   <div class="hero-scroll">Classic</div>
 </section>
@@ -803,6 +816,7 @@
 
 <!-- WhatsApp Widget -->
 <script src="/dist/js/whatsapp.js"></script>
+<script src="/dist/js/hero_video.js"></script>
 <script src="/dist/js/compute_bg.js"></script>
 </body>
 </html>
