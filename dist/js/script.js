@@ -39,21 +39,29 @@ const DEFAULT_ABOUT_IMAGE = '/dist/img/download.jfif';
 const setHeroVideoUrl = (url) => {
   const container = document.querySelector('.hero-right');
   const current = document.getElementById('heroVideo');
-  if (!container || !current) return;
+  const heroSection = document.querySelector('.hero');
+  if (!container || !current || !heroSection) return;
 
   const newSrc = url || '/dist/vid/1473139_People_Nature_3840x2160.mp4';
   const resolvedNewSrc = new URL(newSrc, window.location.origin).href;
+
+  // Ensure container has explicit height
+  const heroHeight = heroSection.clientHeight;
+  if (heroHeight > 0 && !container.style.height) {
+    container.style.height = heroHeight + 'px';
+  }
 
   // If identical source, ensure it's playing
   if (current.src === resolvedNewSrc) {
     current.muted = true;
     current.playsInline = true;
+    current.loop = heroPlaylist.length <= 1;
     current.play().catch(() => {});
     return;
   }
 
   // Prepare container and current element styles for crossfade
-  container.style.position = container.style.position || 'relative';
+  container.style.position = 'absolute';
   Object.assign(current.style, {
     position: 'absolute',
     top: '0',
@@ -61,6 +69,7 @@ const setHeroVideoUrl = (url) => {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
+    objectPosition: 'center center',
     transition: 'opacity 600ms ease'
   });
 
@@ -92,7 +101,7 @@ const setHeroVideoUrl = (url) => {
   next.muted = true;
   next.playsInline = true;
   next.setAttribute('webkit-playsinline', '');
-  next.src = newSrc;
+  next.src = resolvedNewSrc;
   Object.assign(next.style, {
     position: 'absolute',
     top: '0',
@@ -100,6 +109,7 @@ const setHeroVideoUrl = (url) => {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
+    objectPosition: 'center center',
     opacity: '0',
     transition: 'opacity 600ms ease',
     zIndex: (parseInt(current.style.zIndex, 10) || 1) + 1
@@ -111,6 +121,11 @@ const setHeroVideoUrl = (url) => {
   const cleanup = () => {
     try { if (current && current.parentNode) current.parentNode.removeChild(current); } catch(e){}
     next.id = 'heroVideo';
+    // ensure loop and autoplay are set on the new active element
+    next.loop = heroPlaylist.length <= 1;
+    next.autoplay = true;
+    next.muted = true;
+    next.playsInline = true;
     // Reattach handlers
     next.removeEventListener('error', handleHeroVideoError);
     next.removeEventListener('ended', handleHeroVideoEnded);

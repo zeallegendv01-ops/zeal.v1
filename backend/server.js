@@ -97,8 +97,18 @@ const initializeMarqueeItems = async () => {
 // Connect to database
 connectDB();
 
+// Flag to ensure server only starts once
+let serverStarted = false;
+
 // Wait for MongoDB connection before initializing admin user and starting server
 mongoose.connection.once('open', async () => {
+  // Prevent multiple server startups
+  if (serverStarted) {
+    console.log(' Database reconnection detected, but server already running');
+    return;
+  }
+  serverStarted = true;
+
   console.log(' Database connection ready, initializing admin user...');
   await initializeAdminUser();
   await initializeMarqueeItems();
@@ -122,8 +132,19 @@ mongoose.connection.once('open', async () => {
   
   // Now start the server after database and admin are ready
   const PORT = process.env.PORT || 4000;
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+  });
+
+  // Handle server errors
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[ERROR] Port ${PORT} is already in use. Please ensure only one server instance is running.`);
+      console.error(`[ERROR] Use: npx lsof -i :${PORT} (Mac/Linux) or netstat -ano | findstr :${PORT} (Windows) to find conflicting processes`);
+      process.exit(1);
+    } else {
+      console.error(`[ERROR] Server error:`, err);
+    }
   });
 });
 
@@ -851,115 +872,56 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
 });
 
 app.post('/api/hero-videos', auth.protect, videoUpload.single('video'), async (req, res) => {
+  let filePath = null;
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No video file uploaded' });
     }
 
-    if (!mongoose.connection || !mongoose.connection.db) {
-      return res.status(503).json({ success: false, message: 'Database not ready for file storage' });
+    const uploadsDir = path.join(__dirname, 'uploads');
+    fs.mkdirSync(uploadsDir, { recursive: true });
+
+    const fileName = req.file.originalname || `hero_${Date.now()}.mp4`;
+    const safeFileName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    filePath = path.join(uploadsDir, safeFileName);
+
+    // Use async write to prevent blocking and allow better memory cleanup
+    await fs.promises.writeFile(filePath, req.file.buffer);
+
+    // Explicitly clear the buffer from memory after writing
+    if (req.file.buffer) {
+      req.file.buffer = null;
+    }
+    if (req.file) {
+      req.file = null;
     }
 
-    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-      bucketName: 'heroVideos'
-    });
-
-    const filename = req.file.originalname || `hero_${Date.now()}`;
-    const file = await new Promise((resolve, reject) => {
-      const uploadStream = bucket.openUploadStream(filename, {
-        contentType: req.file.mimetype || 'application/octet-stream',
-        metadata: { uploadedBy: req.user?.id || null }
-      });
-
-      uploadStream.end(req.file.buffer);
-      uploadStream.on('error', reject);
-      uploadStream.on('finish', resolve);
-    });
-
-    return res.status(201).json({
+    res.status(201).json({
       success: true,
       data: {
-        id: file._id,
-        filename: file.filename,
-        url: `/api/hero-videos/${file._id}`,
-        contentType: file.contentType
+        filename: safeFileName,
+        url: `/uploads/${safeFileName}`,
+        contentType: req.file ? (req.file.mimetype || 'video/mp4') : 'video/mp4'
       }
     });
   } catch (error) {
     console.error('[Hero Video Upload] Error:', error);
+    // Clean up partially written file if upload failed
+    if (filePath) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (unlinkError) {
+        console.error('[Hero Video Upload] Failed to clean up file:', unlinkError);
+      }
+    }
     return res.status(500).json({ success: false, message: 'Error uploading hero video: ' + error.message });
   }
 });
 
+// Legacy GridFS hero URL route kept only for compatibility reasons, but local disk uploads are preferred.
 app.get('/api/hero-videos/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ success: false, message: 'Invalid video ID' });
-    }
-
-    if (!mongoose.connection || !mongoose.connection.db) {
-      return res.status(503).json({ success: false, message: 'Database not ready for file streaming' });
-    }
-
-    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-      bucketName: 'heroVideos'
-    });
-
-    const _id = new mongoose.Types.ObjectId(id);
-    const files = await bucket.find({ _id }).toArray();
-    if (!files || files.length === 0) {
-      return res.status(404).json({ success: false, message: 'Hero video not found' });
-    }
-
-    const file = files[0];
-    const totalSize = file.length;
-    const range = req.headers.range;
-    const contentType = file.contentType || 'video/mp4';
-
-    if (range) {
-      const parts = range.replace(/bytes=/, '').split('-');
-      const start = Number(parts[0]);
-      let end = parts[1] === '' ? totalSize - 1 : (parts[1] ? Number(parts[1]) : totalSize - 1);
-
-      if (Number.isNaN(start) || Number.isNaN(end) || start < 0 || end < start || start >= totalSize) {
-        res.set('Content-Range', `bytes */${totalSize}`);
-        return res.status(416).end();
-      }
-
-      if (end >= totalSize) {
-        end = totalSize - 1;
-      }
-
-      const contentLength = end - start + 1;
-      res.status(206);
-      res.set({
-        'Content-Range': `bytes ${start}-${end}/${totalSize}`,
-        'Accept-Ranges': 'bytes',
-        'Content-Length': contentLength,
-        'Content-Type': contentType
-      });
-
-      bucket.openDownloadStream(_id, { start, end }).pipe(res);
-      return;
-    }
-
-    res.status(200);
-    res.set({
-      'Content-Type': contentType,
-      'Content-Length': totalSize,
-      'Accept-Ranges': 'bytes'
-    });
-
-    bucket.openDownloadStream(_id).pipe(res);
-  } catch (error) {
-    console.error('[Hero Video Stream] Error:', error);
-    if (!res.headersSent) {
-      return res.status(500).json({ success: false, message: 'Error streaming hero video' });
-    }
-  }
+  return res.status(404).json({ success: false, message: 'Legacy hero video streaming is no longer supported' });
 });
-
 // Health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ success: true, message: 'Server is running' });

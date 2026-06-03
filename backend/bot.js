@@ -954,6 +954,10 @@ bot.start(errorWrapper(async (ctx) => {
       ' /order (order_id) - View order details\n\n' +
       ' <b>Stats:</b>\n' +
       ' /stats - View dashboard stats\n\n' +
+      ' <b>Newsletter:</b>\n' +
+      ' /newsletter - Show newsletter admin commands\n' +
+      ' /sendmail (email) - Send email to specific user\n' +
+      ' /sendall - Broadcast email to all subscribers\n\n' +
       ' <b>Hero Section:</b>\n' +
       ' /hero - Show hero command help\n' +
       ' /herotitle (text) - Update homepage hero title\n' +
@@ -977,6 +981,7 @@ bot.start(errorWrapper(async (ctx) => {
           [Markup.button.callback(' Orders', 'orders_menu')],
           [Markup.button.callback(' Users', 'users_menu')],
           [Markup.button.callback(' Stats', 'stats_menu')],
+          [Markup.button.callback(' Newsletter', 'newsletter_menu')],
           [Markup.button.callback(' 🏠 Hero', 'settings_hero')],
           [Markup.button.callback(' ⚙️ Settings', 'settings_menu')]
         ]).reply_markup
