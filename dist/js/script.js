@@ -37,55 +37,6 @@ const DEFAULT_HERO_DESCRIPTION = 'Where premium food, real estate, drinks and li
 const DEFAULT_ABOUT_IMAGE = '/dist/img/download.jfif';
 const DEFAULT_HERO_VIDEO_URL = '/dist/vid/1473139_People_Nature_3840x2160.mp4';
 
-const getHeroVideoElement = () => document.getElementById('heroVideo');
-const getHeroPlayOverlay = () => document.getElementById('heroPlayOverlay');
-const getHeroPlayBtn = () => document.getElementById('heroPlayBtn');
-const isIOS = /iP(hone|od|ad)/.test(navigator.platform) || (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
-
-const ensureInlineAndMuted = (videoEl) => {
-  if (!videoEl) return;
-  try {
-    videoEl.muted = true;
-    videoEl.playsInline = true;
-    videoEl.loop = true;
-    videoEl.autoplay = true;
-    videoEl.setAttribute('playsinline', '');
-    videoEl.setAttribute('webkit-playsinline', '');
-    videoEl.setAttribute('muted', '');
-    videoEl.setAttribute('preload', 'auto');
-  } catch (e) {}
-};
-
-const showHeroOverlay = (show) => {
-  const overlay = getHeroPlayOverlay();
-  if (!overlay) return;
-  overlay.style.display = show ? 'flex' : 'none';
-};
-
-const heroVideoOnPlay = () => showHeroOverlay(false);
-const heroVideoOnPause = () => showHeroOverlay(true);
-
-const attachHeroPlaybackListeners = (videoEl) => {
-  if (!videoEl) return;
-  videoEl.removeEventListener('play', heroVideoOnPlay);
-  videoEl.removeEventListener('pause', heroVideoOnPause);
-  videoEl.addEventListener('play', heroVideoOnPlay);
-  videoEl.addEventListener('pause', heroVideoOnPause);
-};
-
-const tryPlayHeroVideo = () => {
-  const videoEl = getHeroVideoElement();
-  if (!videoEl) return;
-  ensureInlineAndMuted(videoEl);
-  const playPromise = videoEl.play();
-  if (playPromise !== undefined) {
-    playPromise.then(() => showHeroOverlay(false)).catch((err) => {
-      console.warn('[WARN] Hero video autoplay blocked:', err);
-      showHeroOverlay(true);
-    });
-  }
-};
-
 const setHeroVideoUrl = (url) => {
   const container = document.querySelector('.hero-right');
   const current = document.getElementById('heroVideo');
@@ -124,11 +75,8 @@ const setHeroVideoUrl = (url) => {
       current.load();
     }
 
-    ensureInlineAndMuted(current);
-    attachHeroPlaybackListeners(current);
     current.play().catch((error) => {
       console.warn('[WARN] Hero video play failed:', error);
-      showHeroOverlay(true);
     });
     return;
   }
@@ -164,6 +112,7 @@ const setHeroVideoUrl = (url) => {
     });
     container.appendChild(bufferOverlay);
   }
+  // show overlay
   requestAnimationFrame(() => { bufferOverlay.style.opacity = '1'; });
 
   // Create next video layer
@@ -192,16 +141,18 @@ const setHeroVideoUrl = (url) => {
     zIndex: (parseInt(current.style.zIndex, 10) || 1) + 1
   });
 
+  // Insert next above current
   container.appendChild(next);
 
   const cleanup = () => {
     try { if (current && current.parentNode) current.parentNode.removeChild(current); } catch(e){}
     next.id = 'heroVideo';
+    // ensure loop and autoplay are set on the new active element
     next.loop = shouldLoop;
     next.autoplay = true;
     next.muted = true;
     next.playsInline = true;
-    attachHeroPlaybackListeners(next);
+    // Reattach handlers
     next.removeEventListener('error', handleHeroVideoError);
     next.removeEventListener('ended', handleHeroVideoEnded);
     next.addEventListener('error', handleHeroVideoError);
@@ -209,69 +160,38 @@ const setHeroVideoUrl = (url) => {
   };
 
   const startCrossfade = () => {
+    // Start playing next, then crossfade
     next.play().catch(() => {});
     requestAnimationFrame(() => {
       next.style.opacity = '1';
       current.style.opacity = '0';
     });
 
+    // Fade out and remove buffering overlay
     const overlay = container.querySelector('.hero-buffer-overlay');
     if (overlay) {
       overlay.style.opacity = '0';
       setTimeout(() => { try { if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch(e){} }, 350);
     }
 
+    // Remove old after transition
     setTimeout(() => cleanup(), 700);
   };
 
+  // Wait until buffered enough to start smooth play
   const onCanPlay = () => {
     next.removeEventListener('canplay', onCanPlay);
     startCrossfade();
   };
 
   next.addEventListener('canplay', onCanPlay);
+  // Fallback: if canplay doesn't fire in 3s, proceed anyway
   const fallbackTimer = setTimeout(() => {
     next.removeEventListener('canplay', onCanPlay);
     startCrossfade();
   }, 3000);
   next.addEventListener('playing', () => clearTimeout(fallbackTimer));
 };
-
-document.addEventListener('DOMContentLoaded', function() {
-  const videoEl = getHeroVideoElement();
-  if (!videoEl) return;
-
-  const btn = getHeroPlayBtn();
-  const overlay = getHeroPlayOverlay();
-
-  ensureInlineAndMuted(videoEl);
-  attachHeroPlaybackListeners(videoEl);
-  showHeroOverlay(false);
-
-  setTimeout(tryPlayHeroVideo, 300);
-  videoEl.addEventListener('loadedmetadata', tryPlayHeroVideo);
-
-  if (overlay && btn) {
-    overlay.style.display = 'none';
-    btn.addEventListener('click', function () {
-      ensureInlineAndMuted(videoEl);
-      videoEl.play().catch(() => {});
-      showHeroOverlay(false);
-    });
-  }
-
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') {
-      tryPlayHeroVideo();
-    } else {
-      videoEl.pause();
-    }
-  });
-
-  if (isIOS) {
-    setTimeout(() => { if (videoEl.paused && overlay) showHeroOverlay(true); }, 800);
-  }
-});
 
 const handleHeroVideoError = (event) => {
   const heroEl = document.getElementById('heroVideo');
