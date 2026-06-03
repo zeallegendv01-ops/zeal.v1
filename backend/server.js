@@ -815,15 +815,14 @@ app.get('/share/:type/:id', async (req, res) => {
 // Upload route - with automatic image compression
 app.post('/api/upload', upload.single('image'), async (req, res) => {
   const fs = require('fs');
-  let outputPath;
-
+  
   try {
     // Option 2: File upload - compress and convert to Base64
     if (req.file) {
       const inputPath = req.file.path;
       const filename = `compressed_${Date.now()}.jpg`;
-      outputPath = path.join(__dirname, 'uploads', filename);
-
+      const outputPath = path.join(__dirname, 'uploads', filename);
+      
       // Compress image: 500×650px (3:4 aspect ratio to match card design)
       // Optimized for desktop (640px), tablet (384px), and mobile (375px) displays
       await sharp(inputPath)
@@ -834,54 +833,31 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
         })
         .jpeg({ quality: 80, progressive: true })
         .toFile(outputPath);
-
+      
       // Read compressed file and convert to Base64
       const compressedBuffer = fs.readFileSync(outputPath);
       const base64Data = compressedBuffer.toString('base64');
       const mimeType = 'image/jpeg';
       const dataUrl = `data:${mimeType};base64,${base64Data}`;
-
+      
       // Delete original uploaded file (keep compressed version in uploads/)
       fs.unlinkSync(inputPath);
-
-      let imageUrl = null;
-      if (process.env.CLOUDINARY_URL) {
-        try {
-          const publicId = path.parse(filename).name.replace(/[^a-zA-Z0-9_-]/g, '_');
-          const uploadResult = await cloudinary.uploader.upload(outputPath, {
-            resource_type: 'image',
-            folder: 'site_images',
-            public_id: publicId,
-            overwrite: true,
-            use_filename: false,
-            unique_filename: false
-          });
-
-          imageUrl = uploadResult.secure_url || uploadResult.url || null;
-          console.log('[Cloudinary] Image uploaded to:', imageUrl);
-        } catch (cloudError) {
-          console.error('[Cloudinary] Upload failed:', cloudError);
-        }
-      }
-
-      if (outputPath && fs.existsSync(outputPath)) {
-        fs.unlinkSync(outputPath);
-      }
-
+      
+      console.log(` Image compressed: ${req.file.originalname} → ${filename} (${(compressedBuffer.length / 1024).toFixed(2)}KB)`);
+      
       return res.status(200).json({
         success: true,
         message: 'File uploaded and compressed successfully',
-        data: {
+        data: { 
           imageData: base64Data,
-          mimeType,
-          dataUrl,
-          filename,
-          size: compressedBuffer.length,
-          imageUrl
+          mimeType: mimeType,
+          dataUrl: dataUrl,
+          filename: filename,
+          size: compressedBuffer.length // Size in bytes
         }
       });
     }
-
+    
     // Option 3: External URL input
     if (req.body.imageUrl) {
       const imageUrl = req.body.imageUrl;

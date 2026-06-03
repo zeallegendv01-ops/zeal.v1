@@ -39,6 +39,24 @@ const isLocalUploadUrl = (url) => {
   }
 };
 
+const normalizeAboutImage = (aboutImage) => {
+  if (!aboutImage) return null;
+
+  let url = '';
+  if (typeof aboutImage === 'string') {
+    url = aboutImage.trim();
+  } else if (typeof aboutImage.url === 'string') {
+    url = aboutImage.url.trim();
+  }
+
+  if (!url) return null;
+
+  return {
+    url,
+    uploadedAt: aboutImage.uploadedAt ? new Date(aboutImage.uploadedAt) : Date.now()
+  };
+};
+
 // Get current settings
 router.get('/', async (req, res, next) => {
   try {
@@ -110,6 +128,7 @@ router.put('/', auth.protect, async (req, res, next) => {
     
     // Initialize if not exist
     if (!settings) {
+      const normalizedAboutImage = normalizeAboutImage(req.body.aboutImage);
       settings = new Settings({
         taxRate: taxRate !== undefined ? taxRate : 10,
         shippingFee: shippingFee !== undefined ? shippingFee : 50,
@@ -120,12 +139,7 @@ router.put('/', auth.protect, async (req, res, next) => {
           caption: String(video.caption || '').trim().slice(0, 120),
           uploadedAt: video.uploadedAt ? new Date(video.uploadedAt) : Date.now()
         })).filter(video => video.url) : [],
-        aboutImage: req.body.aboutImage && typeof req.body.aboutImage.url === 'string'
-          ? {
-              url: String(req.body.aboutImage.url).trim(),
-              uploadedAt: req.body.aboutImage.uploadedAt ? new Date(req.body.aboutImage.uploadedAt) : Date.now()
-            }
-          : { url: '', uploadedAt: Date.now() },
+        aboutImage: normalizedAboutImage || { url: '', uploadedAt: Date.now() },
         updatedBy: req.user.id
       });
     } else {
@@ -144,13 +158,8 @@ router.put('/', auth.protect, async (req, res, next) => {
           .filter(video => video.url);
       }
       if (req.body.aboutImage !== undefined) {
-        const aboutImageUrl = typeof req.body.aboutImage === 'string'
-          ? req.body.aboutImage.trim()
-          : req.body.aboutImage?.url ? String(req.body.aboutImage.url).trim() : '';
-        settings.aboutImage = {
-          url: aboutImageUrl,
-          uploadedAt: Date.now()
-        };
+        const normalizedAboutImage = normalizeAboutImage(req.body.aboutImage);
+        settings.aboutImage = normalizedAboutImage || { url: '', uploadedAt: Date.now() };
       }
       settings.updatedBy = req.user.id;
     }
@@ -165,7 +174,8 @@ router.put('/', auth.protect, async (req, res, next) => {
         shippingFee: settings.shippingFee,
         heroTitle: settings.heroTitle,
         heroDescription: settings.heroDescription,
-        heroVideos: settings.heroVideos || []
+        heroVideos: settings.heroVideos || [],
+        aboutImage: settings.aboutImage || { url: '', uploadedAt: Date.now() }
       }
     });
   } catch (error) {

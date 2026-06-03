@@ -4232,11 +4232,14 @@ bot.action('newsletter_stats', async (ctx) => {
   try {
     const response = await queueRequest(() => api.get('/newsletter/stats'));
     const stats = response.data.data || {};
+    const activeCount = stats.active || stats.activeCount || 0;
+    const inactiveCount = stats.unsubscribed || stats.inactiveCount || 0;
+    const totalCount = stats.total || activeCount + inactiveCount;
 
     const message = ` <b>Newsletter Statistics</b>\n\n` +
-      ` Active Subscribers: <b>${stats.activeCount || 0}</b>\n` +
-      ` Inactive Subscribers: <b>${stats.inactiveCount || 0}</b>\n` +
-      ` Total Subscribers: <b>${(stats.activeCount || 0) + (stats.inactiveCount || 0)}</b>\n\n` +
+      ` Active Subscribers: <b>${activeCount}</b>\n` +
+      ` Inactive Subscribers: <b>${inactiveCount}</b>\n` +
+      ` Total Subscribers: <b>${totalCount}</b>\n\n` +
       ` Last Updated: ${new Date().toLocaleString()}`;
 
     return safeEditMessageText(ctx, message, {
@@ -4510,7 +4513,7 @@ ${statusSummary}`, [], { isAdmin: false, isGroupChat: true, mode: 'status' })
       
       // Get subscriber count
       const statsRes = await queueRequest(() => api.get('/newsletter/stats'));
-      const subscriberCount = statsRes.data.data?.activeCount || 0;
+      const subscriberCount = statsRes.data.data?.active || statsRes.data.data?.activeCount || 0;
 
       if (subscriberCount === 0) {
         delete userContext[userId];
@@ -4548,7 +4551,7 @@ ${statusSummary}`, [], { isAdmin: false, isGroupChat: true, mode: 'status' })
 
         return ctx.reply(` <b>✅ Broadcast sent successfully!</b>\n\n` +
           `Subject: ${context.subject}\n` +
-          `Recipients: ${result.count || 'multiple'} subscribers\n` +
+          `Recipients: ${result.recipientCount || result.count || 'multiple'} subscribers\n` +
           `Status: ${result.status || 'completed'}`,
           {
             parse_mode: 'HTML',
@@ -4628,7 +4631,7 @@ Now enter the message body to send to all subscribers:`, { parse_mode: 'HTML' })
 ` +
           `Subject: ${context.subject}
 ` +
-          `Recipients: ${result.count || 'multiple'} subscribers
+          `Recipients: ${result.recipientCount || result.count || 'multiple'} subscribers
 ` +
           `Status: ${result.status || 'completed'}`,
           {
@@ -4750,27 +4753,25 @@ if (!context || (context.step !== 'create_product_image_upload' && context.step 
 
     console.log(`[Photo Upload] Upload successful, data:`, uploadResponse.data.data);
     
-    if (uploadResponse.data.data.imageUrl) {
-      context.image = uploadResponse.data.data.imageUrl;
-      context.filename = uploadResponse.data.data.filename;
-      context.compressedSize = uploadResponse.data.data.size;
-      console.log(`[Photo Upload] Image stored at: ${context.image}`);
-    } else if (uploadResponse.data.data.dataUrl) {
+    // Handle new response format with compression
+    if (uploadResponse.data.data.dataUrl) {
       context.imageData = uploadResponse.data.data.imageData;
       context.imageMimeType = uploadResponse.data.data.mimeType;
       context.image = uploadResponse.data.data.dataUrl; // Full data URL
       context.filename = uploadResponse.data.data.filename;
       context.compressedSize = uploadResponse.data.data.size;
+      
+      // Log compression details
       console.log(`[Photo Upload] Image compressed: ${context.filename} (${(context.compressedSize / 1024).toFixed(2)}KB)`);
     } else {
+      // Fallback for old format
       context.image = uploadResponse.data.data.imageUrl;
-      context.filename = uploadResponse.data.data.filename;
     }
     
     const sizeInfo = context.compressedSize ? ` (${(context.compressedSize / 1024).toFixed(2)}KB)` : '';
 
     if (context.step === 'upload_about_image') {
-      const aboutImageUrl = uploadResponse.data.data.imageUrl || uploadResponse.data.data.dataUrl || `/uploads/${uploadResponse.data.data.filename}`;
+      const aboutImageUrl = uploadResponse.data.data.dataUrl || uploadResponse.data.data.imageUrl || `/uploads/${uploadResponse.data.data.filename || `about_${Date.now()}.jpg`}`;
       await queueRequest(() => api.put('/settings', { aboutImage: { url: aboutImageUrl, uploadedAt: new Date() } }));
       delete userContext[userId];
       return ctx.reply(`✅ About section image uploaded successfully${sizeInfo}.\n\nIt will replace the current About image and fallback to the default if removed.`, {

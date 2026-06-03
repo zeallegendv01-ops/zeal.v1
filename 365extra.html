@@ -43,9 +43,9 @@
     </div>
     <div class="loader-text">
       <h2>365extra</h2>
-      <p>Preparing the market...</p>
+      <p>Loading your premium business experience...</p>
     </div>
-    <div class="loader-progress" style="display:none;"><!-- Optional progress bar for longer load times -->
+    <div class="loader-progress">
       <div class="progress-bar"></div>
     </div>
     <!-- <div class="loader-hint"></div> -->
@@ -75,7 +75,7 @@
     <div class="search-category-filters" id="searchCategoryFilters"></div>
   </div>
   <div class="search-empty-state" id="searchEmptyState">
-    <div class="search-suggestions" id="searchSuggestions" style="display:none"></div><!-- Optional area for popular searches or tips when no search has been made yet -->
+    <div class="search-suggestions" id="searchSuggestions"></div>
   </div>
   <div class="search-results" id="searchResults"></div>
   <div class="search-no-results" id="searchNoResults">No results found. Try another search.</div>
@@ -493,14 +493,14 @@
       <span class="ghost">Global</span>
       <span class="solid">Marketplace</span>
     </h1>
-    <p class="hero-sub">The way we live, taste, and invest shouldn’t exist in separate silos. We believe that modern living isn't about the spaces we inhabit or the things we buy, it's about how they all connect. That’s why we’ve built a curated destination where real estate, exceptional culinary experiences, fine drinks, and elevated lifestyle offerings naturally converge. Whether you're looking to discover your next investment, savor something extraordinary, or connect with a discerning audience, this is where refined taste meets everyday life.</p>
+    <p class="hero-sub">Where premium food, real estate, drinks and lifestyle offerings come together in one curated destination for modern buyers and sellers.</p>
     <div class="hero-actions">
       <a href="#products" class="btn-primary">Explore More<i class="fa-solid fa-arrow-right"></i></a>
       <a href="#about" class="btn-ghost">Our Story</a>
     </div>
   </div>
   <div class="hero-right">
-    <video id="heroVideo" src="/dist/vid/1473139_People_Nature_3840x2160.mp4" alt="Aerial farm" poster="/dist/img/download.jfif" loading="eager" muted autoplay playsinline webkit-playsinline preload="metadata" crossorigin="anonymous"></video>
+    <video id="heroVideo" src="/dist/vid/1473139_People_Nature_3840x2160.mp4" alt="Aerial farm" loading="eager" muted autoplay playsinline webkit-playsinline preload="metadata" crossorigin="anonymous"></video>
   </div>
   <div class="hero-scroll">Classic</div>
 </section>
@@ -524,9 +524,7 @@
   <div class="about-content">
     <div class="section-label">Our Legacy</div>
     <h2>Bridging Tradition<br>with <em>Modern Commerce Style</em></h2>
-    <p>The modern online marketplace is crowded, noisy, and increasingly unpredictable. Buyers are often forced to sift through endless, unverified listings, while exceptional sellers get lost in the digital noise. 365extra was designed from the ground up to be the definitive alternative.
-
-We believe that a marketplace shouldn't just be a passive billboard; its a guarantor of quality. That is why we evaluate every single category on our platform—from artisanal specialty food and beverages to premium apartments and commercial real estate—through a strict lens of quality control. We deliberately prioritize operational integrity over sheer volume. By refusing to compromise on our standards, we have built a streamlined community where trusted sellers and buyers can connect seamlessly. When you engage with 365extra, you escape the chaos of the open web and enter a space where every listing, property, and product meets a fundamentally higher standard.</p>
+    <p>At 365extra, we don't simply list products, we curate experiences. From specialty food and beverages to real estate, apartments and lifestyle collections, our platform brings trusted sellers and buyers together with premium quality and integrity.</p>
     <div class="stat-row">
       <div class="stat-cell"><h4>Always</h4><p>Active</p></div>
       <div class="stat-cell" style="padding-left:24px"><h4>12</h4><p>Markets Served</p></div>
@@ -575,7 +573,7 @@ We believe that a marketplace shouldn't just be a passive billboard; its a guara
       <button type="button" class="control-btn" id="priceFilterBtn" aria-expanded="false" aria-controls="priceFilterDropdown">
         <span class="fa-solid fa-sliders"></span>
       </button>
-      <div class="dropdown-menu" id="priceFilterDropdown" role="menu" aria-labelledby="priceFilterBtn" style="transform: translateX(-10px);">
+      <div class="dropdown-menu" id="priceFilterDropdown" role="menu" aria-labelledby="priceFilterBtn">
         <div class="dropdown-section">
           <label for="filterMinPrice">Min Price</label>
           <input type="number" id="filterMinPrice" min="0" placeholder="0" class="filter-input" aria-label="Minimum price">
@@ -777,7 +775,7 @@ We believe that a marketplace shouldn't just be a passive billboard; its a guara
 <script src="/dist/js/marquee.js"></script>
 
 <!-- ShieldAI Bot Detection & Protection -->
-<script type="module" src="/dist/js/SHD.js"></script>
+<!-- <script type="module" src="/dist/js/SHD.js"></script> -->
 
 <div id="whatsappWidget" class="whatsapp-widget hidden">
   <!-- Header -->
