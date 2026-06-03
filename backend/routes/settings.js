@@ -8,18 +8,11 @@ const auth = require('../middleware/auth');
 const normalizeHeroVideos = (videos) => {
   if (!Array.isArray(videos)) return [];
 
+  // Simply validate data structure - DO NOT check filesystem
+  // Videos are stored in DB, not on disk. Render's ephemeral filesystem
+  // means files are deleted on restart, but we preserve DB records.
   return videos.filter(video => {
     if (!video || typeof video.url !== 'string') return false;
-
-    if (video.url.startsWith('/uploads/')) {
-      const relativePath = video.url.replace(/^[/\\]+/, '');
-      const filePath = path.join(__dirname, '..', relativePath);
-      if (!fs.existsSync(filePath)) {
-        console.warn(`[Settings] Dropping missing hero video from settings: ${video.url}`);
-        return false;
-      }
-    }
-
     return true;
   });
 };

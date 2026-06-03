@@ -21,6 +21,7 @@
   "dependencies": {
     "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.10.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
@@ -31,11 +32,11 @@
     "helmet": "^7.2.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^7.5.0",
-    "telegraf": "^4.14.0",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^8.0.3",
     "paystack": "^2.0.1",
-    "sharp": "^0.33.0"
+    "sharp": "^0.33.0",
+    "telegraf": "^4.14.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
