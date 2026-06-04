@@ -3331,6 +3331,53 @@ bot.on('text', errorWrapper(async (ctx) => {
 
     case 'upload_hero_video':
       return ctx.reply('🎬 Please send the hero video file now. If you want to cancel, use /cancel.');
+
+    // NEWSLETTER: Send Email to User
+    case 'send_user_email':
+      const emailText = ctx.message.text.trim();
+      if (!emailText) {
+        return ctx.reply(' Please enter a valid email address.');
+      }
+      context.userEmail = emailText;
+      context.step = 'send_user_subject';
+      return ctx.reply(` <b>Send Email to ${emailText}</b>\n\nEnter email subject:`, { parse_mode: 'HTML' });
+
+    case 'send_user_subject':
+      context.subject = ctx.message.text;
+      context.step = 'send_user_message';
+      return ctx.reply(` <b>Email Subject:</b> ${context.subject}\n\nNow enter the email message/body:`, { parse_mode: 'HTML' });
+
+    case 'send_user_message':
+      context.message = ctx.message.text;
+      try {
+        await ctx.reply(` Sending email to ${context.userEmail}...`, { parse_mode: 'HTML' });
+        const usersRes = await queueRequest(() => api.get('/auth/users'));
+        const users = usersRes.data.data || [];
+        const user = users.find(u => u.email.toLowerCase() === context.userEmail.toLowerCase());
+
+        if (!user) {
+          delete userContext[userId];
+          return ctx.reply(` User with email "${context.userEmail}" not found.`);
+        }
+
+        await queueRequest(() => api.post('/newsletter/send-email', {
+          userId: user._id,
+          subject: context.subject,
+          message: context.message
+        }));
+
+        delete userContext[userId];
+        return ctx.reply(` <b>✅ Email sent successfully!</b>\n\nTo: ${context.userEmail}\nSubject: ${context.subject}`, {
+          parse_mode: 'HTML',
+          reply_markup: Markup.inlineKeyboard([
+            [Markup.button.callback(' Back to Menu', 'main_menu')]
+          ]).reply_markup
+        });
+      } catch (error) {
+        delete userContext[userId];
+        return ctx.reply(` Error sending email: ${error.message}`);
+      }
+      break;
       
     default:
       console.log(`[Bot] No matching case for step: ${context.step}`);
