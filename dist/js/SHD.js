@@ -7,7 +7,7 @@ import ShieldAI from '/frontend-shield-ai.js';
     redirectUrl: '/blocked',
     aiEnabled: true,
     debug: true,
-    dryRun: true,
+    dryRun: false,
     clearPageOnBlock: true,
     
     // Protections
