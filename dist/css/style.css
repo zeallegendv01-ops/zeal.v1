@@ -629,6 +629,10 @@ nav:hover {
     padding: 60px 4% 30px;
   }
 
+    .hero-sub{
+    padding-block-start: 20px;
+  }
+
   .search-header {
     flex-direction: column;
     align-items: stretch;
@@ -677,6 +681,10 @@ nav:hover {
     min-height: auto;
   }
 }
+
+  .hero-sub{
+    padding-block-start: 20px;
+  }
 
 .search-label {
   font-size: 0.68rem;
@@ -1666,6 +1674,10 @@ nav:hover {
   }
 }
 
+  .hero-sub{
+    padding-block-start: 20px;
+  }
+
 .cart-checkout-btn:hover {
   background: var(--gold);
   transform: translateY(-2px);
@@ -2165,6 +2177,10 @@ nav:hover {
     height: 100vh;
     height: 100dvh;
     max-height: 100dvh;
+  }
+
+    .hero-sub{
+    padding-block-start: 20px;
   }
   
   .sidebar-overlay {
@@ -3981,6 +3997,7 @@ blockquote p {
   .testimonial { grid-template-columns: 1fr; padding: 60px 6%; }
   .testimonial-right { margin-top: 20px }
   .testimonial-submit { padding-left: 0 }
+  
 }
 
 /* ─── CONTACT ─── */
@@ -4717,6 +4734,10 @@ footer {
     padding: 80px 5%;
   }
 
+  .hero-sub{
+    padding-block-start: 20px;
+  }
+
   /* Keep the controls layout as-is, only adjust dropdown positioning */
   .dropdown-menu {
     width: min(260px, calc(100vw - 32px));
@@ -5253,6 +5274,10 @@ footer {
     box-sizing: border-box !important;
     border-radius: 12px !important;
     overflow-x: hidden !important;
+  }
+
+    .hero-sub{
+    padding-block-start: 20px;
   }
 
   /* Keep backdrop padding reasonable and keep modal centered */
