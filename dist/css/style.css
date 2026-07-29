@@ -630,7 +630,7 @@ nav:hover {
   }
 
     .hero-sub{
-    padding-block-start: 20px;
+    padding-block-start: 30px;
   }
 
   .search-header {
@@ -683,7 +683,7 @@ nav:hover {
 }
 
   .hero-sub{
-    padding-block-start: 20px;
+    padding-block-start: 30px;
   }
 
 .search-label {
@@ -1675,7 +1675,7 @@ nav:hover {
 }
 
   .hero-sub{
-    padding-block-start: 20px;
+    padding-block-start: 30px;
   }
 
 .cart-checkout-btn:hover {
@@ -2180,7 +2180,7 @@ nav:hover {
   }
 
     .hero-sub{
-    padding-block-start: 20px;
+    padding-block-start: 30px;
   }
   
   .sidebar-overlay {
@@ -4735,7 +4735,7 @@ footer {
   }
 
   .hero-sub{
-    padding-block-start: 20px;
+    padding-block-start: 30px;
   }
 
   /* Keep the controls layout as-is, only adjust dropdown positioning */
@@ -5277,7 +5277,7 @@ footer {
   }
 
     .hero-sub{
-    padding-block-start: 20px;
+    padding-block-start: 30px;
   }
 
   /* Keep backdrop padding reasonable and keep modal centered */
