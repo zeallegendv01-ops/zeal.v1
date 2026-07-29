@@ -26,7 +26,7 @@ const settingsSchema = new mongoose.Schema(
       type: String,
       default: 'Where premium food, real estate, drinks and lifestyle offerings come together in one curated destination for modern buyers and sellers.',
       trim: true,
-      maxlength: 260,
+      maxlength: 500,
       description: 'Subheading text beneath the hero headline'
     },
     heroVideos: {
@@ -57,17 +57,17 @@ const settingsSchema = new mongoose.Schema(
     dealerContact: {
       phone: {
         type: String,
-        default: '+2348123456789',
+        default: '+2348065595437',
         description: 'Dealer phone number for real estate inquiries (land/apartments)'
       },
       whatsapp: {
         type: String,
-        default: '2348123456789', // WhatsApp number without + prefix
+        default: '2348065595437', // WhatsApp number without + prefix
         description: 'Dealer WhatsApp number'
       },
       email: {
         type: String,
-        default: 'dealer@365extra.com',
+        default: 'mainshop19@gmail.com',
         description: 'Dealer email address'
       },
       name: {
